@@ -35,6 +35,7 @@ else
 var app = builder.Build();
 
 app.MapControllers();
+app.MapControllerRoute(name: "default", pattern: "{controller=App}/{action=Index}/{id?}");
 
 using (var scope = app.Services.CreateScope())
 {
