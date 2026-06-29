@@ -1,0 +1,17 @@
+using FanFundingBot.Core.Enums;
+
+namespace FanFundingBot.Core.Entities;
+
+public class User
+{
+    public long Id { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? Username { get; set; }
+    public string? Phone { get; set; }
+    public UserRole Role { get; set; }
+    public DateTime CreatedAt { get; set; }
+
+    public ICollection<Order> Orders { get; set; } = new List<Order>();
+    public ICollection<Question> Questions { get; set; } = new List<Question>();
+}

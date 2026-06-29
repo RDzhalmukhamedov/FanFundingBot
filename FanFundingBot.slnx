@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="FanFundingBot.App/FanFundingBot.App.csproj" />
+  <Project Path="FanFundingBot.Bot/FanFundingBot.Bot.csproj" />
+  <Project Path="FanFundingBot.Core/FanFundingBot.Core.csproj" />
+  <Project Path="FanFundingBot.Data/FanFundingBot.Data.csproj" />
+  <Project Path="FanFundingBot.ExternalStorage/FanFundingBot.ExternalStorage.csproj" />
+  <Project Path="FanFundingBot.Tests/FanFundingBot.Tests.csproj" />
+</Solution>
