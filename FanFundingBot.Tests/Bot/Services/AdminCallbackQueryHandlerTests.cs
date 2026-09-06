@@ -58,15 +58,15 @@ public class AdminStatusCallbackHandlerTests
     {
         const int statusId = 5;
         var projectName = "Test Project";
-        var currentStatus = new ProjectStatusEntry { Id = 3, DisplayName = "Current" };
-        var newStatus = new ProjectStatusEntry { Id = statusId, DisplayName = "New Status" };
+        var currentStatus = new ProjectStatus { Id = 3, DisplayName = "Current" };
+        var newStatus = new ProjectStatus { Id = statusId, DisplayName = "New Status" };
 
         _adminServiceMock
             .Setup(s => s.GetProjectAsync(ProjectId))
             .ReturnsAsync(new Project { Id = ProjectId, Name = projectName, StatusId = currentStatus.Id });
         _adminServiceMock
             .Setup(s => s.GetAllStatusesAsync())
-            .ReturnsAsync(new List<ProjectStatusEntry> { currentStatus, newStatus });
+            .ReturnsAsync(new List<ProjectStatus> { currentStatus, newStatus });
 
         await _handler.HandleAdminStatusAsync(_botClientMock.Object, MakeCq($"admin_status:{ProjectId}:{statusId}"), 1,
             $"admin_status:{ProjectId}:{statusId}", CancellationToken.None);
@@ -110,7 +110,7 @@ public class AdminStatusCallbackHandlerTests
             .ReturnsAsync(new Project { Id = ProjectId, Name = projectName, StatusId = 1 });
         _adminServiceMock
             .Setup(s => s.GetAllStatusesAsync())
-            .ReturnsAsync(new List<ProjectStatusEntry>());
+            .ReturnsAsync(new List<ProjectStatus>());
 
         await _handler.HandleAdminStatusCancelAsync(_botClientMock.Object, MakeCq($"admin_status_cancel:{ProjectId}"), 1,
             $"admin_status_cancel:{ProjectId}", CancellationToken.None);
@@ -237,7 +237,7 @@ public class AdminQuestionCallbackHandlerTests
     public async Task AdminSelectQuestion_ShowsUsername_WhenPresent()
     {
         var qId = Guid.NewGuid();
-        var user = new FanFundingBot.Core.Entities.User { Id = 5, FirstName = "User1", Username = "testuser" };
+        var user = new FanFundingBot.Core.Entities.Customer { Id = 5, FirstName = "User1", Username = "testuser" };
         _adminServiceMock.Setup(s => s.GetUnansweredQuestionsAsync()).ReturnsAsync(new List<Question>
         {
             new() { Id = qId, UserId = 5, Text = "Q?", User = user }
@@ -258,7 +258,7 @@ public class AdminQuestionCallbackHandlerTests
     public async Task AdminSelectQuestion_HidesUsername_WhenNull()
     {
         var qId = Guid.NewGuid();
-        var user = new FanFundingBot.Core.Entities.User { Id = 5, FirstName = "User1", Username = null };
+        var user = new FanFundingBot.Core.Entities.Customer { Id = 5, FirstName = "User1", Username = null };
         _adminServiceMock.Setup(s => s.GetUnansweredQuestionsAsync()).ReturnsAsync(new List<Question>
         {
             new() { Id = qId, UserId = 5, Text = "Q?", User = user }
@@ -360,7 +360,7 @@ public class AdminProjectCallbackHandlerTests
     [Test]
     public async Task EditProject_ShowsEditForm()
     {
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatusEntry>());
+        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
         _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(new Project { Id = ProjectId, Name = "Test" });
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon>());
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
@@ -379,7 +379,7 @@ public class AdminProjectCallbackHandlerTests
     [Test]
     public async Task EditProject_WithAddons_IncludesSummary()
     {
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatusEntry>());
+        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
         _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(new Project { Id = ProjectId, Name = "P" });
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon> { new() { Id = AddonId, Name = "A1", Price = 100m } });
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
@@ -391,7 +391,7 @@ public class AdminProjectCallbackHandlerTests
     public async Task EditProject_ResetsPendingAction()
     {
         _session.PendingAction = "old";
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatusEntry>());
+        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
         _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(new Project { Id = ProjectId, Name = "P" });
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon>());
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
@@ -465,7 +465,7 @@ public class AdminProjectCallbackHandlerTests
         _addonRepoMock.Setup(r => r.GetByIdAsync(addonId)).ReturnsAsync(new Addon { Id = addonId, Name = "Test", ProjectId = ProjectId });
         _adminServiceMock.Setup(s => s.DeleteAddonAsync(addonId)).ReturnsAsync("✅ Дополнение удалено.");
         _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(new Project { Id = ProjectId, Name = "P", StatusId = 1 });
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatusEntry>());
+        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(It.IsAny<Guid>())).ReturnsAsync(new List<Addon>());
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
 
@@ -478,7 +478,7 @@ public class AdminProjectCallbackHandlerTests
     [Test]
     public async Task DeleteAddonCancel_ReturnsToEditForm()
     {
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatusEntry>());
+        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
         _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(new Project { Id = ProjectId, Name = "P", StatusId = 1 });
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon>());
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
@@ -507,7 +507,7 @@ public class AdminProjectCallbackHandlerTests
     {
         _session.TempStatusName = "Test Status";
         _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatusEntry>());
+        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
         _adminServiceMock.Setup(s => s.CreateProjectStatusAsync("Test Status", 1, true))
             .ReturnsAsync("✅ Статус добавлен.");
 
@@ -522,7 +522,7 @@ public class AdminProjectCallbackHandlerTests
     {
         _session.TempStatusName = "Test Status";
         _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatusEntry>());
+        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
         _adminServiceMock.Setup(s => s.CreateProjectStatusAsync("Test Status", 1, false))
             .ReturnsAsync("✅ Статус добавлен.");
 

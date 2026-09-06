@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace FanFundingBot.Data.Configurations;
 
-public class ProjectStatusEntryConfiguration : IEntityTypeConfiguration<ProjectStatusEntry>
+public class ProjectStatusEntryConfiguration : IEntityTypeConfiguration<ProjectStatus>
 {
-    public void Configure(EntityTypeBuilder<ProjectStatusEntry> builder)
+    public void Configure(EntityTypeBuilder<ProjectStatus> builder)
     {
         builder.HasKey(e => e.Id);
 
@@ -17,7 +17,7 @@ public class ProjectStatusEntryConfiguration : IEntityTypeConfiguration<ProjectS
         builder.Property(e => e.Order)
             .IsRequired();
 
-        builder.Property(e => e.CanEdit)
+        builder.Property(e => e.CanEditOrders)
             .IsRequired();
 
         builder.Property(e => e.Id)

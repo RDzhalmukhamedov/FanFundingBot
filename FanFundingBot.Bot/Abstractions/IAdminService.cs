@@ -20,5 +20,5 @@ public interface IAdminService
     Task<string> UpdateAddonPriceAsync(Guid addonId, decimal price);
     Task<string> CreateAddonAsync(Guid projectId, string name, string description, decimal price);
     Task<string> CreateProjectStatusAsync(string displayName, int order, bool canEdit);
-    Task<List<ProjectStatusEntry>> GetAllStatusesAsync();
+    Task<List<ProjectStatus>> GetAllStatusesAsync();
 }

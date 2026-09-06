@@ -5,10 +5,10 @@ namespace FanFundingBot.Core.Interfaces;
 
 public interface IUserRepository
 {
-    Task<User?> GetByIdAsync(long id);
-    Task<List<User>> GetByRoleAsync(UserRole role);
-    Task<List<User>> GetSubscribedToProjectAsync(Guid projectId);
-    Task AddAsync(User user);
-    Task UpdateAsync(User user);
+    Task<Customer?> GetByIdAsync(long id);
+    Task<List<Customer>> GetByRoleAsync(UserRole role);
+    Task<List<Customer>> GetSubscribedToProjectAsync(Guid projectId);
+    Task AddAsync(Customer user);
+    Task UpdateAsync(Customer user);
     Task<bool> ExistsAsync(long id);
 }

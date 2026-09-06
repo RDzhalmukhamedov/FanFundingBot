@@ -57,7 +57,7 @@ public class NotificationService : INotificationService
         }
     }
 
-    private async Task SendWithRateLimitAsync(List<Core.Entities.User> users, string text, ParseMode? parseMode = null)
+    private async Task SendWithRateLimitAsync(List<Core.Entities.Customer> users, string text, ParseMode? parseMode = null)
     {
         await _sendSemaphore.WaitAsync();
         try

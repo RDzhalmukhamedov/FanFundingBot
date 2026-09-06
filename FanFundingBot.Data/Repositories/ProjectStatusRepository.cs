@@ -13,19 +13,19 @@ public class ProjectStatusRepository : IProjectStatusRepository
         _context = context;
     }
 
-    public async Task<List<ProjectStatusEntry>> GetAllAsync()
+    public async Task<List<ProjectStatus>> GetAllAsync()
     {
         return await _context.ProjectStatusEntries
             .OrderBy(s => s.Order)
             .ToListAsync();
     }
 
-    public async Task<ProjectStatusEntry?> GetByIdAsync(int id)
+    public async Task<ProjectStatus?> GetByIdAsync(int id)
     {
         return await _context.ProjectStatusEntries.FindAsync(id);
     }
 
-    public async Task AddAsync(ProjectStatusEntry entry)
+    public async Task AddAsync(ProjectStatus entry)
     {
         await _context.ProjectStatusEntries.AddAsync(entry);
         await _context.SaveChangesAsync();

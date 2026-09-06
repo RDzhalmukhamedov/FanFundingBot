@@ -140,7 +140,7 @@ public class CommandHandler : ICommandHandler
         var userId = message.From!.Id;
         var projects = await _projectRepository.GetAllWithAddonsAsync();
 
-        var activeProject = projects.FirstOrDefault(p => p.Status?.CanEdit == true);
+        var activeProject = projects.FirstOrDefault(p => p.Status?.CanEditOrders == true);
         if (activeProject == null)
         {
             await botClient.SendMessage(
@@ -327,7 +327,7 @@ public class CommandHandler : ICommandHandler
             return;
         }
 
-        var user = new Core.Entities.User
+        var user = new Core.Entities.Customer
         {
             Id = userId,
             FirstName = message.From.FirstName,

@@ -22,7 +22,7 @@ public abstract class RepositoryTestBase
 
     private static void SeedStatuses(AppDbContext context)
     {
-        context.ProjectStatusEntries.AddRange(new List<ProjectStatusEntry>
+        context.ProjectStatusEntries.AddRange(new List<ProjectStatus>
         {
             new() { Id = 1, DisplayName = "Запланирован", Order = 1 },
             new() { Id = 2, DisplayName = "Перевод", Order = 2 },
@@ -47,7 +47,7 @@ public class UserRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IUserRepository repo = new UserRepository(context);
 
-        var user = new User { Id = 1, FirstName = "Test", Role = UserRole.Regular, CreatedAt = DateTime.UtcNow };
+        var user = new Customer { Id = 1, FirstName = "Test", Role = UserRole.Regular, CreatedAt = DateTime.UtcNow };
         await repo.AddAsync(user);
 
         var saved = await context.Users.FindAsync(1L);
@@ -71,7 +71,7 @@ public class UserRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IUserRepository repo = new UserRepository(context);
 
-        await repo.AddAsync(new User { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
+        await repo.AddAsync(new Customer { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
 
         var exists = await repo.ExistsAsync(1);
         Assert.That(exists, Is.True);
@@ -93,7 +93,7 @@ public class UserRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IUserRepository repo = new UserRepository(context);
 
-        var user = new User { Id = 1, FirstName = "Old", Role = UserRole.Regular, CreatedAt = DateTime.UtcNow };
+        var user = new Customer { Id = 1, FirstName = "Old", Role = UserRole.Regular, CreatedAt = DateTime.UtcNow };
         await repo.AddAsync(user);
 
         user.FirstName = "Updated";
@@ -113,8 +113,8 @@ public class UserRepositoryTests : RepositoryTestBase
         IProjectRepository projectRepo = new ProjectRepository(context);
         IOrderRepository orderRepo = new OrderRepository(context);
 
-        var user1 = new User { Id = 1, FirstName = "User1", CreatedAt = DateTime.UtcNow };
-        var user2 = new User { Id = 2, FirstName = "User2", CreatedAt = DateTime.UtcNow };
+        var user1 = new Customer { Id = 1, FirstName = "User1", CreatedAt = DateTime.UtcNow };
+        var user2 = new Customer { Id = 2, FirstName = "User2", CreatedAt = DateTime.UtcNow };
         await userRepo.AddAsync(user1);
         await userRepo.AddAsync(user2);
 
@@ -353,7 +353,7 @@ public class QuestionRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IQuestionRepository repo = new QuestionRepository(context);
 
-        context.Users.Add(new User { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
+        context.Users.Add(new Customer { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
         await context.SaveChangesAsync();
 
         var question = new Question
@@ -373,7 +373,7 @@ public class QuestionRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IQuestionRepository repo = new QuestionRepository(context);
 
-        context.Users.Add(new User { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
+        context.Users.Add(new Customer { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
         await context.SaveChangesAsync();
 
         await repo.AddAsync(new Question
@@ -397,7 +397,7 @@ public class QuestionRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IQuestionRepository repo = new QuestionRepository(context);
 
-        context.Users.Add(new User { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
+        context.Users.Add(new Customer { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
         await context.SaveChangesAsync();
 
         var question = new Question

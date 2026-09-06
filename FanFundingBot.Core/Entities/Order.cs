@@ -2,18 +2,40 @@ using FanFundingBot.Core.Enums;
 
 namespace FanFundingBot.Core.Entities;
 
-public class Order
+public abstract class Order
 {
-    public Guid Id { get; set; }
-    public long UserId { get; set; }
-    public Guid ProjectId { get; set; }
-    public string Phone { get; set; } = string.Empty;
-    public DeliveryMethod DeliveryMethod { get; set; }
-    public string? Address { get; set; }
-    public OrderStatus Status { get; set; }
-    public DateTime CreatedAt { get; set; }
+    protected Dictionary<Guid, OrderPosition> _orderPositions = [];
 
-    public User User { get; set; } = null!;
-    public Project Project { get; set; } = null!;
-    public ICollection<OrderAddon> OrderAddons { get; set; } = new List<OrderAddon>();
+    public Guid Id { get; }
+
+    public Customer Customer { get; }
+    public Project Project { get; }
+
+    public string Phone { get; protected set; } = string.Empty;
+    public DeliveryMethod DeliveryMethod { get; protected set; }
+    public string? Address { get; protected set; }
+    public OrderStatus Status { get; protected set; }
+
+    public IReadOnlyDictionary<Guid, OrderPosition> OrderAddons => _orderPositions.AsReadOnly();
+
+    public Order(Customer customer, Project project)
+    {
+        ArgumentNullException.ThrowIfNull(customer);
+        ArgumentNullException.ThrowIfNull(project);
+
+        Id = Guid.NewGuid();
+        Customer = customer;
+        Project = project;
+
+    }
+
+    public abstract FormedOrder Form();
+    public abstract DraftOrder Edit();
+    public abstract void AddAddon(Addon addon, int quantity = 1);
+    public abstract void DeleteAddon(Addon addon);
+    public abstract int IncrementAddonQuantity(Guid addonId);
+    public abstract int DecrementAddonQuantity(Guid addonId);
+    public abstract void SetPhoneNumber(string phoneNumber);
+    public abstract void SetDeliveryMethod(DeliveryMethod deliveryMethod);
+    public abstract void SetShippingAddress(string shippingAddress);
 }

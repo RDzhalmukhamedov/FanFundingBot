@@ -63,7 +63,7 @@ public class EntityTests
     [Test]
     public void User_ShouldSetProperties()
     {
-        var user = new User
+        var user = new Customer
         {
             Id = 12345,
             FirstName = "John",
@@ -153,14 +153,14 @@ public class EntityTests
     [Test]
     public void ProjectStatusEntry_ShouldHaveDefaultCanEdit()
     {
-        var entry = new ProjectStatusEntry();
-        Assert.That(entry.CanEdit, Is.False);
+        var entry = new ProjectStatus();
+        Assert.That(entry.CanEditOrders, Is.False);
     }
 
     [Test]
     public void ProjectStatusEntry_ShouldSetCanEdit()
     {
-        var entry = new ProjectStatusEntry
+        var entry = new ProjectStatus
         {
             Id = 1,
             DisplayName = "Test",
@@ -168,7 +168,7 @@ public class EntityTests
             CanEdit = true
         };
 
-        Assert.That(entry.CanEdit, Is.True);
+        Assert.That(entry.CanEditOrders, Is.True);
     }
 
     [Test]
@@ -216,7 +216,7 @@ public class EntityTests
     [Test]
     public void User_ShouldManageOrders()
     {
-        var user = new User { Id = 1 };
+        var user = new Customer { Id = 1 };
         var order = new Order { Id = Guid.NewGuid(), UserId = 1 };
 
         user.Orders.Add(order);

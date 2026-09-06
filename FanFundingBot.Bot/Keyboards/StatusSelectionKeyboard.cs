@@ -9,7 +9,7 @@ public static class StatusSelectionKeyboard
     private const int PageSize = 6;
 
     public static (InlineKeyboardMarkup Keyboard, int TotalPages) Create(
-        List<ProjectStatusEntry> allStatuses,
+        List<ProjectStatus> allStatuses,
         Guid projectId,
         int page)
     {
@@ -28,7 +28,7 @@ public static class StatusSelectionKeyboard
             buttons.Add(new List<InlineKeyboardButton>
             {
                 InlineKeyboardButton.WithCallbackData(
-                    $"{status.DisplayName} ({(status.CanEdit ? "✅ можно ред." : "❌ нельзя ред.")})",
+                    $"{status.DisplayName} ({(status.CanEditOrders ? "✅ можно ред." : "❌ нельзя ред.")})",
                     CallbackData.Build("admin_status", projectId, status.Id))
             });
         }

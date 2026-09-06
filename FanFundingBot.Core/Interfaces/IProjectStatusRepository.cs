@@ -4,7 +4,7 @@ namespace FanFundingBot.Core.Interfaces;
 
 public interface IProjectStatusRepository
 {
-    Task<List<ProjectStatusEntry>> GetAllAsync();
-    Task<ProjectStatusEntry?> GetByIdAsync(int id);
-    Task AddAsync(ProjectStatusEntry entry);
+    Task<List<ProjectStatus>> GetAllAsync();
+    Task<ProjectStatus?> GetByIdAsync(int id);
+    Task AddAsync(ProjectStatus entry);
 }

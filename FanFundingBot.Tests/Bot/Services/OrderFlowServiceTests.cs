@@ -91,7 +91,7 @@ public class OrderFlowServiceTests
         var addonIds = new HashSet<Guid> { Guid.NewGuid(), Guid.NewGuid() };
         var phone = "+71234567890";
 
-        var user = new User { Id = userId, Phone = "old_phone" };
+        var user = new Customer { Id = userId, Phone = "old_phone" };
         _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId)).ReturnsAsync(new Project { Id = projectId, Name = "Test" });
 
@@ -124,7 +124,7 @@ public class OrderFlowServiceTests
             Assert.That(order.OrderAddons.All(oa => oa.Addon != null), Is.True);
         });
 
-        _userRepoMock.Verify(r => r.UpdateAsync(It.Is<User>(u => u.Phone == phone)), Times.Once);
+        _userRepoMock.Verify(r => r.UpdateAsync(It.Is<Customer>(u => u.Phone == phone)), Times.Once);
         _externalStorageMock.Verify(s => s.SaveOrderAsync(It.IsAny<Order>()), Times.Once);
     }
 
@@ -135,7 +135,7 @@ public class OrderFlowServiceTests
         var projectId = Guid.NewGuid();
         var addonIds = new HashSet<Guid> { Guid.NewGuid() };
 
-        var user = new User { Id = userId, Phone = "+71234567890" };
+        var user = new Customer { Id = userId, Phone = "+71234567890" };
         _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId)).ReturnsAsync(new Project { Id = projectId });
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(projectId))
@@ -162,7 +162,7 @@ public class OrderFlowServiceTests
         var quantities = new Dictionary<Guid, int> { { addonId1, 3 }, { addonId2, 2 } };
         var phone = "+71234567890";
 
-        var user = new User { Id = userId, Phone = "old_phone" };
+        var user = new Customer { Id = userId, Phone = "old_phone" };
         _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId)).ReturnsAsync(new Project { Id = projectId });
 
@@ -198,7 +198,7 @@ public class OrderFlowServiceTests
         var addonId = Guid.NewGuid();
         var addonIds = new HashSet<Guid> { addonId };
 
-        var user = new User { Id = userId, Phone = "+71234567890" };
+        var user = new Customer { Id = userId, Phone = "+71234567890" };
         _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId)).ReturnsAsync(new Project { Id = projectId });
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(projectId))
@@ -224,7 +224,7 @@ public class OrderFlowServiceTests
         var projectId = Guid.NewGuid();
         var addonIds = new HashSet<Guid> { Guid.NewGuid() };
 
-        var user = new User { Id = userId, Phone = "+71234567890" };
+        var user = new Customer { Id = userId, Phone = "+71234567890" };
         _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId)).ReturnsAsync(new Project { Id = projectId });
 
@@ -254,7 +254,7 @@ public class OrderFlowServiceTests
         var projectId = Guid.NewGuid();
         var addonIds = new HashSet<Guid> { Guid.NewGuid() };
 
-        var user = new User { Id = userId, Phone = "+71234567890" };
+        var user = new Customer { Id = userId, Phone = "+71234567890" };
         _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId)).ReturnsAsync(new Project { Id = projectId });
 
@@ -288,7 +288,7 @@ public class OrderFlowServiceTests
         };
 
         _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(existingOrder);
-        _userRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<long>())).ReturnsAsync(new User { Id = 1 });
+        _userRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<long>())).ReturnsAsync(new Customer { Id = 1 });
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId)).ReturnsAsync(new Project { Id = projectId });
 
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(projectId))
@@ -341,7 +341,7 @@ public class OrderFlowServiceTests
         };
 
         _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(existingOrder);
-        _userRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<long>())).ReturnsAsync(new User { Id = 1 });
+        _userRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<long>())).ReturnsAsync(new Customer { Id = 1 });
         _projectRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(new Project { Id = projectId });
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(It.IsAny<Guid>()))
             .ReturnsAsync(new List<Addon> { new() { Id = addonId, Name = "Addon", Price = 10m } });
@@ -497,7 +497,7 @@ public class OrderFlowServiceTests
         var projectId = Guid.NewGuid();
         var addonIds = new HashSet<Guid> { Guid.NewGuid() };
 
-        var user = new User { Id = userId, Phone = "+71234567890" };
+        var user = new Customer { Id = userId, Phone = "+71234567890" };
         _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId)).ReturnsAsync(new Project { Id = projectId });
 
@@ -537,7 +537,7 @@ public class OrderFlowServiceTests
         };
 
         _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(order);
-        _userRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<long>())).ReturnsAsync(new User { Id = 1 });
+        _userRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<long>())).ReturnsAsync(new Customer { Id = 1 });
         _projectRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(new Project { Id = Guid.NewGuid() });
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(It.IsAny<Guid>()))
             .ReturnsAsync(new List<Addon>());

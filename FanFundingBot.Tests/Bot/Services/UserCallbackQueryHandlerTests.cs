@@ -404,7 +404,7 @@ public class UserCallbackQueryHandlerTests
         var order = new Order { Id = orderId, ProjectId = ProjectId, OrderAddons = new List<OrderAddon>() };
         _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(order);
 
-        var project = new Project { Id = ProjectId, Status = new ProjectStatusEntry { CanEdit = false } };
+        var project = new Project { Id = ProjectId, Status = new ProjectStatus { CanEdit = false } };
         _projectRepoMock.Setup(r => r.GetByIdAsync(ProjectId)).ReturnsAsync(project);
 
         await _handler.HandleOrderEditMyAsync(_botClientMock.Object, MakeCq(), 1, "order_edit_my:" + orderId, CancellationToken.None);
@@ -431,7 +431,7 @@ public class UserCallbackQueryHandlerTests
         };
         _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(order);
 
-        var project = new Project { Id = ProjectId, Addons = new List<Addon>(), Status = new ProjectStatusEntry { CanEdit = true } };
+        var project = new Project { Id = ProjectId, Addons = new List<Addon>(), Status = new ProjectStatus { CanEdit = true } };
         _projectRepoMock.Setup(r => r.GetByIdAsync(ProjectId)).ReturnsAsync(project);
 
         await _handler.HandleOrderEditMyAsync(_botClientMock.Object, MakeCq(), 1, "order_edit_my:" + orderId, CancellationToken.None);
@@ -454,7 +454,7 @@ public class UserCallbackQueryHandlerTests
     {
         var orderId = Guid.NewGuid();
         _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(new Order { ProjectId = ProjectId });
-        _projectRepoMock.Setup(r => r.GetByIdAsync(ProjectId)).ReturnsAsync(new Project { Status = new ProjectStatusEntry { CanEdit = true } });
+        _projectRepoMock.Setup(r => r.GetByIdAsync(ProjectId)).ReturnsAsync(new Project { Status = new ProjectStatus { CanEdit = true } });
         await _handler.HandleOrderDeleteMyAsync(_botClientMock.Object, MakeCq(), 1, "order_delete_my:" + orderId, CancellationToken.None);
         // Verify no exception was thrown - keyboard with confirmation was shown
     }
@@ -464,7 +464,7 @@ public class UserCallbackQueryHandlerTests
     {
         var orderId = Guid.NewGuid();
         _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(new Order { ProjectId = ProjectId });
-        _projectRepoMock.Setup(r => r.GetByIdAsync(ProjectId)).ReturnsAsync(new Project { Status = new ProjectStatusEntry { CanEdit = true } });
+        _projectRepoMock.Setup(r => r.GetByIdAsync(ProjectId)).ReturnsAsync(new Project { Status = new ProjectStatus { CanEdit = true } });
         _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(false);
 
         await _handler.HandleOrderDeleteMyConfirmAsync(_botClientMock.Object, MakeCq(), 1, "order_delete_my_confirm:" + orderId, CancellationToken.None);

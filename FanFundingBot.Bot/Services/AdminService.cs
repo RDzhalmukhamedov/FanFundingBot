@@ -232,7 +232,7 @@ public class AdminService : IAdminService
 
     public async Task<string> CreateProjectStatusAsync(string displayName, int order, bool canEdit)
     {
-        var entry = new ProjectStatusEntry
+        var entry = new ProjectStatus
         {
             DisplayName = displayName,
             Order = order,
@@ -243,7 +243,7 @@ public class AdminService : IAdminService
         return $"✅ Статус «{displayName}» добавлен.";
     }
 
-    public async Task<List<ProjectStatusEntry>> GetAllStatusesAsync()
+    public async Task<List<ProjectStatus>> GetAllStatusesAsync()
     {
         return await _statusRepository.GetAllAsync();
     }
