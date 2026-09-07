@@ -1,4 +1,4 @@
-using FanFundingBot.Core.Entities;
+using FanFundingBot.Domain.Entities;
 using Telegram.Bot;
 
 namespace FanFundingBot.Bot.Abstractions;

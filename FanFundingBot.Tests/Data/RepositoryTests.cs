@@ -1,9 +1,8 @@
-using FanFundingBot.Core.Constants;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Interfaces;
-using FanFundingBot.Data;
-using FanFundingBot.Data.Repositories;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
+using FanFundingBot.Domain.Interfaces;
+using FanFundingBot.Infrastructure.Persistence;
+using FanFundingBot.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace FanFundingBot.Tests.Data;
@@ -22,19 +21,29 @@ public abstract class RepositoryTestBase
 
     private static void SeedStatuses(AppDbContext context)
     {
-        context.ProjectStatusEntries.AddRange(new List<ProjectStatus>
-        {
-            new() { Id = 1, DisplayName = "Запланирован", Order = 1 },
-            new() { Id = 2, DisplayName = "Перевод", Order = 2 },
-            new() { Id = 3, DisplayName = "Вычитка", Order = 3 },
-            new() { Id = 4, DisplayName = "Подготовка макетов", Order = 4 },
-            new() { Id = 5, DisplayName = "Печать", Order = 5 },
-            new() { Id = 6, DisplayName = "Сортировка", Order = 6 },
-            new() { Id = 7, DisplayName = "Отправка", Order = 7 },
-            new() { Id = 8, DisplayName = "Завершён", Order = 8 },
-            new() { Id = 9, DisplayName = "Приостановлен", Order = 9 }
-        });
+        context.ProjectStatusEntries.AddRange(
+            new ProjectStatus("Запланирован", 1, true),
+            new ProjectStatus("Перевод", 2, true),
+            new ProjectStatus("Вычитка", 3, true),
+            new ProjectStatus("Подготовка макетов", 4, true),
+            new ProjectStatus("Печать", 5, true),
+            new ProjectStatus("Сортировка", 6, true),
+            new ProjectStatus("Отправка", 7, true),
+            new ProjectStatus("Завершён", 8, false),
+            new ProjectStatus("Приостановлен", 9, false));
         context.SaveChanges();
+    }
+
+    protected static ProjectStatus GetStatus(AppDbContext context, int order)
+        => context.ProjectStatusEntries.First(s => s.Order == order);
+
+    protected static Project NewProject(AppDbContext context, string name = "P1", int statusOrder = 1)
+    {
+        var project = new Project();
+        project.SetName(name);
+        project.SetDescription("Description");
+        project.SetStatus(GetStatus(context, statusOrder));
+        return project;
     }
 }
 
@@ -47,7 +56,7 @@ public class UserRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IUserRepository repo = new UserRepository(context);
 
-        var user = new Customer { Id = 1, FirstName = "Test", Role = UserRole.Regular, CreatedAt = DateTime.UtcNow };
+        var user = DomainTestFactory.NewCustomer(1);
         await repo.AddAsync(user);
 
         var saved = await context.Users.FindAsync(1L);
@@ -71,7 +80,7 @@ public class UserRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IUserRepository repo = new UserRepository(context);
 
-        await repo.AddAsync(new Customer { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
+        await repo.AddAsync(DomainTestFactory.NewCustomer(1));
 
         var exists = await repo.ExistsAsync(1);
         Assert.That(exists, Is.True);
@@ -93,16 +102,19 @@ public class UserRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IUserRepository repo = new UserRepository(context);
 
-        var user = new Customer { Id = 1, FirstName = "Old", Role = UserRole.Regular, CreatedAt = DateTime.UtcNow };
+        var user = DomainTestFactory.NewCustomer(1);
         await repo.AddAsync(user);
 
-        user.FirstName = "Updated";
-        user.Role = UserRole.Admin;
+        user.SetPhone("+79990001122");
+        user.PromoteToAdmin();
         await repo.UpdateAsync(user);
 
         var updated = await context.Users.FindAsync(1L);
-        Assert.That(updated!.FirstName, Is.EqualTo("Updated"));
-        Assert.That(updated.Role, Is.EqualTo(UserRole.Admin));
+        Assert.Multiple(() =>
+        {
+            Assert.That(updated!.Phone, Is.EqualTo("+79990001122"));
+            Assert.That(updated.Role, Is.EqualTo(UserRole.Admin));
+        });
     }
 
     [Test]
@@ -113,26 +125,16 @@ public class UserRepositoryTests : RepositoryTestBase
         IProjectRepository projectRepo = new ProjectRepository(context);
         IOrderRepository orderRepo = new OrderRepository(context);
 
-        var user1 = new Customer { Id = 1, FirstName = "User1", CreatedAt = DateTime.UtcNow };
-        var user2 = new Customer { Id = 2, FirstName = "User2", CreatedAt = DateTime.UtcNow };
+        var user1 = DomainTestFactory.NewCustomer(1);
+        var user2 = DomainTestFactory.NewCustomer(2);
         await userRepo.AddAsync(user1);
         await userRepo.AddAsync(user2);
 
-        var project = new Project { Id = Guid.NewGuid(), Name = "P1", StatusId = 2 };
+        var project = NewProject(context);
         await projectRepo.AddAsync(project);
 
-        var order1 = new Order
-        {
-            Id = Guid.NewGuid(), UserId = 1, ProjectId = project.Id,
-            Phone = "+71234567890", DeliveryMethod = DeliveryMethod.Pickup, Status = OrderStatus.New
-        };
-        var order2 = new Order
-        {
-            Id = Guid.NewGuid(), UserId = 2, ProjectId = project.Id,
-            Phone = "+71234567891", DeliveryMethod = DeliveryMethod.Delivery, Status = OrderStatus.New
-        };
-        await orderRepo.AddAsync(order1);
-        await orderRepo.AddAsync(order2);
+        await orderRepo.AddAsync(DomainTestFactory.NewFormed(user1, project));
+        await orderRepo.AddAsync(DomainTestFactory.NewFormed(user2, project));
 
         var subscribed = await userRepo.GetSubscribedToProjectAsync(project.Id);
         Assert.That(subscribed, Has.Count.EqualTo(2));
@@ -148,11 +150,7 @@ public class ProjectRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IProjectRepository repo = new ProjectRepository(context);
 
-        var project = new Project
-        {
-            Id = Guid.NewGuid(), Name = "Test Project",
-            Description = "Description", StatusId = KnownProjectStatusIds.Planned
-        };
+        var project = NewProject(context, "Test Project");
         await repo.AddAsync(project);
 
         var saved = await repo.GetByIdAsync(project.Id);
@@ -166,9 +164,9 @@ public class ProjectRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IProjectRepository repo = new ProjectRepository(context);
 
-        var project = new Project { Id = Guid.NewGuid(), Name = "P1", StatusId = KnownProjectStatusIds.Planned };
-        project.Addons.Add(new Addon { Id = Guid.NewGuid(), Name = "A1", Price = 100 });
-        project.Addons.Add(new Addon { Id = Guid.NewGuid(), Name = "A2", Price = 200 });
+        var project = NewProject(context);
+        project.AddAddon(DomainTestFactory.NewAddon(name: "A1", price: 100));
+        project.AddAddon(DomainTestFactory.NewAddon(name: "A2", price: 200));
         await repo.AddAsync(project);
 
         var projects = await repo.GetAllWithAddonsAsync();
@@ -182,7 +180,7 @@ public class ProjectRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IProjectRepository repo = new ProjectRepository(context);
 
-        var project = new Project { Id = Guid.NewGuid(), Name = "ToDelete", StatusId = KnownProjectStatusIds.Planned };
+        var project = NewProject(context, "ToDelete");
         await repo.AddAsync(project);
 
         await repo.DeleteAsync(project.Id);
@@ -197,42 +195,48 @@ public class ProjectRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IProjectRepository repo = new ProjectRepository(context);
 
-        var project = new Project { Id = Guid.NewGuid(), Name = "Old", StatusId = KnownProjectStatusIds.Planned };
+        var project = NewProject(context, "Old");
         await repo.AddAsync(project);
 
-        project.Name = "Updated";
-        project.StatusId = KnownProjectStatusIds.Translation;
+        project.StartEdit();
+        project.SetName("Updated");
+        project.SetStatus(GetStatus(context, 2));
+        project.FinishEdit();
         await repo.UpdateAsync(project);
 
         var updated = await repo.GetByIdAsync(project.Id);
-        Assert.That(updated!.Name, Is.EqualTo("Updated"));
-        Assert.That(updated.StatusId, Is.EqualTo(KnownProjectStatusIds.Translation));
+        Assert.Multiple(() =>
+        {
+            Assert.That(updated!.Name, Is.EqualTo("Updated"));
+            Assert.That(updated.Status.Order, Is.EqualTo(2));
+        });
     }
 }
 
 [TestFixture]
 public class AddonRepositoryTests : RepositoryTestBase
 {
+    private static async Task<Project> CreateProjectWithAddonsAsync(
+        AppDbContext context, IProjectRepository projectRepo, int addonCount)
+    {
+        var project = NewProject(context);
+        for (int i = 0; i < addonCount; i++)
+            project.AddAddon(DomainTestFactory.NewAddon(name: $"Addon {i}", price: i * 10));
+        await projectRepo.AddAsync(project);
+        return project;
+    }
+
     [Test]
     public async Task GetByProjectIdPagedAsync_ShouldReturnPagedResults()
     {
         using var context = CreateContext();
+        IProjectRepository projectRepo = new ProjectRepository(context);
         IAddonRepository repo = new AddonRepository(context);
 
-        var projectId = Guid.NewGuid();
-        for (int i = 0; i < 10; i++)
-        {
-            await repo.AddAsync(new Addon
-            {
-                Id = Guid.NewGuid(),
-                ProjectId = projectId,
-                Name = $"Addon {i}",
-                Price = i * 10
-            });
-        }
+        var project = await CreateProjectWithAddonsAsync(context, projectRepo, 10);
 
-        var page1 = await repo.GetByProjectIdPagedAsync(projectId, 1, 5);
-        var page2 = await repo.GetByProjectIdPagedAsync(projectId, 2, 5);
+        var page1 = await repo.GetByProjectIdPagedAsync(project.Id, 1, 5);
+        var page2 = await repo.GetByProjectIdPagedAsync(project.Id, 2, 5);
 
         Assert.Multiple(() =>
         {
@@ -246,19 +250,12 @@ public class AddonRepositoryTests : RepositoryTestBase
     public async Task CountByProjectIdAsync_ShouldReturnCorrectCount()
     {
         using var context = CreateContext();
+        IProjectRepository projectRepo = new ProjectRepository(context);
         IAddonRepository repo = new AddonRepository(context);
 
-        var projectId = Guid.NewGuid();
-        for (int i = 0; i < 7; i++)
-        {
-            await repo.AddAsync(new Addon
-            {
-                Id = Guid.NewGuid(), ProjectId = projectId,
-                Name = $"A{i}", Price = 10
-            });
-        }
+        var project = await CreateProjectWithAddonsAsync(context, projectRepo, 7);
 
-        var count = await repo.CountByProjectIdAsync(projectId);
+        var count = await repo.CountByProjectIdAsync(project.Id);
         Assert.That(count, Is.EqualTo(7));
     }
 
@@ -266,14 +263,15 @@ public class AddonRepositoryTests : RepositoryTestBase
     public async Task DeleteAsync_ShouldRemoveAddon()
     {
         using var context = CreateContext();
+        IProjectRepository projectRepo = new ProjectRepository(context);
         IAddonRepository repo = new AddonRepository(context);
 
-        var addon = new Addon { Id = Guid.NewGuid(), ProjectId = Guid.NewGuid(), Name = "ToDelete", Price = 100 };
-        await repo.AddAsync(addon);
+        var project = await CreateProjectWithAddonsAsync(context, projectRepo, 1);
+        var addonId = project.Addons[0].Id;
 
-        await repo.DeleteAsync(addon.Id);
+        await repo.DeleteAsync(addonId);
 
-        var result = await repo.GetByIdAsync(addon.Id);
+        var result = await repo.GetByIdAsync(addonId);
         Assert.That(result, Is.Null);
     }
 }
@@ -285,13 +283,16 @@ public class OrderRepositoryTests : RepositoryTestBase
     public async Task AddAsync_ShouldCreateOrder()
     {
         using var context = CreateContext();
+        IUserRepository userRepo = new UserRepository(context);
+        IProjectRepository projectRepo = new ProjectRepository(context);
         IOrderRepository repo = new OrderRepository(context);
 
-        var order = new Order
-        {
-            Id = Guid.NewGuid(), UserId = 1, ProjectId = Guid.NewGuid(),
-            Phone = "+71234567890", DeliveryMethod = DeliveryMethod.Pickup, Status = OrderStatus.New
-        };
+        var user = DomainTestFactory.NewCustomer(1);
+        await userRepo.AddAsync(user);
+        var project = NewProject(context);
+        await projectRepo.AddAsync(project);
+
+        var order = DomainTestFactory.NewFormed(user, project);
         await repo.AddAsync(order);
 
         var saved = await repo.GetByIdAsync(order.Id);
@@ -302,17 +303,17 @@ public class OrderRepositoryTests : RepositoryTestBase
     public async Task GetByUserAsync_ShouldReturnUserOrders()
     {
         using var context = CreateContext();
+        IUserRepository userRepo = new UserRepository(context);
+        IProjectRepository projectRepo = new ProjectRepository(context);
         IOrderRepository repo = new OrderRepository(context);
 
-        var projectId = Guid.NewGuid();
+        var user = DomainTestFactory.NewCustomer(1);
+        await userRepo.AddAsync(user);
+        var project = NewProject(context);
+        await projectRepo.AddAsync(project);
+
         for (int i = 0; i < 3; i++)
-        {
-            await repo.AddAsync(new Order
-            {
-                Id = Guid.NewGuid(), UserId = 1, ProjectId = projectId,
-                Phone = "+71234567890", DeliveryMethod = DeliveryMethod.Pickup, Status = OrderStatus.New
-            });
-        }
+            await repo.AddAsync(DomainTestFactory.NewFormed(user, project));
 
         var orders = await repo.GetByUserAsync(1);
         Assert.That(orders, Has.Count.EqualTo(3));
@@ -322,44 +323,79 @@ public class OrderRepositoryTests : RepositoryTestBase
     public async Task GetByProjectAndUserAsync_ShouldFilterCorrectly()
     {
         using var context = CreateContext();
+        IUserRepository userRepo = new UserRepository(context);
+        IProjectRepository projectRepo = new ProjectRepository(context);
         IOrderRepository repo = new OrderRepository(context);
 
-        var projectId = Guid.NewGuid();
-        var otherProjectId = Guid.NewGuid();
+        var user = DomainTestFactory.NewCustomer(1);
+        await userRepo.AddAsync(user);
+        var project = NewProject(context);
+        var otherProject = NewProject(context, "Other");
+        await projectRepo.AddAsync(project);
+        await projectRepo.AddAsync(otherProject);
 
-        await repo.AddAsync(new Order
-        {
-            Id = Guid.NewGuid(), UserId = 1, ProjectId = projectId,
-            Phone = "+71234567890", DeliveryMethod = DeliveryMethod.Pickup, Status = OrderStatus.New
-        });
-        await repo.AddAsync(new Order
-        {
-            Id = Guid.NewGuid(), UserId = 1, ProjectId = otherProjectId,
-            Phone = "+71234567890", DeliveryMethod = DeliveryMethod.Pickup, Status = OrderStatus.New
-        });
+        await repo.AddAsync(DomainTestFactory.NewFormed(user, project));
+        await repo.AddAsync(DomainTestFactory.NewFormed(user, otherProject));
 
-        var filtered = await repo.GetByProjectAndUserAsync(projectId, 1);
+        var filtered = await repo.GetByProjectAndUserAsync(project.Id, 1);
         Assert.That(filtered, Has.Count.EqualTo(1));
-        Assert.That(filtered[0].ProjectId, Is.EqualTo(projectId));
+        Assert.That(filtered[0].Project.Id, Is.EqualTo(project.Id));
+    }
+
+    [Test]
+    public async Task GetByIdWithAddonsAsync_ShouldIncludePositions()
+    {
+        using var context = CreateContext();
+        IUserRepository userRepo = new UserRepository(context);
+        IProjectRepository projectRepo = new ProjectRepository(context);
+        IOrderRepository repo = new OrderRepository(context);
+
+        var user = DomainTestFactory.NewCustomer(1);
+        await userRepo.AddAsync(user);
+        var project = NewProject(context);
+        var addon = DomainTestFactory.NewAddon(Guid.NewGuid(), "A1", 50);
+        project.AddAddon(addon);
+        await projectRepo.AddAsync(project);
+
+        var draft = new DraftOrder(user, project);
+        draft.AddAddon(addon, 2);
+        draft.SetPhoneNumber("+71234567890");
+        draft.SetDeliveryMethod(DeliveryMethod.Pickup);
+        var order = draft.Form();
+        await repo.AddAsync(order);
+
+        var loaded = await repo.GetByIdWithAddonsAsync(order.Id);
+        Assert.That(loaded, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(loaded!.OrderAddons, Has.Count.EqualTo(1));
+            Assert.That(loaded.OrderAddons[0].Quantity, Is.EqualTo(2));
+            Assert.That(loaded.OrderAddons[0].Addon.Name, Is.EqualTo("A1"));
+            Assert.That(loaded.Customer.Id, Is.EqualTo(1));
+        });
     }
 }
 
 [TestFixture]
 public class QuestionRepositoryTests : RepositoryTestBase
 {
+    private static async Task<Customer> AddCustomerAsync(AppDbContext context)
+    {
+        var customer = DomainTestFactory.NewCustomer(1);
+        context.Users.Add(customer);
+        await context.SaveChangesAsync();
+        return customer;
+    }
+
     [Test]
     public async Task AddAsync_ShouldCreateQuestion()
     {
         using var context = CreateContext();
         IQuestionRepository repo = new QuestionRepository(context);
 
-        context.Users.Add(new Customer { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
-        await context.SaveChangesAsync();
+        var customer = await AddCustomerAsync(context);
 
-        var question = new Question
-        {
-            Id = Guid.NewGuid(), UserId = 1, Text = "Test question?", CreatedAt = DateTime.UtcNow
-        };
+        var question = new Question(customer, "Test question?");
         await repo.AddAsync(question);
 
         var saved = await repo.GetByIdAsync(question.Id);
@@ -373,18 +409,16 @@ public class QuestionRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IQuestionRepository repo = new QuestionRepository(context);
 
-        context.Users.Add(new Customer { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
+        var customer = await AddCustomerAsync(context);
+        var admin = DomainTestFactory.NewAdmin(2);
+        context.Users.Add(admin);
         await context.SaveChangesAsync();
 
-        await repo.AddAsync(new Question
-        {
-            Id = Guid.NewGuid(), UserId = 1, Text = "Q1", CreatedAt = DateTime.UtcNow
-        });
-        await repo.AddAsync(new Question
-        {
-            Id = Guid.NewGuid(), UserId = 1, Text = "Q2", CreatedAt = DateTime.UtcNow,
-            Answer = "Answered", AnsweredAt = DateTime.UtcNow
-        });
+        await repo.AddAsync(new Question(customer, "Q1"));
+
+        var answered = new Question(customer, "Q2");
+        answered.AnswerQuestion(admin, "Answered");
+        await repo.AddAsync(answered);
 
         var unanswered = await repo.GetUnansweredAsync();
         Assert.That(unanswered, Has.Count.EqualTo(1));
@@ -397,21 +431,22 @@ public class QuestionRepositoryTests : RepositoryTestBase
         using var context = CreateContext();
         IQuestionRepository repo = new QuestionRepository(context);
 
-        context.Users.Add(new Customer { Id = 1, FirstName = "Test", CreatedAt = DateTime.UtcNow });
+        var customer = await AddCustomerAsync(context);
+        var admin = DomainTestFactory.NewAdmin(2);
+        context.Users.Add(admin);
         await context.SaveChangesAsync();
 
-        var question = new Question
-        {
-            Id = Guid.NewGuid(), UserId = 1, Text = "Question?", CreatedAt = DateTime.UtcNow
-        };
+        var question = new Question(customer, "Question?");
         await repo.AddAsync(question);
 
-        question.Answer = "Answer!";
-        question.AnsweredAt = DateTime.UtcNow;
+        question.AnswerQuestion(admin, "Answer!");
         await repo.UpdateAsync(question);
 
         var updated = await repo.GetByIdAsync(question.Id);
-        Assert.That(updated!.Answer, Is.EqualTo("Answer!"));
-        Assert.That(updated.AnsweredAt, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(updated!.Answer, Is.EqualTo("Answer!"));
+            Assert.That(updated.AnsweredAt, Is.Not.Null);
+        });
     }
 }

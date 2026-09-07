@@ -1,7 +1,7 @@
 using FanFundingBot.App.Services;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Services;
-using FanFundingBot.Core.Enums;
+using FanFundingBot.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;

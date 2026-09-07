@@ -2,7 +2,7 @@ using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -89,7 +89,7 @@ public class AdminCommandHandler : IAdminCommandHandler
         var keyboard = new List<InlineKeyboardButton[]>();
         foreach (var q in questions)
         {
-            var username = q.User.Username != null ? $"@{q.User.Username}" : $"ID {q.UserId}";
+            var username = q.User.Username != null ? $"@{q.User.Username}" : $"ID {q.User.Id}";
             keyboard.Add(new[]
             {
                 InlineKeyboardButton.WithCallbackData(

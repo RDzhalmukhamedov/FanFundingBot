@@ -1,5 +1,5 @@
 using FanFundingBot.Bot.Services;
-using FanFundingBot.Core.Enums;
+using FanFundingBot.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using Moq;
 

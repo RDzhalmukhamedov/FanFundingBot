@@ -34,7 +34,7 @@ public class AdminStatusCallbackHandler : IAdminStatusCallbackHandler
         }
 
         var statuses = await _adminService.GetAllStatusesAsync();
-        var currentStatus = statuses.FirstOrDefault(s => s.Id == project.StatusId);
+        var currentStatus = statuses.FirstOrDefault(s => s.Id == project.Status.Id);
         var newStatus = statuses.FirstOrDefault(s => s.Id == statusId);
 
         var keyboard = ConfirmationKeyboard.CreateStatusConfirmation(projectId, statusId);

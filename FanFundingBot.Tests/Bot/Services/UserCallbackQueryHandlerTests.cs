@@ -3,10 +3,11 @@ using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Exceptions;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
+using FanFundingBot.Domain.Exceptions;
+using FanFundingBot.Domain.Interfaces;
+using FanFundingBot.Tests;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -50,6 +51,12 @@ public class UserCallbackQueryHandlerTests
 
         _projectRepoMock = new Mock<IProjectRepository>();
         _processingQueueMock = new Mock<IOrderProcessingQueue>();
+        _orderFlowServiceMock
+            .Setup(s => s.GetAddonsPagedAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<Addon>());
+        _orderFlowServiceMock
+            .Setup(s => s.GetAddonCountAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(0);
         var menuHelper = new MainMenuHelper(_adminServiceMock.Object);
         var projectAccess = new ProjectAccessHelper(_projectRepoMock.Object);
         _handler = new UserCallbackQueryHandler(
@@ -67,6 +74,7 @@ public class UserCallbackQueryHandlerTests
         s.SelectedProjectId = ProjectId;
         s.SelectedAddonIds = new HashSet<Guid>();
         s.AddonPage = 1;
+        s.EditMessageId = 1;
         return s;
     }
 
@@ -96,7 +104,7 @@ public class UserCallbackQueryHandlerTests
     {
         var session = GetOrCreateSession();
         _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(new Project { Id = ProjectId, Addons = new List<Addon>() });
+            .ReturnsAsync(DomainTestFactory.NewProject());
 
         await _handler.HandleAddonToggleAsync(_botClientMock.Object, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
@@ -109,7 +117,7 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.SelectedAddonIds.Add(AddonId1);
         _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(new Project { Id = ProjectId, Addons = new List<Addon>() });
+            .ReturnsAsync(DomainTestFactory.NewProject());
 
         await _handler.HandleAddonToggleAsync(_botClientMock.Object, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
@@ -233,7 +241,7 @@ public class UserCallbackQueryHandlerTests
         session.Phone = "+7";
         session.DeliveryMethod = DeliveryMethod.Pickup;
         _orderFlowServiceMock.Setup(s => s.CreateOrderAsync(1, ProjectId, session.SelectedAddonIds, It.IsAny<Dictionary<Guid, int>>(), "+7", DeliveryMethod.Pickup, null))
-            .ReturnsAsync(new Order { Id = Guid.NewGuid() });
+            .ReturnsAsync(DomainTestFactory.NewFormed());
         await _handler.HandleOrderConfirmAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
         Assert.That(_stateService.Get(1), Is.Null);
     }
@@ -294,6 +302,13 @@ public class UserCallbackQueryHandlerTests
 
     // --- HandleAddonQtyIncAsync / HandleAddonQtyDecAsync ---
 
+    private static Project ProjectWithAddon()
+    {
+        var project = DomainTestFactory.NewProject();
+        project.AddAddon(DomainTestFactory.NewAddon(AddonId1, "A1", 100));
+        return project;
+    }
+
     [Test]
     public async Task AddonQtyInc_IncreasesQuantity()
     {
@@ -301,7 +316,7 @@ public class UserCallbackQueryHandlerTests
         session.AddonQuantities[AddonId1] = 2;
         session.SelectedAddonIds.Add(AddonId1);
         _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(new Project { Id = ProjectId, Addons = new List<Addon> { new() { Id = AddonId1, Name = "A1", Price = 100 } } });
+            .ReturnsAsync(ProjectWithAddon());
 
         await _handler.HandleAddonQtyIncAsync(_botClientMock.Object, MakeCq(), 1, "addon_qty_inc:" + AddonId1, CancellationToken.None);
 
@@ -315,7 +330,7 @@ public class UserCallbackQueryHandlerTests
         session.AddonQuantities[AddonId1] = 3;
         session.SelectedAddonIds.Add(AddonId1);
         _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(new Project { Id = ProjectId, Addons = new List<Addon> { new() { Id = AddonId1, Name = "A1", Price = 100 } } });
+            .ReturnsAsync(ProjectWithAddon());
 
         await _handler.HandleAddonQtyDecAsync(_botClientMock.Object, MakeCq(), 1, "addon_qty_dec:" + AddonId1, CancellationToken.None);
 
@@ -329,7 +344,7 @@ public class UserCallbackQueryHandlerTests
         session.AddonQuantities[AddonId1] = 1;
         session.SelectedAddonIds.Add(AddonId1);
         _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(new Project { Id = ProjectId, Addons = new List<Addon> { new() { Id = AddonId1, Name = "A1", Price = 100 } } });
+            .ReturnsAsync(ProjectWithAddon());
 
         await _handler.HandleAddonQtyDecAsync(_botClientMock.Object, MakeCq(), 1, "addon_qty_dec:" + AddonId1, CancellationToken.None);
 
@@ -357,7 +372,7 @@ public class UserCallbackQueryHandlerTests
     {
         var session = GetOrCreateSession();
         _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(new Project { Id = ProjectId, Addons = new List<Addon>() });
+            .ReturnsAsync(DomainTestFactory.NewProject());
 
         await _handler.HandleAddonToggleAsync(_botClientMock.Object, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
@@ -375,7 +390,7 @@ public class UserCallbackQueryHandlerTests
         session.SelectedAddonIds.Add(AddonId1);
         session.AddonQuantities[AddonId1] = 5;
         _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(new Project { Id = ProjectId, Addons = new List<Addon>() });
+            .ReturnsAsync(DomainTestFactory.NewProject());
 
         await _handler.HandleAddonToggleAsync(_botClientMock.Object, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
@@ -401,11 +416,11 @@ public class UserCallbackQueryHandlerTests
     public async Task OrderEditMy_WhenCanEditFalse_ShowsAlert()
     {
         var orderId = Guid.NewGuid();
-        var order = new Order { Id = orderId, ProjectId = ProjectId, OrderAddons = new List<OrderAddon>() };
+        var order = DomainTestFactory.NewFormed();
         _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(order);
 
-        var project = new Project { Id = ProjectId, Status = new ProjectStatus { CanEdit = false } };
-        _projectRepoMock.Setup(r => r.GetByIdAsync(ProjectId)).ReturnsAsync(project);
+        var project = DomainTestFactory.NewProject(canEditOrders: false);
+        _projectRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(project);
 
         await _handler.HandleOrderEditMyAsync(_botClientMock.Object, MakeCq(), 1, "order_edit_my:" + orderId, CancellationToken.None);
 
@@ -417,22 +432,14 @@ public class UserCallbackQueryHandlerTests
     {
         var orderId = Guid.NewGuid();
         var addonId = Guid.NewGuid();
-        var order = new Order
-        {
-            Id = orderId,
-            ProjectId = ProjectId,
-            Phone = "+79991234567",
-            DeliveryMethod = DeliveryMethod.Delivery,
-            Address = "Test Address",
-            OrderAddons = new List<OrderAddon>
-            {
-                new() { AddonId = addonId, Quantity = 3 }
-            }
-        };
+        var customer = DomainTestFactory.NewCustomer();
+        var orderProject = DomainTestFactory.NewProject();
+        var order = DomainTestFactory.NewFormed(customer, orderProject, addonId, 3, "+79991234567", DeliveryMethod.Delivery, "Test Address");
         _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(order);
 
-        var project = new Project { Id = ProjectId, Addons = new List<Addon>(), Status = new ProjectStatus { CanEdit = true } };
-        _projectRepoMock.Setup(r => r.GetByIdAsync(ProjectId)).ReturnsAsync(project);
+        var project = DomainTestFactory.NewProject();
+        _projectRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(project);
+        _stateService.GetOrCreate(1).EditMessageId = 1;
 
         await _handler.HandleOrderEditMyAsync(_botClientMock.Object, MakeCq(), 1, "order_edit_my:" + orderId, CancellationToken.None);
 
@@ -440,11 +447,13 @@ public class UserCallbackQueryHandlerTests
         Assert.Multiple(() =>
         {
             Assert.That(session, Is.Not.Null);
-            Assert.That(session!.EditingOrderId, Is.EqualTo(orderId));
+            Assert.That(session!.EditingOrderId, Is.EqualTo(order.Id));
             Assert.That(session.State, Is.EqualTo(OrderFlowState.SelectingAddons));
             Assert.That(session.Phone, Is.EqualTo("+79991234567"));
             Assert.That(session.AddonQuantities[addonId], Is.EqualTo(3));
         });
+
+        _stateService.Remove(1);
     }
 
     // --- HandleOrderDeleteMyAsync / Confirm / Cancel ---
@@ -453,8 +462,8 @@ public class UserCallbackQueryHandlerTests
     public async Task OrderDeleteMy_ShowsConfirmation()
     {
         var orderId = Guid.NewGuid();
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(new Order { ProjectId = ProjectId });
-        _projectRepoMock.Setup(r => r.GetByIdAsync(ProjectId)).ReturnsAsync(new Project { Status = new ProjectStatus { CanEdit = true } });
+        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(DomainTestFactory.NewFormed());
+        _projectRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(DomainTestFactory.NewProject());
         await _handler.HandleOrderDeleteMyAsync(_botClientMock.Object, MakeCq(), 1, "order_delete_my:" + orderId, CancellationToken.None);
         // Verify no exception was thrown - keyboard with confirmation was shown
     }
@@ -463,8 +472,8 @@ public class UserCallbackQueryHandlerTests
     public async Task OrderDeleteMyConfirm_DeletesOrder()
     {
         var orderId = Guid.NewGuid();
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(new Order { ProjectId = ProjectId });
-        _projectRepoMock.Setup(r => r.GetByIdAsync(ProjectId)).ReturnsAsync(new Project { Status = new ProjectStatus { CanEdit = true } });
+        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(DomainTestFactory.NewFormed());
+        _projectRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(DomainTestFactory.NewProject());
         _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(false);
 
         await _handler.HandleOrderDeleteMyConfirmAsync(_botClientMock.Object, MakeCq(), 1, "order_delete_my_confirm:" + orderId, CancellationToken.None);

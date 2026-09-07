@@ -1,6 +1,6 @@
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;

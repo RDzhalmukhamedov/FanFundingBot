@@ -1,5 +1,5 @@
 using FanFundingBot.Bot.Helpers;
-using FanFundingBot.Core.Entities;
+using FanFundingBot.Domain.Entities;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Keyboards;

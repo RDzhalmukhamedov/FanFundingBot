@@ -1,9 +1,9 @@
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Core.Constants;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Constants;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
+using FanFundingBot.Domain.Interfaces;
 
 namespace FanFundingBot.Bot.Services;
 
@@ -51,7 +51,7 @@ public class AdminService : IAdminService
         var user = await _userRepository.GetByIdAsync(userId);
         if (user != null && user.Role != UserRole.Admin)
         {
-            user.Role = UserRole.Admin;
+            user.PromoteToAdmin();
             await _userRepository.UpdateAsync(user);
         }
     }
@@ -66,7 +66,7 @@ public class AdminService : IAdminService
         if (statusEntry == null)
             return "Статус не найден.";
 
-        project.StatusId = statusId;
+        project.SetStatus(statusEntry);
         await _projectRepository.UpdateAsync(project);
 
         await _notificationService.NotifyProjectStatusUpdateAsync(
@@ -99,12 +99,14 @@ public class AdminService : IAdminService
         if (question == null)
             return "Вопрос не найден.";
 
-        question.Answer = answer;
-        question.AnsweredAt = DateTime.UtcNow;
-        question.AnsweredByUserId = adminUserId;
+        var admin = await _userRepository.GetByIdAsync(adminUserId);
+        if (admin == null || !admin.IsAdmin())
+            return "Нет прав.";
+
+        question.AnswerQuestion(admin, answer);
         await _questionRepository.UpdateAsync(question);
 
-        await _notificationService.NotifyQuestionAnsweredAsync(question.UserId, question.Text, answer);
+        await _notificationService.NotifyQuestionAnsweredAsync(question.User.Id, question.Text, answer);
         return "✅ Ответ отправлен пользователю.";
     }
 
@@ -115,29 +117,30 @@ public class AdminService : IAdminService
 
     public async Task<string> CreateProjectAsync(string name, string description, List<(string Name, string Description, decimal Price)>? addons)
     {
-        var project = new Project
-        {
-            Id = Guid.NewGuid(),
-            Name = name,
-            Description = description,
-            StatusId = KnownProjectStatusIds.Planned,
-            CreatedAt = DateTime.UtcNow
-        };
+        var plannedStatus = await _statusRepository.GetByIdAsync(KnownProjectStatusIds.Planned);
+        if (plannedStatus == null)
+            return "Базовый статус проекта не найден.";
+
+        var project = new Project();
+        project.StartEdit();
+        project.SetName(name);
+        project.SetDescription(description);
+        project.SetStatus(plannedStatus);
 
         if (addons != null)
         {
             foreach (var (addonName, addonDesc, price) in addons)
             {
-                project.Addons.Add(new Addon
-                {
-                    Id = Guid.NewGuid(),
-                    ProjectId = project.Id,
-                    Name = addonName,
-                    Description = addonDesc,
-                    Price = price
-                });
+                var addon = new Addon();
+                addon.SetName(addonName);
+                addon.SetDescription(addonDesc);
+                addon.SetPrice(price);
+                addon.FinishEdit();
+                project.AddAddon(addon);
             }
         }
+
+        project.FinishEdit();
 
         await _projectRepository.AddAsync(project);
         return $"✅ Проект «{name}» создан.";
@@ -162,7 +165,9 @@ public class AdminService : IAdminService
         if (project == null)
             return "Проект не найден.";
 
-        project.Name = name;
+        project.StartEdit();
+        project.SetName(name);
+        project.FinishEdit();
         await _projectRepository.UpdateAsync(project);
         return $"✅ Название проекта изменено на «{name}».";
     }
@@ -173,7 +178,9 @@ public class AdminService : IAdminService
         if (project == null)
             return "Проект не найден.";
 
-        project.Description = description;
+        project.StartEdit();
+        project.SetDescription(description);
+        project.FinishEdit();
         await _projectRepository.UpdateAsync(project);
         return "✅ Описание проекта обновлено.";
     }
@@ -184,7 +191,9 @@ public class AdminService : IAdminService
         if (addon == null)
             return "Дополнение не найдено.";
 
-        addon.Name = name;
+        addon.StartEdit();
+        addon.SetName(name);
+        addon.FinishEdit();
         await _addonRepository.UpdateAsync(addon);
         return $"✅ Название дополнения изменено на «{name}».";
     }
@@ -195,7 +204,9 @@ public class AdminService : IAdminService
         if (addon == null)
             return "Дополнение не найдено.";
 
-        addon.Description = description;
+        addon.StartEdit();
+        addon.SetDescription(description);
+        addon.FinishEdit();
         await _addonRepository.UpdateAsync(addon);
         return "✅ Описание дополнения обновлено.";
     }
@@ -206,38 +217,36 @@ public class AdminService : IAdminService
         if (addon == null)
             return "Дополнение не найдено.";
 
-        addon.Price = price;
+        addon.StartEdit();
+        addon.SetPrice(price);
+        addon.FinishEdit();
         await _addonRepository.UpdateAsync(addon);
         return $"✅ Цена дополнения изменена на {price:F2}₽.";
     }
 
     public async Task<string> CreateAddonAsync(Guid projectId, string name, string description, decimal price)
     {
-        var project = await _projectRepository.GetByIdAsync(projectId);
+        var project = await _projectRepository.GetByIdWithAddonsAsync(projectId);
         if (project == null)
             return "Проект не найден.";
 
-        var addon = new Addon
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = projectId,
-            Name = name,
-            Description = description,
-            Price = price
-        };
+        var addon = new Addon();
+        addon.SetName(name);
+        addon.SetDescription(description);
+        addon.SetPrice(price);
+        addon.FinishEdit();
 
-        await _addonRepository.AddAsync(addon);
+        project.StartEdit();
+        project.AddAddon(addon);
+        project.FinishEdit();
+
+        await _projectRepository.UpdateAsync(project);
         return $"✅ Дополнение «{name}» добавлено в проект «{project.Name}».";
     }
 
     public async Task<string> CreateProjectStatusAsync(string displayName, int order, bool canEdit)
     {
-        var entry = new ProjectStatus
-        {
-            DisplayName = displayName,
-            Order = order,
-            CanEdit = canEdit
-        };
+        var entry = new ProjectStatus(displayName, order, canEdit);
 
         await _statusRepository.AddAsync(entry);
         return $"✅ Статус «{displayName}» добавлен.";

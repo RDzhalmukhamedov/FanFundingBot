@@ -1,7 +1,7 @@
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -184,7 +184,7 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
             new[]
             {
                 InlineKeyboardButton.WithCallbackData("✅ Да, удалить", CallbackData.Build("admin_del_addon_confirm", addonId)),
-                InlineKeyboardButton.WithCallbackData("❌ Отмена", CallbackData.Build("admin_del_addon_cancel", addon.ProjectId))
+                InlineKeyboardButton.WithCallbackData("❌ Отмена", CallbackData.Build("admin_del_addon_cancel", await _addonRepository.GetProjectIdByAddonAsync(addonId) ?? Guid.Empty))
             }
         });
 
@@ -208,10 +208,17 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
             return;
         }
 
-        var projectId = addon.ProjectId;
+        var projectId = await _addonRepository.GetProjectIdByAddonAsync(addonId);
+        if (projectId == null)
+        {
+            await botClient.EditMessageText(
+                query.Message!.Chat.Id, query.Message!.MessageId, "Проект не найден.", cancellationToken: ct);
+            return;
+        }
+
         var result = await _adminService.DeleteAddonAsync(addonId);
 
-        await ShowEditProjectFormAsync(botClient, query.Message!.Chat.Id, query.Message!.MessageId, projectId, userId, ct, result);
+        await ShowEditProjectFormAsync(botClient, query.Message!.Chat.Id, query.Message!.MessageId, projectId.Value, userId, ct, result);
     }
 
     public async Task HandleAdminDeleteAddonCancelAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)

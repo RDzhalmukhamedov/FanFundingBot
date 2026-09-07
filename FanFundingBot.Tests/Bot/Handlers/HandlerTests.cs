@@ -4,7 +4,7 @@ using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -249,7 +249,7 @@ public class CommandHandlerBroadcastTests
         var addonRepoMock = new Mock<IAddonRepository>();
         var loggerMock = new Mock<ILogger<BroadcastTextHandler>>();
 
-        var questionHandler = new QuestionTextHandler(stateService, questionRepoMock.Object, adminServiceMock.Object);
+        var questionHandler = new QuestionTextHandler(stateService, questionRepoMock.Object, userRepoMock.Object, adminServiceMock.Object);
         var broadcastHandler = new BroadcastTextHandler(stateService);
         var orderHandler = new OrderTextHandler(stateService, orderFlowServiceMock.Object, uiRendererMock.Object);
         var creationHandler = new AdminProjectCreationTextHandler(stateService, orderFlowServiceMock.Object);

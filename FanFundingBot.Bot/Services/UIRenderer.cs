@@ -1,9 +1,9 @@
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
+using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -136,8 +136,8 @@ public class UIRenderer : IUIRenderer
 
     public async Task HandleMyOrderByOrderAsync(ITelegramBotClient botClient, long chatId, Order order, CancellationToken ct)
     {
-        var userId = order.UserId;
-        var project = await _projectRepository.GetByIdAsync(order.ProjectId);
+        var userId = order.Customer.Id;
+        var project = await _projectRepository.GetByIdAsync(order.Project.Id);
         var statusName = order.Status switch
         {
             OrderStatus.New => "🆕 Новый",
@@ -168,7 +168,7 @@ public class UIRenderer : IUIRenderer
                    $"\n<b>Итого:</b> {totalPrice:F2}₽\n" +
                    $"Дата: {order.CreatedAt:dd.MM.yyyy HH:mm}";
 
-        var canEdit = project?.Status?.CanEdit == true;
+        var canEdit = project?.Status?.CanEditOrders == true;
         var buttons = new List<InlineKeyboardButton[]>();
 
         if (canEdit)

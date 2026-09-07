@@ -1,4 +1,4 @@
-using FanFundingBot.Core.Entities;
+using FanFundingBot.Domain.Entities;
 
 namespace FanFundingBot.Bot.Abstractions;
 

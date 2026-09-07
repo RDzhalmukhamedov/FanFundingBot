@@ -1,7 +1,7 @@
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Keyboards;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
@@ -11,15 +11,18 @@ public class QuestionTextHandler : IQuestionTextHandler
 {
     private readonly IUserStateService _stateService;
     private readonly IQuestionRepository _questionRepository;
+    private readonly IUserRepository _userRepository;
     private readonly IAdminService _adminService;
 
     public QuestionTextHandler(
         IUserStateService stateService,
         IQuestionRepository questionRepository,
+        IUserRepository userRepository,
         IAdminService adminService)
     {
         _stateService = stateService;
         _questionRepository = questionRepository;
+        _userRepository = userRepository;
         _adminService = adminService;
     }
 
@@ -28,13 +31,14 @@ public class QuestionTextHandler : IQuestionTextHandler
         var userId = message.From!.Id;
         var text = message.Text!;
 
-        var question = new Question
+        var customer = await _userRepository.GetByIdAsync(userId);
+        if (customer == null)
         {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Text = text,
-            CreatedAt = DateTime.UtcNow
-        };
+            customer = new Customer(userId, message.From.FirstName, message.From.LastName, message.From.Username);
+            await _userRepository.AddAsync(customer);
+        }
+
+        var question = new Question(customer, text);
 
         await _questionRepository.AddAsync(question);
 

@@ -1,4 +1,4 @@
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Interfaces;
 
 namespace FanFundingBot.Bot.Helpers;
 

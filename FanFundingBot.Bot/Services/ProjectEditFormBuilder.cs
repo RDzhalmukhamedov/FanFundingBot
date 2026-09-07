@@ -1,6 +1,6 @@
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Services;
@@ -27,7 +27,7 @@ public class ProjectEditFormBuilder : IProjectEditFormBuilder
             : string.Join("\n", addons.Select(a => $"  • {a.Name} — {a.Price:F2}₽"));
 
         var statusName = (await _adminService.GetAllStatusesAsync())
-            .FirstOrDefault(s => s.Id == project.StatusId)?.DisplayName ?? "—";
+            .FirstOrDefault(s => s.Id == project.Status.Id)?.DisplayName ?? "—";
 
         var text = $"✏️ <b>Редактирование: {project.Name}</b>\n\n" +
                    $"<b>Описание:</b> {project.Description ?? "—"}\n" +

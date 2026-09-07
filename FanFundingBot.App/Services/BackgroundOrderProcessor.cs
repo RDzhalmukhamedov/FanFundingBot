@@ -1,5 +1,6 @@
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Services;
+using FanFundingBot.Domain.Exceptions;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 
@@ -62,7 +63,7 @@ public class BackgroundOrderProcessor : BackgroundService
                             cancellationToken: stoppingToken);
                     }
                 }
-                catch (Core.Exceptions.OrderSaveException)
+                catch (OrderSaveException)
                 {
                     await botClient.SendMessage(
                         request.ChatId,

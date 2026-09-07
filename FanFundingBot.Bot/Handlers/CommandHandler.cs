@@ -2,9 +2,9 @@ using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
+using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -327,15 +327,9 @@ public class CommandHandler : ICommandHandler
             return;
         }
 
-        var user = new Core.Entities.Customer
-        {
-            Id = userId,
-            FirstName = message.From.FirstName,
-            LastName = message.From.LastName,
-            Username = message.From.Username,
-            Role = userId == _config.OwnerId ? UserRole.Admin : UserRole.Regular,
-            CreatedAt = DateTime.UtcNow
-        };
+        Customer user = userId == _config.OwnerId
+            ? new Admin(userId, message.From.FirstName, message.From.LastName, message.From.Username)
+            : new Customer(userId, message.From.FirstName, message.From.LastName, message.From.Username);
 
         await _userRepository.AddAsync(user);
     }

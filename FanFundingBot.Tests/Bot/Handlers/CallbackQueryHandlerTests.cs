@@ -3,7 +3,7 @@ using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
 using Moq;
 using Telegram.Bot;

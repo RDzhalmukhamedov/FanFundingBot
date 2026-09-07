@@ -1,6 +1,6 @@
 using FanFundingBot.Bot.Keyboards;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Tests.Bot.Keyboards;
@@ -130,8 +130,8 @@ public class KeyboardTests
     {
         var addons = new List<Addon>
         {
-            new() { Id = Guid.NewGuid(), Name = "Addon1", Price = 100 },
-            new() { Id = Guid.NewGuid(), Name = "Addon2", Price = 200 }
+            new Addon(Guid.NewGuid(), "Addon1", "Desc", 100m, EditMode.Formed),
+            new Addon(Guid.NewGuid(), "Addon2", "Desc", 200m, EditMode.Formed)
         };
         var selectedIds = new HashSet<Guid> { addons[0].Id };
 
@@ -149,12 +149,12 @@ public class KeyboardTests
     [Test]
     public void AddonSelectionKeyboard_WithManyAddons_ShouldShowPagination()
     {
-        var addons = Enumerable.Range(0, 6).Select(i => new Addon
-        {
-            Id = Guid.NewGuid(),
-            Name = $"Addon{i}",
-            Price = i * 10
-        }).ToList();
+        var addons = Enumerable.Range(0, 6).Select(i => new Addon(
+            Guid.NewGuid(),
+            $"Addon{i}",
+            "Desc",
+            i * 10,
+            EditMode.Formed)).ToList();
 
         var (_, totalPages) = AddonSelectionKeyboard.Create(addons, new HashSet<Guid>(), 1, 12);
 
@@ -198,7 +198,7 @@ public class KeyboardTests
     {
         var addons = new List<Addon>
         {
-            new() { Id = Guid.NewGuid(), Name = "A1", Price = 50 }
+            new Addon(Guid.NewGuid(), "A1", "Desc", 50m, EditMode.Formed)
         };
 
         var (keyboard, _) = AddonSelectionKeyboard.Create(addons, new HashSet<Guid>(), 1, 1);

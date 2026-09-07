@@ -1,10 +1,10 @@
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Extensions;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Exceptions;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
+using FanFundingBot.Domain.Exceptions;
+using FanFundingBot.Domain.Interfaces;
 
 namespace FanFundingBot.Bot.Services;
 
@@ -67,68 +67,65 @@ public class OrderFlowService : IOrderFlowService
         DeliveryMethod deliveryMethod,
         string? address)
     {
-        var user = await _userRepository.GetByIdAsync(userId);
-        if (user == null)
-            throw new InvalidOperationException("User not found");
-
-        if (user.Phone != phone)
-        {
-            user.Phone = phone;
-            await _userRepository.UpdateAsync(user);
-        }
-
-        var order = new Order
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            ProjectId = projectId,
-            Phone = phone,
-            DeliveryMethod = deliveryMethod,
-            Address = deliveryMethod == DeliveryMethod.Delivery ? address : null,
-            Status = OrderStatus.New,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        foreach (var addonId in addonIds)
-        {
-            order.OrderAddons.Add(new OrderAddon
-            {
-                OrderId = order.Id,
-                AddonId = addonId,
-                Quantity = addonQuantities.TryGetValue(addonId, out var qty) ? qty : 1
-            });
-        }
-
+        FormedOrder? formed = null;
         try
         {
-            await _orderRepository.AddAsync(order);
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null)
+                throw new InvalidOperationException("User not found");
+
+            var duplicates = await _orderRepository.GetByProjectAndUserAsync(projectId, userId);
+            if (duplicates.Any(o => o.Status != OrderStatus.Cancelled))
+                throw new InvalidOperationException("Order already exists");
+
+            if (user.Phone != phone)
+            {
+                user.SetPhone(phone);
+                await _userRepository.UpdateAsync(user);
+            }
+
+            var project = await _projectRepository.GetByIdWithAddonsAsync(projectId);
+            if (project == null)
+                throw new InvalidOperationException("Project not found");
+
+            var draft = new DraftOrder(user, project);
+
+            foreach (var addonId in addonIds)
+            {
+                var addon = project.Addons.FirstOrDefault(a => a.Id == addonId);
+                if (addon == null)
+                    throw new InvalidOperationException($"Addon {addonId} not found");
+
+                draft.AddAddon(addon, addonQuantities.TryGetValue(addonId, out var qty) ? qty : 1);
+            }
+
+            draft.SetPhoneNumber(phone);
+            draft.SetDeliveryMethod(deliveryMethod);
+            if (deliveryMethod == DeliveryMethod.Delivery)
+                draft.SetShippingAddress(address);
+
+            formed = draft.Form();
+
+            await _orderRepository.AddAsync(formed);
 
             try
             {
-                var project = await _projectRepository.GetByIdAsync(projectId);
-                var projectAddons = await _addonRepository.GetByProjectIdAsync(projectId);
-                foreach (var oa in order.OrderAddons)
-                    oa.Addon = projectAddons.FirstOrDefault(a => a.Id == oa.AddonId);
-
-                order.User = user;
-                order.Project = project!;
-
-                await _externalStorage.SaveOrderAsync(order);
+                await _externalStorage.SaveOrderAsync(formed);
             }
             catch
             {
-                await _orderRepository.DeleteAsync(order.Id);
+                await _orderRepository.DeleteAsync(formed.Id);
                 throw;
             }
         }
         catch (Exception ex)
         {
-            await NotifyOwnerAsync($"Ошибка создания заказа {order.Id}: {ex.Message}");
+            await NotifyOwnerAsync($"Ошибка создания заказа {formed?.Id}: {ex.Message}");
 
             throw new OrderSaveException("Не удалось сохранить заказ. Попробуйте позже.", ex);
         }
 
-        return order;
+        return formed;
     }
 
     public async Task UpdateOrderAsync(
@@ -140,74 +137,32 @@ public class OrderFlowService : IOrderFlowService
         DeliveryMethod deliveryMethod,
         string? address)
     {
-        var order = await _orderRepository.GetByIdWithAddonsAsync(orderId);
-        if (order == null)
+        var original = await _orderRepository.GetByIdWithAddonsAsync(orderId);
+        if (original == null)
             throw new InvalidOperationException("Order not found");
 
-        var originalPhone = order.Phone;
-        var originalDeliveryMethod = order.DeliveryMethod;
-        var originalAddress = order.Address;
-        var originalAddons = order.OrderAddons
-            .Select(oa => new OrderAddon { AddonId = oa.AddonId, Quantity = oa.Quantity })
-            .ToList();
-
-        order.Phone = phone;
-        order.DeliveryMethod = deliveryMethod;
-        order.Address = deliveryMethod == DeliveryMethod.Delivery ? address : null;
+        var snapshot = Snapshot(original);
 
         try
         {
-            await _orderRepository.DeleteOrderAddonsAsync(orderId);
+            var project = await _projectRepository.GetByIdWithAddonsAsync(original.Project.Id);
+            if (project == null)
+                throw new InvalidOperationException("Project not found");
 
-            order.OrderAddons.Clear();
-
-            foreach (var addonId in addonIds)
-            {
-                order.OrderAddons.Add(new OrderAddon
-                {
-                    OrderId = order.Id,
-                    AddonId = addonId,
-                    Quantity = addonQuantities.TryGetValue(addonId, out var qty) ? qty : 1
-                });
-            }
-
-            await _orderRepository.UpdateAsync(order);
+            var updated = ApplyState(original, project.Addons, addonIds, addonQuantities, phone, deliveryMethod, address);
+            await _orderRepository.UpdateAsync(updated);
 
             try
             {
-                var user = await _userRepository.GetByIdAsync(order.UserId);
-                var project = await _projectRepository.GetByIdAsync(order.ProjectId);
-
-                var projectAddons = await _addonRepository.GetByProjectIdAsync(order.ProjectId);
-                foreach (var oa in order.OrderAddons)
-                    oa.Addon ??= projectAddons.FirstOrDefault(a => a.Id == oa.AddonId);
-
-                order.User = user!;
-                order.Project = project!;
-
-                await _externalStorage.SaveOrderAsync(order);
+                var saved = await _orderRepository.GetByIdWithAddonsAsync(orderId);
+                await _externalStorage.SaveOrderAsync(saved!);
             }
             catch
             {
-                order.Phone = originalPhone;
-                order.DeliveryMethod = originalDeliveryMethod;
-                order.Address = originalAddress;
-
-                await _orderRepository.DeleteOrderAddonsAsync(order.Id);
-
-                order.OrderAddons.Clear();
-
-                foreach (var oa in originalAddons)
-                {
-                    order.OrderAddons.Add(new OrderAddon
-                    {
-                        OrderId = order.Id,
-                        AddonId = oa.AddonId,
-                        Quantity = oa.Quantity
-                    });
-                }
-
-                await _orderRepository.UpdateAsync(order);
+                var current = await _orderRepository.GetByIdWithAddonsAsync(orderId);
+                var currentProject = await _projectRepository.GetByIdWithAddonsAsync(current!.Project.Id);
+                var restored = ApplySnapshot(current, currentProject!.Addons, snapshot);
+                await _orderRepository.UpdateAsync(restored);
                 throw;
             }
         }
@@ -227,17 +182,6 @@ public class OrderFlowService : IOrderFlowService
         if (order == null)
             return;
 
-        var originalUserId = order.UserId;
-        var originalProjectId = order.ProjectId;
-        var originalPhone = order.Phone;
-        var originalDeliveryMethod = order.DeliveryMethod;
-        var originalAddress = order.Address;
-        var originalStatus = order.Status;
-        var originalCreatedAt = order.CreatedAt;
-        var originalAddons = order.OrderAddons
-            .Select(oa => new OrderAddon { AddonId = oa.AddonId, Quantity = oa.Quantity })
-            .ToList();
-
         try
         {
             await _orderRepository.DeleteAsync(orderId);
@@ -248,29 +192,7 @@ public class OrderFlowService : IOrderFlowService
             }
             catch
             {
-                var restoredOrder = new Order
-                {
-                    Id = orderId,
-                    UserId = originalUserId,
-                    ProjectId = originalProjectId,
-                    Phone = originalPhone,
-                    DeliveryMethod = originalDeliveryMethod,
-                    Address = originalAddress,
-                    Status = originalStatus,
-                    CreatedAt = originalCreatedAt
-                };
-
-                foreach (var oa in originalAddons)
-                {
-                    restoredOrder.OrderAddons.Add(new OrderAddon
-                    {
-                        OrderId = orderId,
-                        AddonId = oa.AddonId,
-                        Quantity = oa.Quantity
-                    });
-                }
-
-                await _orderRepository.AddAsync(restoredOrder);
+                await _orderRepository.AddAsync(order);
                 throw;
             }
         }
@@ -311,6 +233,57 @@ public class OrderFlowService : IOrderFlowService
         return orders.FirstOrDefault();
     }
 
+    private static OrderSnapshot Snapshot(Order order)
+    {
+        return new OrderSnapshot(
+            order.Phone,
+            order.DeliveryMethod,
+            order.Address,
+            order.OrderAddons.Select(p => (p.Addon.Id, p.Quantity)).ToList());
+    }
+
+    private FormedOrder ApplyState(
+        Order order,
+        IReadOnlyList<Addon> projectAddons,
+        HashSet<Guid> addonIds,
+        Dictionary<Guid, int> addonQuantities,
+        string phone,
+        DeliveryMethod deliveryMethod,
+        string? address)
+    {
+        DraftOrder draft = order is DraftOrder d ? d : order.Edit();
+
+        foreach (var position in draft.OrderAddons.ToList())
+            draft.DeleteAddon(position.Addon);
+
+        var addonsById = projectAddons.ToDictionary(a => a.Id);
+        foreach (var addonId in addonIds)
+        {
+            if (!addonsById.TryGetValue(addonId, out var addon))
+                throw new InvalidOperationException($"Addon {addonId} not found");
+
+            draft.AddAddon(addon, addonQuantities.TryGetValue(addonId, out var qty) ? qty : 1);
+        }
+
+        draft.SetPhoneNumber(phone);
+        draft.SetDeliveryMethod(deliveryMethod);
+        draft.SetShippingAddress(deliveryMethod == DeliveryMethod.Delivery ? address : null);
+
+        return draft.Form();
+    }
+
+    private FormedOrder ApplySnapshot(Order order, IReadOnlyList<Addon> projectAddons, OrderSnapshot snapshot)
+    {
+        return ApplyState(
+            order,
+            projectAddons,
+            snapshot.Positions.Select(p => p.AddonId).ToHashSet(),
+            snapshot.Positions.ToDictionary(p => p.AddonId, p => p.Quantity),
+            snapshot.Phone,
+            snapshot.DeliveryMethod,
+            snapshot.Address);
+    }
+
     private async Task NotifyOwnerAsync(string message)
     {
         try
@@ -321,4 +294,10 @@ public class OrderFlowService : IOrderFlowService
         {
         }
     }
+
+    private sealed record OrderSnapshot(
+        string Phone,
+        DeliveryMethod DeliveryMethod,
+        string? Address,
+        List<(Guid AddonId, int Quantity)> Positions);
 }

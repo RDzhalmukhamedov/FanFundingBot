@@ -3,9 +3,10 @@ using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
+using FanFundingBot.Domain.Interfaces;
+using FanFundingBot.Tests;
 using Moq;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -58,12 +59,13 @@ public class AdminStatusCallbackHandlerTests
     {
         const int statusId = 5;
         var projectName = "Test Project";
-        var currentStatus = new ProjectStatus { Id = 3, DisplayName = "Current" };
-        var newStatus = new ProjectStatus { Id = statusId, DisplayName = "New Status" };
+        var currentStatus = new ProjectStatus("Current", 1, true);
+        var newStatus = new ProjectStatus("New Status", 2, true);
 
+        var project = DomainTestFactory.NewProject(projectName);
         _adminServiceMock
             .Setup(s => s.GetProjectAsync(ProjectId))
-            .ReturnsAsync(new Project { Id = ProjectId, Name = projectName, StatusId = currentStatus.Id });
+            .ReturnsAsync(project);
         _adminServiceMock
             .Setup(s => s.GetAllStatusesAsync())
             .ReturnsAsync(new List<ProjectStatus> { currentStatus, newStatus });
@@ -107,7 +109,7 @@ public class AdminStatusCallbackHandlerTests
         var projectName = "Test Project";
         _adminServiceMock
             .Setup(s => s.GetProjectAsync(ProjectId))
-            .ReturnsAsync(new Project { Id = ProjectId, Name = projectName, StatusId = 1 });
+            .ReturnsAsync(DomainTestFactory.NewProject(projectName));
         _adminServiceMock
             .Setup(s => s.GetAllStatusesAsync())
             .ReturnsAsync(new List<ProjectStatus>());
@@ -184,7 +186,7 @@ public class AdminQuestionCallbackHandlerTests
         _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
         _projectRepoMock.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<Project>
         {
-            new() { Id = ProjectId, Name = "Test" }
+            DomainTestFactory.NewProjectWithId(ProjectId, "Test")
         });
         _adminServiceMock
             .Setup(s => s.BroadcastMessageAsync(ProjectId, messageText))
@@ -237,10 +239,10 @@ public class AdminQuestionCallbackHandlerTests
     public async Task AdminSelectQuestion_ShowsUsername_WhenPresent()
     {
         var qId = Guid.NewGuid();
-        var user = new FanFundingBot.Core.Entities.Customer { Id = 5, FirstName = "User1", Username = "testuser" };
+        var user = DomainTestFactory.NewCustomer(5, "testuser");
         _adminServiceMock.Setup(s => s.GetUnansweredQuestionsAsync()).ReturnsAsync(new List<Question>
         {
-            new() { Id = qId, UserId = 5, Text = "Q?", User = user }
+            new Question(user, "Q?")
         });
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
 
@@ -258,10 +260,10 @@ public class AdminQuestionCallbackHandlerTests
     public async Task AdminSelectQuestion_HidesUsername_WhenNull()
     {
         var qId = Guid.NewGuid();
-        var user = new FanFundingBot.Core.Entities.Customer { Id = 5, FirstName = "User1", Username = null };
+        var user = DomainTestFactory.NewCustomer(5, null);
         _adminServiceMock.Setup(s => s.GetUnansweredQuestionsAsync()).ReturnsAsync(new List<Question>
         {
-            new() { Id = qId, UserId = 5, Text = "Q?", User = user }
+            new Question(user, "Q?")
         });
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
 
@@ -361,7 +363,7 @@ public class AdminProjectCallbackHandlerTests
     public async Task EditProject_ShowsEditForm()
     {
         _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
-        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(new Project { Id = ProjectId, Name = "Test" });
+        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(DomainTestFactory.NewProject("Test"));
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon>());
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
         await _handler.HandleAdminEditProjectAsync(_botClientMock.Object, MakeCq("admin_edit_project:" + ProjectId), 1,
@@ -380,8 +382,8 @@ public class AdminProjectCallbackHandlerTests
     public async Task EditProject_WithAddons_IncludesSummary()
     {
         _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
-        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(new Project { Id = ProjectId, Name = "P" });
-        _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon> { new() { Id = AddonId, Name = "A1", Price = 100m } });
+        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(DomainTestFactory.NewProject("P"));
+        _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon> { DomainTestFactory.NewAddon(AddonId, "A1", 100m) });
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
         await _handler.HandleAdminEditProjectAsync(_botClientMock.Object, MakeCq("admin_edit_project:" + ProjectId), 1,
             "admin_edit_project:" + ProjectId, CancellationToken.None);
@@ -392,7 +394,7 @@ public class AdminProjectCallbackHandlerTests
     {
         _session.PendingAction = "old";
         _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
-        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(new Project { Id = ProjectId, Name = "P" });
+        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(DomainTestFactory.NewProject("P"));
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon>());
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
         await _handler.HandleAdminEditProjectAsync(_botClientMock.Object, MakeCq("admin_edit_project:" + ProjectId), 1,
@@ -436,7 +438,7 @@ public class AdminProjectCallbackHandlerTests
     {
         var addonId = Guid.NewGuid();
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
-        _addonRepoMock.Setup(r => r.GetByIdAsync(addonId)).ReturnsAsync(new Addon { Id = addonId, Name = "Test Addon" });
+        _addonRepoMock.Setup(r => r.GetByIdAsync(addonId)).ReturnsAsync(DomainTestFactory.NewAddon(addonId, "Test Addon"));
 
         await _handler.HandleAdminEditAddonAsync(_botClientMock.Object, MakeCq($"admin_edit_addon:{addonId}"), 1,
             $"admin_edit_addon:{addonId}", CancellationToken.None);
@@ -452,7 +454,8 @@ public class AdminProjectCallbackHandlerTests
     public async Task DeleteAddon_ShowsConfirmation()
     {
         var addonId = Guid.NewGuid();
-        _addonRepoMock.Setup(r => r.GetByIdAsync(addonId)).ReturnsAsync(new Addon { Id = addonId, Name = "Test", ProjectId = ProjectId });
+        _addonRepoMock.Setup(r => r.GetByIdAsync(addonId)).ReturnsAsync(DomainTestFactory.NewAddon(addonId, "Test"));
+        _addonRepoMock.Setup(r => r.GetProjectIdByAddonAsync(addonId)).ReturnsAsync(ProjectId);
 
         await _handler.HandleAdminDeleteAddonAsync(_botClientMock.Object, MakeCq($"admin_del_addon:{addonId}"), 1,
             $"admin_del_addon:{addonId}", CancellationToken.None);
@@ -462,9 +465,10 @@ public class AdminProjectCallbackHandlerTests
     public async Task DeleteAddonConfirm_DeletesAndShowsResult()
     {
         var addonId = Guid.NewGuid();
-        _addonRepoMock.Setup(r => r.GetByIdAsync(addonId)).ReturnsAsync(new Addon { Id = addonId, Name = "Test", ProjectId = ProjectId });
+        _addonRepoMock.Setup(r => r.GetByIdAsync(addonId)).ReturnsAsync(DomainTestFactory.NewAddon(addonId, "Test"));
+        _addonRepoMock.Setup(r => r.GetProjectIdByAddonAsync(addonId)).ReturnsAsync(ProjectId);
         _adminServiceMock.Setup(s => s.DeleteAddonAsync(addonId)).ReturnsAsync("✅ Дополнение удалено.");
-        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(new Project { Id = ProjectId, Name = "P", StatusId = 1 });
+        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(DomainTestFactory.NewProject("P"));
         _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(It.IsAny<Guid>())).ReturnsAsync(new List<Addon>());
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
@@ -479,7 +483,7 @@ public class AdminProjectCallbackHandlerTests
     public async Task DeleteAddonCancel_ReturnsToEditForm()
     {
         _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
-        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(new Project { Id = ProjectId, Name = "P", StatusId = 1 });
+        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(DomainTestFactory.NewProject("P"));
         _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon>());
         _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
 

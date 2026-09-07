@@ -1,4 +1,4 @@
-using FanFundingBot.Core.Enums;
+using FanFundingBot.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using System.Threading.Channels;
 

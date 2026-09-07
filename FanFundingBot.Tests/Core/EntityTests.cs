@@ -1,6 +1,6 @@
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Constants;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
+using FanFundingBot.Domain.Exceptions;
 
 namespace FanFundingBot.Tests.Core;
 
@@ -8,70 +8,101 @@ namespace FanFundingBot.Tests.Core;
 public class EntityTests
 {
     [Test]
-    public void Project_ShouldHaveDefaultValues()
+    public void Project_NewProject_ShouldHaveDefaults()
     {
         var project = new Project();
 
-        Assert.That(project.Name, Is.EqualTo(string.Empty));
-        Assert.That(project.Addons, Is.Not.Null);
-        Assert.That(project.Orders, Is.Not.Null);
-        Assert.That(project.Addons, Is.Empty);
-        Assert.That(project.Orders, Is.Empty);
+        Assert.Multiple(() =>
+        {
+            Assert.That(project.Id, Is.Not.EqualTo(Guid.Empty));
+            Assert.That(project.Name, Is.EqualTo(string.Empty));
+            Assert.That(project.Addons, Is.Empty);
+            Assert.That(project.Mode, Is.EqualTo(EditMode.Edit));
+        });
     }
 
     [Test]
-    public void Project_ShouldSetProperties()
+    public void Project_SetNameAndDescription_ShouldUpdate()
     {
-        var project = new Project
-        {
-            Id = Guid.NewGuid(),
-            Name = "Test Project",
-            Description = "Test Description",
-            StatusId = KnownProjectStatusIds.Translation
-        };
+        var project = new Project();
+        project.SetName("Test Project");
+        project.SetDescription("Test Description");
 
         Assert.Multiple(() =>
         {
             Assert.That(project.Name, Is.EqualTo("Test Project"));
             Assert.That(project.Description, Is.EqualTo("Test Description"));
-            Assert.That(project.StatusId, Is.EqualTo(KnownProjectStatusIds.Translation));
         });
     }
 
     [Test]
-    public void Addon_ShouldSetProperties()
+    public void Project_SetName_Empty_ShouldThrow()
     {
-        var projectId = Guid.NewGuid();
-        var addon = new Addon
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = projectId,
-            Name = "Test Addon",
-            Description = "Addon Description",
-            Price = 100.50m
-        };
+        var project = new Project();
+
+        Assert.Throws<ArgumentException>(() => project.SetName(""));
+    }
+
+    [Test]
+    public void Project_FinishEdit_ShouldSetFormedAndCreatedAt()
+    {
+        var project = new Project();
+        project.SetName("P");
+        project.SetDescription("D");
+        project.SetStatus(new ProjectStatus("S", 1, true));
+
+        project.FinishEdit();
 
         Assert.Multiple(() =>
         {
-            Assert.That(addon.ProjectId, Is.EqualTo(projectId));
-            Assert.That(addon.Name, Is.EqualTo("Test Addon"));
-            Assert.That(addon.Price, Is.EqualTo(100.50m));
-            Assert.That(addon.Description, Is.EqualTo("Addon Description"));
+            Assert.That(project.Mode, Is.EqualTo(EditMode.Formed));
+            Assert.That(project.CreatedAt, Is.Not.Null);
+            Assert.That(project.CanEditOrders, Is.True);
         });
     }
 
     [Test]
-    public void User_ShouldSetProperties()
+    public void Project_SetName_AfterFinishEdit_ShouldThrow()
     {
-        var user = new Customer
-        {
-            Id = 12345,
-            FirstName = "John",
-            LastName = "Doe",
-            Username = "johndoe",
-            Phone = "+71234567890",
-            Role = UserRole.Regular
-        };
+        var project = DomainTestFactory.NewProject();
+        project.FinishEdit();
+
+        Assert.Throws<ProjectNotEditModeException>(() => project.SetName("New"));
+    }
+
+    [Test]
+    public void Project_AddAddon_Duplicate_ShouldThrow()
+    {
+        var project = DomainTestFactory.NewProject();
+        var addon = DomainTestFactory.NewAddon();
+
+        project.AddAddon(addon);
+
+        Assert.Throws<DomainException>(() => project.AddAddon(addon));
+    }
+
+    [Test]
+    public void Addon_SetPrice_Negative_ShouldThrow()
+    {
+        var addon = new Addon();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => addon.SetPrice(-1));
+    }
+
+    [Test]
+    public void Addon_SetAfterFinishEdit_ShouldThrow()
+    {
+        var addon = DomainTestFactory.NewAddon();
+        addon.StartEdit();
+        addon.FinishEdit();
+
+        Assert.Throws<AddonNotEditModeException>(() => addon.SetName("New"));
+    }
+
+    [Test]
+    public void User_Customer_ShouldHaveRegularRole()
+    {
+        var user = new Customer(12345, "John", "Doe", "johndoe");
 
         Assert.Multiple(() =>
         {
@@ -79,150 +110,203 @@ public class EntityTests
             Assert.That(user.FirstName, Is.EqualTo("John"));
             Assert.That(user.LastName, Is.EqualTo("Doe"));
             Assert.That(user.Username, Is.EqualTo("johndoe"));
-            Assert.That(user.Phone, Is.EqualTo("+71234567890"));
             Assert.That(user.Role, Is.EqualTo(UserRole.Regular));
+            Assert.That(user.IsAdmin(), Is.False);
         });
     }
 
     [Test]
-    public void Order_ShouldHaveDefaultStatus()
+    public void User_Admin_ShouldHaveAdminRole()
     {
-        var order = new Order();
-        Assert.That(order.Status, Is.EqualTo(OrderStatus.New));
-    }
-
-    [Test]
-    public void Order_ShouldSetDeliveryProperties()
-    {
-        var order = new Order
-        {
-            Phone = "+71234567890",
-            DeliveryMethod = DeliveryMethod.Delivery,
-            Address = "Test City, Test St, 123",
-            Status = OrderStatus.Confirmed
-        };
+        var admin = new Admin(1, "A", "B", "admin");
 
         Assert.Multiple(() =>
         {
-            Assert.That(order.Phone, Is.EqualTo("+71234567890"));
-            Assert.That(order.DeliveryMethod, Is.EqualTo(DeliveryMethod.Delivery));
-            Assert.That(order.Address, Is.EqualTo("Test City, Test St, 123"));
-            Assert.That(order.Status, Is.EqualTo(OrderStatus.Confirmed));
+            Assert.That(admin.Role, Is.EqualTo(UserRole.Admin));
+            Assert.That(admin.IsAdmin(), Is.True);
         });
     }
 
     [Test]
-    public void Order_WithPickup_ShouldNotRequireAddress()
+    public void User_PromoteToAdmin_ShouldChangeRole()
     {
-        var order = new Order
-        {
-            DeliveryMethod = DeliveryMethod.Pickup,
-            Address = null
-        };
+        var user = new Customer(1, "John", "Doe", "johndoe");
+        user.PromoteToAdmin();
 
-        Assert.That(order.Address, Is.Null);
-        Assert.That(order.DeliveryMethod, Is.EqualTo(DeliveryMethod.Pickup));
+        Assert.That(user.Role, Is.EqualTo(UserRole.Admin));
     }
 
     [Test]
-    public void OrderAddon_ShouldSetCompositeKey()
+    public void User_SetPhone_ShouldUpdate()
     {
-        var orderId = Guid.NewGuid();
+        var user = new Customer(1, "John", "Doe", "johndoe");
+        user.SetPhone("+71234567890");
+
+        Assert.That(user.Phone, Is.EqualTo("+71234567890"));
+    }
+
+    [Test]
+    public void Customer_StartOrdering_DuplicateProject_ShouldThrow()
+    {
+        var customer = DomainTestFactory.NewCustomer();
+        var project = DomainTestFactory.NewProject();
+
+        customer.StartOrdering(project);
+
+        Assert.Throws<DomainException>(() => customer.StartOrdering(project));
+    }
+
+    [Test]
+    public void Customer_FormAndEditOrder_ShouldChangeState()
+    {
+        var customer = DomainTestFactory.NewCustomer();
+        var project = DomainTestFactory.NewProject();
+
+        var draft = customer.StartOrdering(project);
+        var formed = customer.FormOrder(draft.Id);
+
+        Assert.That(formed, Is.InstanceOf<FormedOrder>());
+
+        var edited = customer.EditOrder(draft.Id);
+
+        Assert.That(edited, Is.InstanceOf<DraftOrder>());
+    }
+
+    [Test]
+    public void DraftOrder_Form_ShouldCarryState()
+    {
         var addonId = Guid.NewGuid();
+        var draft = DomainTestFactory.NewDraft(addonId: addonId, quantity: 2);
 
-        var orderAddon = new OrderAddon
-        {
-            OrderId = orderId,
-            AddonId = addonId
-        };
+        var formed = draft.Form();
 
         Assert.Multiple(() =>
         {
-            Assert.That(orderAddon.OrderId, Is.EqualTo(orderId));
-            Assert.That(orderAddon.AddonId, Is.EqualTo(addonId));
+            Assert.That(formed.Id, Is.EqualTo(draft.Id));
+            Assert.That(formed.Phone, Is.EqualTo(draft.Phone));
+            Assert.That(formed.OrderAddons, Has.Count.EqualTo(1));
+            Assert.That(formed.OrderAddons[0].Addon.Id, Is.EqualTo(addonId));
+            Assert.That(formed.OrderAddons[0].Quantity, Is.EqualTo(2));
         });
     }
 
     [Test]
-    public void OrderAddon_ShouldHaveDefaultQuantity()
+    public void DraftOrder_AddDuplicateAddon_ShouldThrow()
     {
-        var orderAddon = new OrderAddon();
-        Assert.That(orderAddon.Quantity, Is.EqualTo(1));
+        var draft = DomainTestFactory.NewDraft();
+        var addon = DomainTestFactory.NewAddon();
+
+        draft.AddAddon(addon);
+
+        Assert.Throws<DomainException>(() => draft.AddAddon(addon));
     }
 
     [Test]
-    public void ProjectStatusEntry_ShouldHaveDefaultCanEdit()
+    public void DraftOrder_IncrementDecrement_ShouldChangeQuantity()
     {
-        var entry = new ProjectStatus();
-        Assert.That(entry.CanEditOrders, Is.False);
+        var addonId = Guid.NewGuid();
+        var draft = DomainTestFactory.NewDraft(addonId: addonId);
+
+        Assert.That(draft.IncrementAddonQuantity(addonId), Is.EqualTo(2));
+        Assert.That(draft.DecrementAddonQuantity(addonId), Is.EqualTo(1));
     }
 
     [Test]
-    public void ProjectStatusEntry_ShouldSetCanEdit()
+    public void DraftOrder_DecrementBelowOne_ShouldThrow()
     {
-        var entry = new ProjectStatus
-        {
-            Id = 1,
-            DisplayName = "Test",
-            Order = 1,
-            CanEdit = true
-        };
+        var addonId = Guid.NewGuid();
+        var draft = DomainTestFactory.NewDraft(addonId: addonId);
 
-        Assert.That(entry.CanEditOrders, Is.True);
+        Assert.Throws<ArgumentOutOfRangeException>(() => draft.DecrementAddonQuantity(addonId));
     }
 
     [Test]
-    public void Question_ShouldHaveNoAnswerByDefault()
+    public void DraftOrder_IncrementMissingAddon_ShouldThrow()
     {
-        var question = new Question();
-        Assert.That(question.Answer, Is.Null);
-        Assert.That(question.AnsweredAt, Is.Null);
+        var draft = DomainTestFactory.NewDraft();
+
+        Assert.Throws<DomainException>(() => draft.IncrementAddonQuantity(Guid.NewGuid()));
     }
 
     [Test]
-    public void Question_ShouldSetAnswer()
+    public void FormedOrder_Mutating_ShouldThrow()
     {
-        var answeredAt = DateTime.UtcNow;
-        var question = new Question
-        {
-            Text = "Test question?",
-            Answer = "Test answer!",
-            AnsweredAt = answeredAt
-        };
+        var formed = DomainTestFactory.NewFormed();
+
+        Assert.Throws<OrderNotEditModeException>(() => formed.AddAddon(DomainTestFactory.NewAddon()));
+        Assert.Throws<OrderNotEditModeException>(() => formed.Form());
+    }
+
+    [Test]
+    public void FormedOrder_Edit_ShouldReturnDraftWithState()
+    {
+        var formed = DomainTestFactory.NewFormed(phone: "+79998887766");
+
+        var draft = formed.Edit();
 
         Assert.Multiple(() =>
         {
-            Assert.That(question.Text, Is.EqualTo("Test question?"));
+            Assert.That(draft.Id, Is.EqualTo(formed.Id));
+            Assert.That(draft.Phone, Is.EqualTo("+79998887766"));
+            Assert.That(draft.OrderAddons, Has.Count.EqualTo(formed.OrderAddons.Count));
+        });
+    }
+
+    [Test]
+    public void OrderPosition_InvalidQuantity_ShouldThrow()
+    {
+        var addon = DomainTestFactory.NewAddon();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new OrderPosition(addon, 0));
+    }
+
+    [Test]
+    public void OrderPosition_PlusOverLimit_ShouldThrow()
+    {
+        var position = new OrderPosition(DomainTestFactory.NewAddon(), 100);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => position.Plus());
+    }
+
+    [Test]
+    public void ProjectStatus_InvalidOrder_ShouldThrow()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ProjectStatus("S", 0, true));
+    }
+
+    [Test]
+    public void Question_Answer_ShouldSetAnswerData()
+    {
+        var question = DomainTestFactory.NewQuestion();
+        var admin = DomainTestFactory.NewAdmin();
+
+        question.AnswerQuestion(admin, "Test answer!");
+
+        Assert.Multiple(() =>
+        {
             Assert.That(question.Answer, Is.EqualTo("Test answer!"));
-            Assert.That(question.AnsweredAt, Is.EqualTo(answeredAt));
+            Assert.That(question.AnsweredBy, Is.EqualTo(admin));
+            Assert.That(question.AnsweredAt, Is.Not.Null);
         });
     }
 
     [Test]
-    public void Project_ShouldManageAddons()
+    public void Question_AnswerByNonAdmin_ShouldThrow()
     {
-        var project = new Project();
-        var addon1 = new Addon { Id = Guid.NewGuid(), Name = "A1" };
-        var addon2 = new Addon { Id = Guid.NewGuid(), Name = "A2" };
+        var question = DomainTestFactory.NewQuestion();
 
-        project.Addons.Add(addon1);
-        project.Addons.Add(addon2);
-
-        Assert.That(project.Addons, Has.Count.EqualTo(2));
-        Assert.That(project.Addons, Contains.Item(addon1));
-        Assert.That(project.Addons, Contains.Item(addon2));
+        Assert.Throws<DomainException>(() => question.AnswerQuestion(DomainTestFactory.NewCustomer(), "x"));
     }
 
     [Test]
-    public void User_ShouldManageOrders()
+    public void Question_NewQuestion_ShouldHaveNoAnswer()
     {
-        var user = new Customer { Id = 1 };
-        var order = new Order { Id = Guid.NewGuid(), UserId = 1 };
+        var question = DomainTestFactory.NewQuestion();
 
-        user.Orders.Add(order);
-
-        Assert.That(user.Orders, Has.Count.EqualTo(1));
-        Assert.That(user.Orders, Contains.Item(order));
-        Assert.That(order.User, Is.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(question.Answer, Is.Null);
+            Assert.That(question.AnsweredAt, Is.Null);
+        });
     }
 }

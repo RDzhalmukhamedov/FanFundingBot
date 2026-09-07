@@ -1,5 +1,5 @@
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
 
 namespace FanFundingBot.Bot.Abstractions;
 

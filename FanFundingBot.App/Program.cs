@@ -2,8 +2,8 @@ using FanFundingBot.App.Services;
 using FanFundingBot.Bot;
 using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Data;
-using FanFundingBot.ExternalStorage;
+using FanFundingBot.Infrastructure.Persistence;
+using FanFundingBot.Infrastructure.ExternalStorage;
 using Microsoft.EntityFrameworkCore;
 using Telegram.Bot;
 

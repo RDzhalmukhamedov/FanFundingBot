@@ -1,9 +1,9 @@
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
+using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -309,19 +309,19 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
             return;
         }
 
-        var (allowed, error) = await _projectAccess.CanEditOrdersAsync(order.ProjectId);
+        var (allowed, error) = await _projectAccess.CanEditOrdersAsync(order.Project.Id);
         if (!allowed)
         {
             await botClient.AnswerCallbackQuery(query.Id, error, showAlert: true, cancellationToken: ct);
             return;
         }
 
-        var project = await _projectRepository.GetByIdAsync(order.ProjectId);
+        var project = await _projectRepository.GetByIdAsync(order.Project.Id);
         var session = _stateService.GetOrCreate(userId);
         session.EditingOrderId = order.Id;
-        session.SelectedProjectId = order.ProjectId;
-        session.SelectedAddonIds = order.OrderAddons.Select(oa => oa.AddonId).ToHashSet();
-        session.AddonQuantities = order.OrderAddons.ToDictionary(oa => oa.AddonId, oa => oa.Quantity);
+        session.SelectedProjectId = order.Project.Id;
+        session.SelectedAddonIds = order.OrderAddons.Select(oa => oa.Addon.Id).ToHashSet();
+        session.AddonQuantities = order.OrderAddons.ToDictionary(oa => oa.Addon.Id, oa => oa.Quantity);
         session.Phone = order.Phone;
         session.DeliveryMethod = order.DeliveryMethod;
         session.Address = order.Address;
@@ -360,7 +360,7 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
             return;
         }
 
-        var (allowed, error) = await _projectAccess.CanEditOrdersAsync(order.ProjectId);
+        var (allowed, error) = await _projectAccess.CanEditOrdersAsync(order.Project.Id);
         if (!allowed)
         {
             await botClient.AnswerCallbackQuery(query.Id, error, showAlert: true, cancellationToken: ct);
@@ -389,7 +389,7 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
             return;
         }
 
-        var (allowed, error) = await _projectAccess.CanEditOrdersAsync(order.ProjectId);
+        var (allowed, error) = await _projectAccess.CanEditOrdersAsync(order.Project.Id);
         if (!allowed)
         {
             await botClient.AnswerCallbackQuery(query.Id, error, showAlert: true, cancellationToken: ct);

@@ -2,7 +2,7 @@ using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -161,7 +161,7 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
         }
 
         var addonId = session.TempAddonId!.Value;
-        var projectId = (await _addonRepository.GetByIdAsync(addonId))?.ProjectId;
+        var projectId = await _addonRepository.GetProjectIdByAddonAsync(addonId);
         if (projectId == null)
         {
             await botClient.SendMessage(message.Chat.Id, "Дополнение не найдено.", cancellationToken: ct);
