@@ -35,5 +35,6 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.Ignore(u => u.Orders);
         builder.Ignore(u => u.Questions);
+        builder.Ignore(u => u.DomainEvents);
     }
 }

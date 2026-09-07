@@ -327,9 +327,9 @@ public class CommandHandler : ICommandHandler
             return;
         }
 
-        Customer user = userId == _config.OwnerId
-            ? new Admin(userId, message.From.FirstName, message.From.LastName, message.From.Username)
-            : new Customer(userId, message.From.FirstName, message.From.LastName, message.From.Username);
+        var user = new Domain.Entities.User(userId, message.From.FirstName, message.From.LastName, message.From.Username);
+        if (userId == _config.OwnerId)
+            user.PromoteToAdmin();
 
         await _userRepository.AddAsync(user);
     }

@@ -22,7 +22,7 @@ public class OrderRepository : IOrderRepository
     public async Task<Order?> GetByIdWithAddonsAsync(Guid id)
     {
         return await _context.Orders
-            .Include(o => o.Customer)
+            .Include(o => o.User)
             .Include(o => o.Project)
             .Include(o => o.OrderAddons)
             .ThenInclude(p => p.Addon)
@@ -32,7 +32,7 @@ public class OrderRepository : IOrderRepository
     public async Task<List<Order>> GetByUserAsync(long userId)
     {
         return await _context.Orders
-            .Where(o => o.Customer.Id == userId)
+            .Where(o => o.User.Id == userId)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync();
     }
@@ -40,8 +40,8 @@ public class OrderRepository : IOrderRepository
     public async Task<List<Order>> GetByUserWithAddonsAsync(long userId)
     {
         return await _context.Orders
-            .Where(o => o.Customer.Id == userId)
-            .Include(o => o.Customer)
+            .Where(o => o.User.Id == userId)
+            .Include(o => o.User)
             .Include(o => o.Project)
             .Include(o => o.OrderAddons)
             .ThenInclude(p => p.Addon)
@@ -60,7 +60,7 @@ public class OrderRepository : IOrderRepository
     public async Task<List<Order>> GetByProjectAndUserAsync(Guid projectId, long userId)
     {
         return await _context.Orders
-            .Where(o => o.Project.Id == projectId && o.Customer.Id == userId)
+            .Where(o => o.Project.Id == projectId && o.User.Id == userId)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync();
     }

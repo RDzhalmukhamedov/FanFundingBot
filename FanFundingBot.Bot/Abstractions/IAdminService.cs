@@ -11,7 +11,7 @@ public interface IAdminService
     Task<List<Question>> GetUnansweredQuestionsAsync();
     Task<string> AnswerQuestionAsync(Guid questionId, string answer, long adminUserId);
     Task<Project?> GetProjectAsync(Guid projectId);
-    Task<string> CreateProjectAsync(string name, string description, List<(string Name, string Description, decimal Price)>? addons);
+    Task<string> CreateProjectAsync(long callerUserId, string name, string description, List<(string Name, string Description, decimal Price)>? addons);
     Task<string> DeleteAddonAsync(Guid addonId);
     Task<string> UpdateProjectNameAsync(Guid projectId, string name);
     Task<string> UpdateProjectDescriptionAsync(Guid projectId, string description);

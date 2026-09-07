@@ -1,4 +1,5 @@
 using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -11,8 +12,9 @@ public class OrderPositionConfiguration : IEntityTypeConfiguration<OrderPosition
         builder.HasKey(p => new { p.OrderId, p.AddonId });
 
         builder.Property(p => p.Quantity)
+            .HasConversion(q => (int)q, v => Quantity.Create(v))
             .IsRequired()
-            .HasDefaultValue(1);
+            .HasDefaultValue(Quantity.Create(1));
 
         builder.HasOne(p => p.Addon)
             .WithMany()

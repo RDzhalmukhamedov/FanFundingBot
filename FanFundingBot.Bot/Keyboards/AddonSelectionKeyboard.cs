@@ -21,7 +21,7 @@ public static class AddonSelectionKeyboard
         {
             var isSelected = selectedIds.Contains(addon.Id);
             var checkmark = isSelected ? "✅ " : "";
-            var priceStr = addon.Price.ToString("F2");
+            var priceStr = addon.Price.ToString();
             var buttonText = $"{checkmark}{addon.Name} — {priceStr}₽";
 
             buttons.Add(new List<InlineKeyboardButton>

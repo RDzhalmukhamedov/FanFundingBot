@@ -28,5 +28,7 @@ public class QuestionConfiguration : IEntityTypeConfiguration<Question>
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(q => q.AnsweredAt);
+
+        builder.Ignore(q => q.DomainEvents);
     }
 }

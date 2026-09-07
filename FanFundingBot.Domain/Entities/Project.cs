@@ -1,12 +1,14 @@
+using FanFundingBot.Domain.DomainEvents;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Exceptions;
 using System.Collections.Immutable;
 
 namespace FanFundingBot.Domain.Entities;
 
-public class Project : IEditable<Project>
+public class Project : AggregateRoot, IEditable<Project>
 {
     private List<Addon> _addons = [];
+    private List<ProjectMember> _members = [];
 
     public Guid Id { get; private set; }
     public string Name { get; private set; } = string.Empty;
@@ -17,6 +19,7 @@ public class Project : IEditable<Project>
     public bool CanEditOrders => Status.CanEditOrders;
 
     public IReadOnlyList<Addon> Addons => _addons.AsReadOnly();
+    public IReadOnlyList<ProjectMember> Members => _members.AsReadOnly();
 
     public Project()
     {
@@ -72,6 +75,8 @@ public class Project : IEditable<Project>
     {
         ArgumentNullException.ThrowIfNull(status);
         Status = status;
+
+        AddDomainEvent(new ProjectStatusChangedEvent(Id, status.Id, status.DisplayName));
     }
 
     public void AddAddon(Addon addon)
@@ -85,6 +90,35 @@ public class Project : IEditable<Project>
 
         _addons.Add(addon);
     }
+
+    public void AddMember(long userId, ProjectRole role)
+    {
+        if (_members.Any(m => m.UserId == userId))
+        {
+            throw new DomainException($"Пользователь {userId} уже добавлен в проект.");
+        }
+
+        var member = new ProjectMember(userId, role);
+        _members.Add(member);
+
+        AddDomainEvent(new ProjectMemberAddedEvent(Id, userId, role));
+    }
+
+    public void RemoveMember(long userId)
+    {
+        var member = _members.FirstOrDefault(m => m.UserId == userId);
+        if (member is null)
+        {
+            throw new DomainException($"Пользователь {userId} не найден в проекте.");
+        }
+
+        _members.Remove(member);
+    }
+
+    public bool IsMember(long userId) => _members.Any(m => m.UserId == userId);
+
+    public ProjectRole? GetMemberRole(long userId)
+        => _members.FirstOrDefault(m => m.UserId == userId)?.Role;
 
     private void ThrowIfNotEditMode()
     {

@@ -1,4 +1,5 @@
 using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -15,6 +16,9 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasValue<FormedOrder>("Formed");
 
         builder.Property(o => o.Phone)
+            .HasConversion(
+                p => p.ToString(),
+                v => string.IsNullOrEmpty(v) ? PhoneNumber.Empty : PhoneNumber.Create(v))
             .IsRequired()
             .HasMaxLength(32);
 
@@ -23,15 +27,18 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasMaxLength(16);
 
         builder.Property(o => o.Address)
+            .HasConversion(
+                a => a.HasValue ? a.Value.ToString() : null,
+                v => string.IsNullOrEmpty(v) ? (Address?)null : Address.Create(v))
             .HasMaxLength(512);
 
         builder.Property(o => o.Status)
             .HasConversion<string>()
             .HasMaxLength(32);
 
-        builder.HasOne(o => o.Customer)
+        builder.HasOne(o => o.User)
             .WithMany()
-            .HasForeignKey("CustomerId")
+            .HasForeignKey("UserId")
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(o => o.Project)
@@ -48,7 +55,9 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasField("_orderPositions")
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
-        builder.HasIndex("CustomerId");
+        builder.Ignore(o => o.DomainEvents);
+
+        builder.HasIndex("UserId");
         builder.HasIndex("ProjectId");
     }
 }

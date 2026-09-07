@@ -34,7 +34,7 @@ public class QuestionTextHandler : IQuestionTextHandler
         var customer = await _userRepository.GetByIdAsync(userId);
         if (customer == null)
         {
-            customer = new Customer(userId, message.From.FirstName, message.From.LastName, message.From.Username);
+            customer = new Domain.Entities.User(userId, message.From.FirstName, message.From.LastName, message.From.Username);
             await _userRepository.AddAsync(customer);
         }
 

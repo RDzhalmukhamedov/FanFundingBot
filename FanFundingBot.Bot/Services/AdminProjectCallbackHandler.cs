@@ -41,7 +41,7 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
             .ToList();
 
         var result = await _adminService.CreateProjectAsync(
-            session.TempProjectName, session.TempProjectDescription ?? "", addons);
+            userId, session.TempProjectName, session.TempProjectDescription ?? "", addons);
 
         _stateService.Remove(userId);
 

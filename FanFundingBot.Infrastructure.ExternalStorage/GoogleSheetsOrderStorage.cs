@@ -343,10 +343,10 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
 
     private IList<object> OrderToRow(Order order)
     {
-        var telegramNick = order.Customer?.Username is { Length: > 0 } username ? "@" + username : "";
-        var userName = $"{order.Customer?.FirstName ?? ""} {order.Customer?.LastName ?? ""}".Trim();
+        var telegramNick = order.User?.Username is { Length: > 0 } username ? "@" + username : "";
+        var userName = $"{order.User?.FirstName ?? ""} {order.User?.LastName ?? ""}".Trim();
         if (string.IsNullOrEmpty(userName))
-            userName = order.Customer?.Id.ToString() ?? "";
+            userName = order.User?.Id.ToString() ?? "";
 
         var projectName = order.Project?.Name ?? order.Project?.Id.ToString() ?? "";
 

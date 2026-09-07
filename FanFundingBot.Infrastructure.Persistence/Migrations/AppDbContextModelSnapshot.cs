@@ -67,9 +67,6 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<long>("CustomerId")
-                        .HasColumnType("bigint");
-
                     b.Property<string>("DeliveryMethod")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -93,11 +90,14 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("CustomerId");
-
                     b.HasIndex("ProjectId");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Orders");
 
@@ -155,6 +155,24 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
                     b.HasIndex("StatusId");
 
                     b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("FanFundingBot.Domain.Entities.ProjectMember", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("ProjectId", "UserId");
+
+                    b.ToTable("ProjectMembers", (string)null);
                 });
 
             modelBuilder.Entity("FanFundingBot.Domain.Entities.ProjectStatus", b =>
@@ -227,11 +245,6 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Discriminator")
-                        .IsRequired()
-                        .HasMaxLength(8)
-                        .HasColumnType("character varying(8)");
-
                     b.Property<string>("FirstName")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
@@ -258,10 +271,6 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
                     b.HasIndex("Role");
 
                     b.ToTable("Users", (string)null);
-
-                    b.HasDiscriminator<string>("Discriminator").HasValue("User");
-
-                    b.UseTphMappingStrategy();
                 });
 
             modelBuilder.Entity("FanFundingBot.Domain.Entities.DraftOrder", b =>
@@ -278,13 +287,6 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
                     b.HasDiscriminator().HasValue("Formed");
                 });
 
-            modelBuilder.Entity("FanFundingBot.Domain.Entities.Customer", b =>
-                {
-                    b.HasBaseType("FanFundingBot.Domain.Entities.User");
-
-                    b.HasDiscriminator().HasValue("Customer");
-                });
-
             modelBuilder.Entity("FanFundingBot.Domain.Entities.Addon", b =>
                 {
                     b.HasOne("FanFundingBot.Domain.Entities.Project", null)
@@ -296,21 +298,21 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("FanFundingBot.Domain.Entities.Order", b =>
                 {
-                    b.HasOne("FanFundingBot.Domain.Entities.Customer", "Customer")
-                        .WithMany()
-                        .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("FanFundingBot.Domain.Entities.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Customer");
+                    b.HasOne("FanFundingBot.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Project");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("FanFundingBot.Domain.Entities.OrderPosition", b =>
@@ -341,6 +343,15 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
                     b.Navigation("Status");
                 });
 
+            modelBuilder.Entity("FanFundingBot.Domain.Entities.ProjectMember", b =>
+                {
+                    b.HasOne("FanFundingBot.Domain.Entities.Project", null)
+                        .WithMany("Members")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("FanFundingBot.Domain.Entities.Question", b =>
                 {
                     b.HasOne("FanFundingBot.Domain.Entities.User", "AnsweredBy")
@@ -348,7 +359,7 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
                         .HasForeignKey("AnsweredById")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("FanFundingBot.Domain.Entities.Customer", "User")
+                    b.HasOne("FanFundingBot.Domain.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -367,6 +378,8 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("FanFundingBot.Domain.Entities.Project", b =>
                 {
                     b.Navigation("Addons");
+
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }

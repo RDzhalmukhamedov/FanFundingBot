@@ -31,5 +31,16 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.Navigation(p => p.Addons)
             .HasField("_addons")
             .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasMany(p => p.Members)
+            .WithOne()
+            .HasForeignKey("ProjectId")
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(p => p.Members)
+            .HasField("_members")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Ignore(p => p.DomainEvents);
     }
 }

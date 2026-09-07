@@ -336,7 +336,7 @@ public class AdminProjectCallbackHandlerTests
         _session.TempProjectName = "P";
         _session.TempProjectDescription = "D";
         _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
-        _adminServiceMock.Setup(s => s.CreateProjectAsync("P", "D", null)).ReturnsAsync("✅");
+        _adminServiceMock.Setup(s => s.CreateProjectAsync(1, "P", "D", null)).ReturnsAsync("✅");
         await _handler.HandleAdminCreateProjectConfirmAsync(_botClientMock.Object, MakeCq("x"), 1, CancellationToken.None);
         _stateServiceMock.Verify(s => s.Remove(1));
     }

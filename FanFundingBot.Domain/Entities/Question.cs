@@ -1,12 +1,13 @@
+using FanFundingBot.Domain.DomainEvents;
 using FanFundingBot.Domain.Exceptions;
 
 namespace FanFundingBot.Domain.Entities;
 
-public class Question
+public class Question : AggregateRoot
 {
     public Guid Id { get; private set; }
     public string Text { get; private set; } = string.Empty;
-    public Customer User { get; private set; } = null!;
+    public User User { get; private set; } = null!;
     public DateTime CreatedAt { get; private set; }
 
     public string? Answer { get; private set; }
@@ -17,7 +18,7 @@ public class Question
     {
     }
 
-    public Question(Customer user, string question)
+    public Question(User user, string question)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(question);
@@ -41,5 +42,7 @@ public class Question
         Answer = answerText;
         AnsweredBy = admin;
         AnsweredAt = DateTime.UtcNow;
+
+        AddDomainEvent(new QuestionAnsweredEvent(Id, admin.Id));
     }
 }

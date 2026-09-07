@@ -47,7 +47,7 @@ public class FileOrderStorage : IOrderExternalStorage
     {
         return new StoredOrder(
             order.Id,
-            order.Customer.Id,
+            order.User.Id,
             order.Project.Id,
             order.Phone,
             order.DeliveryMethod.ToString(),

@@ -9,7 +9,7 @@ public class FormedOrder : Order
     {
     }
 
-    public FormedOrder(Customer customer, Project project) : base(customer, project)
+    public FormedOrder(User customer, Project project) : base(customer, project)
     {
     }
 
@@ -20,7 +20,7 @@ public class FormedOrder : Order
 
     public override DraftOrder Edit()
     {
-        var draft = new DraftOrder(Customer, Project);
+        var draft = new DraftOrder(User, Project);
         draft.CopyStateFrom(this);
 
         return draft;

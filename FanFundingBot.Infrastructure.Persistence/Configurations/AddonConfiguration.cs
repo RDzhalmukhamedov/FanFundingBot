@@ -18,6 +18,7 @@ public class AddonConfiguration : IEntityTypeConfiguration<Addon>
             .HasMaxLength(2048);
 
         builder.Property(a => a.Price)
+            .HasConversion(m => (decimal)m, v => FanFundingBot.Domain.ValueObjects.Money.Create(v))
             .HasPrecision(18, 2);
     }
 }

@@ -1,6 +1,7 @@
 using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Interfaces;
+using FanFundingBot.Domain.ValueObjects;
 using FanFundingBot.Infrastructure.Persistence;
 using FanFundingBot.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -369,9 +370,9 @@ public class OrderRepositoryTests : RepositoryTestBase
         Assert.Multiple(() =>
         {
             Assert.That(loaded!.OrderAddons, Has.Count.EqualTo(1));
-            Assert.That(loaded.OrderAddons[0].Quantity, Is.EqualTo(2));
+            Assert.That(loaded.OrderAddons[0].Quantity, Is.EqualTo(Quantity.Create(2)));
             Assert.That(loaded.OrderAddons[0].Addon.Name, Is.EqualTo("A1"));
-            Assert.That(loaded.Customer.Id, Is.EqualTo(1));
+            Assert.That(loaded.User.Id, Is.EqualTo(1));
         });
     }
 }
@@ -379,7 +380,7 @@ public class OrderRepositoryTests : RepositoryTestBase
 [TestFixture]
 public class QuestionRepositoryTests : RepositoryTestBase
 {
-    private static async Task<Customer> AddCustomerAsync(AppDbContext context)
+    private static async Task<User> AddCustomerAsync(AppDbContext context)
     {
         var customer = DomainTestFactory.NewCustomer(1);
         context.Users.Add(customer);

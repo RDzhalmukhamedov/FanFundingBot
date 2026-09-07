@@ -6,15 +6,18 @@ namespace FanFundingBot.Tests;
 
 /// <summary>
 /// Фабрика богатых доменных сущностей для тестов.
-/// В Фазе 1 будет расширена/пересмотрена вместе с тестами.
 /// </summary>
 internal static class DomainTestFactory
 {
-    public static Customer NewCustomer(long id = 1, string? username = "testuser")
-        => new Customer(id, "Test", "User", username);
+    public static User NewCustomer(long id = 1, string? username = "testuser")
+        => new User(id, "Test", "User", username);
 
-    public static Admin NewAdmin(long id = 1)
-        => new Admin(id, "Admin", "User", "admin");
+    public static User NewAdmin(long id = 1)
+    {
+        var admin = new User(id, "Admin", "User", "admin");
+        admin.PromoteToAdmin();
+        return admin;
+    }
 
     public static ProjectStatus NewStatus(bool canEditOrders = true)
         => new ProjectStatus("Test status", 1, canEditOrders);
@@ -35,7 +38,7 @@ internal static class DomainTestFactory
         => new Addon(id ?? Guid.NewGuid(), name, name, price, EditMode.Formed);
 
     public static DraftOrder NewDraft(
-        Customer? customer = null,
+        User? customer = null,
         Project? project = null,
         Guid? addonId = null,
         int quantity = 1,
@@ -53,7 +56,7 @@ internal static class DomainTestFactory
     }
 
     public static FormedOrder NewFormed(
-        Customer? customer = null,
+        User? customer = null,
         Project? project = null,
         Guid? addonId = null,
         int quantity = 1,
@@ -62,6 +65,6 @@ internal static class DomainTestFactory
         string? address = null)
         => NewDraft(customer, project, addonId, quantity, phone, delivery, address).Form();
 
-    public static Question NewQuestion(Customer? customer = null, string text = "Test question?")
+    public static Question NewQuestion(User? customer = null, string text = "Test question?")
         => new Question(customer ?? NewCustomer(), text);
 }

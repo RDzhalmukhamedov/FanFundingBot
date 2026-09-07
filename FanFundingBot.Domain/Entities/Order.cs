@@ -1,21 +1,22 @@
 using FanFundingBot.Domain.Enums;
+using FanFundingBot.Domain.ValueObjects;
 
 namespace FanFundingBot.Domain.Entities;
 
-public abstract class Order
+public abstract class Order : AggregateRoot
 {
     protected List<OrderPosition> _orderPositions = [];
 
     public Guid Id { get; private set; }
 
-    public Customer Customer { get; private set; } = null!;
+    public User User { get; private set; } = null!;
     public Project Project { get; private set; } = null!;
 
     public DateTime CreatedAt { get; protected set; }
 
-    public string Phone { get; protected set; } = string.Empty;
+    public PhoneNumber Phone { get; protected set; }
     public DeliveryMethod DeliveryMethod { get; protected set; }
-    public string? Address { get; protected set; }
+    public Address? Address { get; protected set; }
     public OrderStatus Status { get; protected set; }
 
     public IReadOnlyList<OrderPosition> OrderAddons => _orderPositions.AsReadOnly();
@@ -24,13 +25,13 @@ public abstract class Order
     {
     }
 
-    public Order(Customer customer, Project project)
+    public Order(User customer, Project project)
     {
         ArgumentNullException.ThrowIfNull(customer);
         ArgumentNullException.ThrowIfNull(project);
 
         Id = Guid.NewGuid();
-        Customer = customer;
+        User = customer;
         Project = project;
         CreatedAt = DateTime.UtcNow;
         Status = OrderStatus.New;

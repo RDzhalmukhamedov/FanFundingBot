@@ -1,5 +1,6 @@
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Exceptions;
+using FanFundingBot.Domain.ValueObjects;
 
 namespace FanFundingBot.Domain.Entities;
 
@@ -8,7 +9,7 @@ public class Addon : IEditable<Addon>
     public Guid Id { get; private set; }
     public string Name { get; private set; } = string.Empty;
     public string? Description { get; private set; }
-    public decimal Price { get; private set; }
+    public Money Price { get; private set; }
     public EditMode Mode { get; private set; }
 
     public Addon()
@@ -25,7 +26,7 @@ public class Addon : IEditable<Addon>
         Id = id;
         Name = name;
         Description = description;
-        Price = price;
+        Price = Money.Create(price);
         Mode = mode;
     }
 
@@ -61,11 +62,7 @@ public class Addon : IEditable<Addon>
     public void SetPrice(decimal price)
     {
         ThrowIfNotEditMode();
-        if (price < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(price), price, "Цена должна быть неотрицательной");
-        }
-        Price = price;
+        Price = Money.Create(price);
     }
 
     private void ThrowIfNotEditMode()

@@ -5,6 +5,7 @@ using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Exceptions;
 using FanFundingBot.Domain.Interfaces;
+using FanFundingBot.Domain.ValueObjects;
 using Moq;
 
 namespace FanFundingBot.Tests.Bot.Services;
@@ -20,7 +21,7 @@ public class OrderFlowServiceTests
     private OwnerNotificationDelegate _notifyOwner;
     private OrderFlowService _service;
 
-    private static Customer NewUser(long userId = 1, string phone = "+71234567890")
+    private static User NewUser(long userId = 1, string phone = "+71234567890")
     {
         var user = DomainTestFactory.NewCustomer(userId);
         user.SetPhone(phone);
@@ -143,17 +144,17 @@ public class OrderFlowServiceTests
         Assert.Multiple(() =>
         {
             Assert.That(order, Is.Not.Null);
-            Assert.That(order.Customer.Id, Is.EqualTo(userId));
+            Assert.That(order.User.Id, Is.EqualTo(userId));
             Assert.That(order.Project.Id, Is.EqualTo(projectId));
-            Assert.That(order.Phone, Is.EqualTo(phone));
+            Assert.That(order.Phone.ToString(), Is.EqualTo(phone));
             Assert.That(order.DeliveryMethod, Is.EqualTo(DeliveryMethod.Delivery));
-            Assert.That(order.Address, Is.EqualTo("Test Address"));
+            Assert.That(order.Address.ToString(), Is.EqualTo("Test Address"));
             Assert.That(order.Status, Is.EqualTo(OrderStatus.New));
             Assert.That(order.OrderAddons, Has.Count.EqualTo(2));
             Assert.That(order.OrderAddons.All(oa => oa.Addon != null), Is.True);
         });
 
-        _userRepoMock.Verify(r => r.UpdateAsync(It.Is<Customer>(u => u.Phone == phone)), Times.Once);
+        _userRepoMock.Verify(r => r.UpdateAsync(It.Is<User>(u => u.Phone == phone)), Times.Once);
         _externalStorageMock.Verify(s => s.SaveOrderAsync(It.IsAny<Order>()), Times.Once);
     }
 
@@ -214,8 +215,8 @@ public class OrderFlowServiceTests
         Assert.That(savedOrder!.OrderAddons, Has.Count.EqualTo(2));
         var oa1 = savedOrder.OrderAddons.First(oa => oa.AddonId == addonId1);
         var oa2 = savedOrder.OrderAddons.First(oa => oa.AddonId == addonId2);
-        Assert.That(oa1.Quantity, Is.EqualTo(3));
-        Assert.That(oa2.Quantity, Is.EqualTo(2));
+        Assert.That(oa1.Quantity, Is.EqualTo(Quantity.Create(3)));
+        Assert.That(oa2.Quantity, Is.EqualTo(Quantity.Create(2)));
     }
 
     [Test]
@@ -243,7 +244,7 @@ public class OrderFlowServiceTests
 
         Assert.That(savedOrder, Is.Not.Null);
         var oa = savedOrder!.OrderAddons.First();
-        Assert.That(oa.Quantity, Is.EqualTo(1));
+        Assert.That(oa.Quantity, Is.EqualTo(Quantity.Create(1)));
     }
 
     [Test]
@@ -335,11 +336,11 @@ public class OrderFlowServiceTests
         Assert.Multiple(() =>
         {
             Assert.That(updatedOrder, Is.Not.Null);
-            Assert.That(updatedOrder!.Phone, Is.EqualTo("+72222222222"));
+            Assert.That(updatedOrder!.Phone.ToString(), Is.EqualTo("+72222222222"));
             Assert.That(updatedOrder.DeliveryMethod, Is.EqualTo(DeliveryMethod.Delivery));
-            Assert.That(updatedOrder.Address, Is.EqualTo("New Address"));
+            Assert.That(updatedOrder.Address.ToString(), Is.EqualTo("New Address"));
             Assert.That(updatedOrder.OrderAddons, Has.Count.EqualTo(1));
-            Assert.That(updatedOrder.OrderAddons[0].Quantity, Is.EqualTo(5));
+            Assert.That((int)updatedOrder.OrderAddons[0].Quantity, Is.EqualTo(5));
         });
         _orderRepoMock.Verify(r => r.UpdateAsync(It.IsAny<Order>()), Times.Once);
         _externalStorageMock.Verify(s => s.SaveOrderAsync(It.IsAny<Order>()), Times.Once);
@@ -396,10 +397,10 @@ public class OrderFlowServiceTests
         var addonId = Guid.NewGuid();
         var addonIds = new HashSet<Guid> { addonId };
 
-        var customer = NewUser(1, "old_phone");
+        var customer = NewUser(1, "+71111111111");
         var project = NewProject(projectId);
         var existingDraft = new DraftOrder(customer, project);
-        existingDraft.SetPhoneNumber("old_phone");
+        existingDraft.SetPhoneNumber("+71111111111");
         existingDraft.SetDeliveryMethod(DeliveryMethod.Pickup);
 
         _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(existingDraft);
@@ -576,7 +577,7 @@ public class OrderFlowServiceTests
         var restored = updatedOrders[1];
         Assert.Multiple(() =>
         {
-            Assert.That(restored.Phone, Is.EqualTo("+71111111111"));
+            Assert.That(restored.Phone.ToString(), Is.EqualTo("+71111111111"));
             Assert.That(restored.DeliveryMethod, Is.EqualTo(DeliveryMethod.Pickup));
             Assert.That(restored.Address, Is.Null);
             Assert.That(restored.OrderAddons.Select(p => p.Addon.Id), Does.Contain(originalAddonId));

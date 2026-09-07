@@ -239,7 +239,7 @@ public class OrderFlowService : IOrderFlowService
             order.Phone,
             order.DeliveryMethod,
             order.Address,
-            order.OrderAddons.Select(p => (p.Addon.Id, p.Quantity)).ToList());
+            order.OrderAddons.Select(p => (p.Addon.Id, (int)p.Quantity)).ToList());
     }
 
     private FormedOrder ApplyState(

@@ -321,7 +321,7 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
         session.EditingOrderId = order.Id;
         session.SelectedProjectId = order.Project.Id;
         session.SelectedAddonIds = order.OrderAddons.Select(oa => oa.Addon.Id).ToHashSet();
-        session.AddonQuantities = order.OrderAddons.ToDictionary(oa => oa.Addon.Id, oa => oa.Quantity);
+        session.AddonQuantities = order.OrderAddons.ToDictionary(oa => oa.Addon.Id, oa => (int)oa.Quantity);
         session.Phone = order.Phone;
         session.DeliveryMethod = order.DeliveryMethod;
         session.Address = order.Address;

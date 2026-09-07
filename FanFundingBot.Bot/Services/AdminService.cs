@@ -115,7 +115,7 @@ public class AdminService : IAdminService
         return await _projectRepository.GetByIdAsync(projectId);
     }
 
-    public async Task<string> CreateProjectAsync(string name, string description, List<(string Name, string Description, decimal Price)>? addons)
+    public async Task<string> CreateProjectAsync(long callerUserId, string name, string description, List<(string Name, string Description, decimal Price)>? addons)
     {
         var plannedStatus = await _statusRepository.GetByIdAsync(KnownProjectStatusIds.Planned);
         if (plannedStatus == null)
@@ -141,6 +141,7 @@ public class AdminService : IAdminService
         }
 
         project.FinishEdit();
+        project.AddMember(callerUserId, ProjectRole.ProjectAdmin);
 
         await _projectRepository.AddAsync(project);
         return $"✅ Проект «{name}» создан.";

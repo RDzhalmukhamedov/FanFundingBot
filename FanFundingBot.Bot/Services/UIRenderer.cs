@@ -136,7 +136,7 @@ public class UIRenderer : IUIRenderer
 
     public async Task HandleMyOrderByOrderAsync(ITelegramBotClient botClient, long chatId, Order order, CancellationToken ct)
     {
-        var userId = order.Customer.Id;
+        var userId = order.User.Id;
         var project = await _projectRepository.GetByIdAsync(order.Project.Id);
         var statusName = order.Status switch
         {

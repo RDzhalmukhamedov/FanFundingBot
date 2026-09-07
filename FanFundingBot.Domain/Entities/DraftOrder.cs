@@ -1,6 +1,7 @@
+using FanFundingBot.Domain.DomainEvents;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Exceptions;
-using FanFundingBot.Domain.Extensions;
+using FanFundingBot.Domain.ValueObjects;
 
 namespace FanFundingBot.Domain.Entities;
 
@@ -10,14 +11,15 @@ public class DraftOrder : Order
     {
     }
 
-    public DraftOrder(Customer customer, Project project) : base(customer, project)
+    public DraftOrder(User customer, Project project) : base(customer, project)
     {
     }
 
     public override FormedOrder Form()
     {
-        var formed = new FormedOrder(Customer, Project);
+        var formed = new FormedOrder(User, Project);
         formed.CopyStateFrom(this);
+        formed.AddDomainEvent(new OrderFormedEvent(formed.Id, formed.User.Id, formed.Project.Id));
 
         return formed;
     }
@@ -64,12 +66,7 @@ public class DraftOrder : Order
 
     public override void SetPhoneNumber(string phoneNumber)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(phoneNumber);
-
-        if (phoneNumber.IsValidPhone())
-        {
-            Phone = phoneNumber;
-        }
+        Phone = PhoneNumber.Create(phoneNumber);
     }
 
     public override void SetDeliveryMethod(DeliveryMethod deliveryMethod)
@@ -79,7 +76,7 @@ public class DraftOrder : Order
 
     public override void SetShippingAddress(string? shippingAddress)
     {
-        Address = string.IsNullOrWhiteSpace(shippingAddress) ? null : shippingAddress;
+        Address = string.IsNullOrWhiteSpace(shippingAddress) ? null : ValueObjects.Address.Create(shippingAddress);
     }
 
     private OrderPosition FindPosition(Guid addonId)
