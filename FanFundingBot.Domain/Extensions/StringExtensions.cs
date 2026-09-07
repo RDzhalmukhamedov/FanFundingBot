@@ -15,7 +15,7 @@ public static partial class StringExtensions
         return PhoneRegex.IsMatch(cleaned);
     }
 
-    public static bool IsValidAddress(this string address)
+    public static bool IsValidAddress(this string? address)
     {
         if (string.IsNullOrWhiteSpace(address) || address.Length < 5)
             return false;

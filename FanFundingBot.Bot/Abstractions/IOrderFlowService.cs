@@ -3,6 +3,7 @@ using FanFundingBot.Domain.Enums;
 
 namespace FanFundingBot.Bot.Abstractions;
 
+[System.Obsolete("Используйте команды FanFundingBot.Application.Orders. Будет удалено в Фазе 4.")]
 public interface IOrderFlowService
 {
     string? ValidatePhone(string phone);

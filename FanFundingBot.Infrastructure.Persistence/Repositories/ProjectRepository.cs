@@ -17,6 +17,7 @@ public class ProjectRepository : IProjectRepository
     {
         return await _context.Projects
             .Include(p => p.Status)
+            .Include(p => p.Members)
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
@@ -25,6 +26,7 @@ public class ProjectRepository : IProjectRepository
         return await _context.Projects
             .Include(p => p.Addons)
             .Include(p => p.Status)
+            .Include(p => p.Members)
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
@@ -32,6 +34,7 @@ public class ProjectRepository : IProjectRepository
     {
         return await _context.Projects
             .Include(p => p.Status)
+            .Include(p => p.Members)
             .ToListAsync();
     }
 
@@ -40,6 +43,7 @@ public class ProjectRepository : IProjectRepository
         return await _context.Projects
             .Include(p => p.Addons)
             .Include(p => p.Status)
+            .Include(p => p.Members)
             .ToListAsync();
     }
 
@@ -61,11 +65,21 @@ public class ProjectRepository : IProjectRepository
             .Select(a => a.Id)
             .ToListAsync();
 
+        var existingMemberIds = await _context.Set<ProjectMember>()
+            .Where(m => m.ProjectId == project.Id)
+            .Select(m => m.UserId)
+            .ToListAsync();
+
         _context.Projects.Update(project);
         foreach (var addon in project.Addons)
         {
             if (!existingAddonIds.Contains(addon.Id))
                 _context.Entry(addon).State = EntityState.Added;
+        }
+        foreach (var member in project.Members)
+        {
+            if (!existingMemberIds.Contains(member.UserId))
+                _context.Entry(member).State = EntityState.Added;
         }
 
         await _context.SaveChangesAsync();

@@ -2,6 +2,7 @@ using FanFundingBot.Domain.Entities;
 
 namespace FanFundingBot.Bot.Abstractions;
 
+[System.Obsolete("Используйте команды FanFundingBot.Application. Будет удалено в Фазе 4.")]
 public interface IAdminService
 {
     Task<bool> IsAdminAsync(long userId);
