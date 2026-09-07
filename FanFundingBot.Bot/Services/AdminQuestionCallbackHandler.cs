@@ -1,6 +1,9 @@
+using FanFundingBot.Application.Projects.Commands;
+using FanFundingBot.Application.Projects.Queries;
+using FanFundingBot.Application.Questions.Queries;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
-using FanFundingBot.Domain.Interfaces;
+using MediatR;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -10,19 +13,16 @@ namespace FanFundingBot.Bot.Services;
 public class AdminQuestionCallbackHandler : IAdminQuestionCallbackHandler
 {
     private readonly IUserStateService _stateService;
-    private readonly IProjectRepository _projectRepository;
-    private readonly IAdminService _adminService;
+    private readonly IMediator _mediator;
     private readonly MainMenuHelper _menuHelper;
 
     public AdminQuestionCallbackHandler(
         IUserStateService stateService,
-        IProjectRepository projectRepository,
-        IAdminService adminService,
+        IMediator mediator,
         MainMenuHelper menuHelper)
     {
         _stateService = stateService;
-        _projectRepository = projectRepository;
-        _adminService = adminService;
+        _mediator = mediator;
         _menuHelper = menuHelper;
     }
 
@@ -34,17 +34,20 @@ public class AdminQuestionCallbackHandler : IAdminQuestionCallbackHandler
         session.PendingQuestionId = questionId;
         _stateService.Update(userId, session);
 
-        var questions = await _adminService.GetUnansweredQuestionsAsync();
+        var questionsResult = await _mediator.Send(new GetUnansweredQuestionsQuery(userId), ct);
+        var questions = questionsResult.IsSuccess
+            ? questionsResult.Value
+            : new List<Application.Questions.DTOs.QuestionDto>();
         var selected = questions.FirstOrDefault(q => q.Id == questionId);
 
-        var usernameLine = selected?.User.Username != null
-            ? $"👤 @{selected.User.Username}\n\n"
+        var usernameLine = selected?.Username != null
+            ? $"👤 @{selected.Username}\n\n"
             : "";
 
         await botClient.EditMessageText(
             query.Message!.Chat.Id,
             query.Message!.MessageId,
-            $"📝 <b>Вопрос от {selected?.User.FirstName ?? "пользователя"}</b>\n\n" +
+            $"📝 <b>Вопрос от {selected?.FirstName ?? "пользователя"}</b>\n\n" +
             usernameLine +
             $"{selected?.Text}\n\n" +
             "Введите ваш ответ:",
@@ -69,7 +72,10 @@ public class AdminQuestionCallbackHandler : IAdminQuestionCallbackHandler
         session.TempBroadcastText = null;
         _stateService.Update(userId, session);
 
-        var projects = await _projectRepository.GetAllAsync();
+        var projectsResult = await _mediator.Send(new GetProjectsQuery(), ct);
+        var projects = projectsResult.IsSuccess
+            ? projectsResult.Value
+            : new List<Application.Projects.DTOs.ProjectDto>();
         if (projects.Count == 0)
         {
             await botClient.EditMessageText(
@@ -79,12 +85,14 @@ public class AdminQuestionCallbackHandler : IAdminQuestionCallbackHandler
             return;
         }
 
-        var result = await _adminService.BroadcastMessageAsync(projects.First().Id, text);
+        var result = await _mediator.Send(new BroadcastCommand(userId, projects.First().Id, text), ct);
 
         await botClient.EditMessageText(
             query.Message!.Chat.Id,
             query.Message.MessageId,
-            result,
+            result.IsSuccess
+                ? "✅ Информационное сообщение отправлено всем подписанным пользователям."
+                : result.Errors[0].Message,
             parseMode: ParseMode.Html,
             cancellationToken: ct);
 

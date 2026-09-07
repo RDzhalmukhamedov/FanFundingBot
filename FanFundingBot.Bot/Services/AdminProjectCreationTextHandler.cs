@@ -12,14 +12,10 @@ namespace FanFundingBot.Bot.Services;
 public class AdminProjectCreationTextHandler : IAdminProjectCreationTextHandler
 {
     private readonly IUserStateService _stateService;
-    private readonly IOrderFlowService _orderFlowService;
 
-    public AdminProjectCreationTextHandler(
-        IUserStateService stateService,
-        IOrderFlowService orderFlowService)
+    public AdminProjectCreationTextHandler(IUserStateService stateService)
     {
         _stateService = stateService;
-        _orderFlowService = orderFlowService;
     }
 
     public async Task HandleCreateProjectNameAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)

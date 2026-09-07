@@ -1,7 +1,7 @@
+using FanFundingBot.Application.Questions.Commands;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Keyboards;
-using FanFundingBot.Domain.Entities;
-using FanFundingBot.Domain.Interfaces;
+using MediatR;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
@@ -10,20 +10,14 @@ namespace FanFundingBot.Bot.Services;
 public class QuestionTextHandler : IQuestionTextHandler
 {
     private readonly IUserStateService _stateService;
-    private readonly IQuestionRepository _questionRepository;
-    private readonly IUserRepository _userRepository;
-    private readonly IAdminService _adminService;
+    private readonly IMediator _mediator;
 
     public QuestionTextHandler(
         IUserStateService stateService,
-        IQuestionRepository questionRepository,
-        IUserRepository userRepository,
-        IAdminService adminService)
+        IMediator mediator)
     {
         _stateService = stateService;
-        _questionRepository = questionRepository;
-        _userRepository = userRepository;
-        _adminService = adminService;
+        _mediator = mediator;
     }
 
     public async Task SaveQuestionAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
@@ -31,16 +25,7 @@ public class QuestionTextHandler : IQuestionTextHandler
         var userId = message.From!.Id;
         var text = message.Text!;
 
-        var customer = await _userRepository.GetByIdAsync(userId);
-        if (customer == null)
-        {
-            customer = new Domain.Entities.User(userId, message.From.FirstName, message.From.LastName, message.From.Username);
-            await _userRepository.AddAsync(customer);
-        }
-
-        var question = new Question(customer, text);
-
-        await _questionRepository.AddAsync(question);
+        var result = await _mediator.Send(new AskQuestionCommand(userId, text), ct);
 
         var session = _stateService.Get(userId);
         if (session != null)
@@ -51,8 +36,10 @@ public class QuestionTextHandler : IQuestionTextHandler
 
         await botClient.SendMessage(
             message.Chat.Id,
-            "✅ Ваш вопрос принят! Мы ответим вам в ближайшее время.",
-            replyMarkup: MainMenuKeyboard.Create(await _adminService.IsAdminAsync(userId)),
+            result.IsSuccess
+                ? "✅ Ваш вопрос принят! Мы ответим вам в ближайшее время."
+                : result.Errors[0].Message,
+            replyMarkup: BackKeyboard.Create(),
             cancellationToken: ct);
     }
 
@@ -61,7 +48,7 @@ public class QuestionTextHandler : IQuestionTextHandler
         var userId = message.From!.Id;
         var text = message.Text!;
 
-        var result = await _adminService.AnswerQuestionAsync(questionId, text, userId);
+        var result = await _mediator.Send(new AnswerQuestionCommand(userId, questionId, text), ct);
 
         var session = _stateService.Get(userId);
         if (session != null)
@@ -73,8 +60,8 @@ public class QuestionTextHandler : IQuestionTextHandler
 
         await botClient.SendMessage(
             message.Chat.Id,
-            result,
-            replyMarkup: MainMenuKeyboard.Create(true),
+            result.IsSuccess ? "✅ Ответ отправлен пользователю." : result.Errors[0].Message,
+            replyMarkup: BackKeyboard.Create(),
             cancellationToken: ct);
     }
 }

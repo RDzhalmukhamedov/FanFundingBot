@@ -1,7 +1,7 @@
+using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
-using FanFundingBot.Bot.Keyboards;
-using FanFundingBot.Domain.Interfaces;
+using MediatR;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -12,21 +12,18 @@ namespace FanFundingBot.Bot.Services;
 public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
 {
     private readonly IUserStateService _stateService;
-    private readonly IAdminService _adminService;
-    private readonly IAddonRepository _addonRepository;
+    private readonly IMediator _mediator;
     private readonly IProjectEditFormBuilder _editFormBuilder;
     private readonly MainMenuHelper _menuHelper;
 
     public AdminProjectCallbackHandler(
         IUserStateService stateService,
-        IAdminService adminService,
-        IAddonRepository addonRepository,
+        IMediator mediator,
         IProjectEditFormBuilder editFormBuilder,
         MainMenuHelper menuHelper)
     {
         _stateService = stateService;
-        _adminService = adminService;
-        _addonRepository = addonRepository;
+        _mediator = mediator;
         _editFormBuilder = editFormBuilder;
         _menuHelper = menuHelper;
     }
@@ -37,18 +34,20 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
         if (session?.TempProjectName == null) return;
 
         var addons = session.TempAddons?
-            .Select(a => (a.Name, a.Description, a.Price))
+            .Select(a => new Application.Projects.DTOs.NewAddonItem(a.Name, a.Description, a.Price))
             .ToList();
 
-        var result = await _adminService.CreateProjectAsync(
-            userId, session.TempProjectName, session.TempProjectDescription ?? "", addons);
+        var result = await _mediator.Send(new CreateProjectCommand(
+            userId, session.TempProjectName, session.TempProjectDescription ?? "", addons), ct);
 
         _stateService.Remove(userId);
 
         await botClient.EditMessageText(
             query.Message!.Chat.Id,
             query.Message!.MessageId,
-            result,
+            result.IsSuccess
+                ? $"✅ Проект «{session.TempProjectName}» создан."
+                : result.Errors[0].Message,
             parseMode: ParseMode.Html,
             cancellationToken: ct);
     }
@@ -129,12 +128,10 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
         session.PendingAction = $"wizard_addon_name:{addonId:N}";
         _stateService.Update(userId, session);
 
-        var addon = await _addonRepository.GetByIdAsync(addonId);
-
         await botClient.EditMessageText(
             query.Message!.Chat.Id,
             query.Message!.MessageId,
-            $"✏️ <b>Редактирование дополнения «{addon?.Name}»</b>\n\n" +
+            "✏️ <b>Редактирование дополнения</b>\n\n" +
             "Шаг 1 из 3. Введите новое название дополнения:",
             parseMode: ParseMode.Html,
             cancellationToken: ct);
@@ -171,8 +168,9 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
     public async Task HandleAdminDeleteAddonAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
         var addonId = CallbackData.GuidArg(data);
-        var addon = await _addonRepository.GetByIdAsync(addonId);
-        if (addon == null)
+        var projectResult = await _mediator.Send(
+            new Application.Projects.Queries.GetProjectIdByAddonQuery(addonId), ct);
+        if (projectResult.IsFailed)
         {
             await botClient.EditMessageText(
                 query.Message!.Chat.Id, query.Message!.MessageId, "Дополнение не найдено.", cancellationToken: ct);
@@ -184,14 +182,14 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
             new[]
             {
                 InlineKeyboardButton.WithCallbackData("✅ Да, удалить", CallbackData.Build("admin_del_addon_confirm", addonId)),
-                InlineKeyboardButton.WithCallbackData("❌ Отмена", CallbackData.Build("admin_del_addon_cancel", await _addonRepository.GetProjectIdByAddonAsync(addonId) ?? Guid.Empty))
+                InlineKeyboardButton.WithCallbackData("❌ Отмена", CallbackData.Build("admin_del_addon_cancel", projectResult.Value))
             }
         });
 
         await botClient.EditMessageText(
             query.Message!.Chat.Id,
             query.Message!.MessageId,
-            $"⚠️ <b>Удалить дополнение «{addon.Name}»?</b>\n\nЭто действие нельзя отменить.",
+            "⚠️ <b>Удалить дополнение?</b>\n\nЭто действие нельзя отменить.",
             parseMode: ParseMode.Html,
             replyMarkup: keyboard,
             cancellationToken: ct);
@@ -200,25 +198,19 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
     public async Task HandleAdminDeleteAddonConfirmAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
         var addonId = CallbackData.GuidArg(data);
-        var addon = await _addonRepository.GetByIdAsync(addonId);
-        if (addon == null)
+        var projectResult = await _mediator.Send(
+            new Application.Projects.Queries.GetProjectIdByAddonQuery(addonId), ct);
+        if (projectResult.IsFailed)
         {
             await botClient.EditMessageText(
                 query.Message!.Chat.Id, query.Message!.MessageId, "Дополнение не найдено.", cancellationToken: ct);
             return;
         }
 
-        var projectId = await _addonRepository.GetProjectIdByAddonAsync(addonId);
-        if (projectId == null)
-        {
-            await botClient.EditMessageText(
-                query.Message!.Chat.Id, query.Message!.MessageId, "Проект не найден.", cancellationToken: ct);
-            return;
-        }
+        var result = await _mediator.Send(new DeleteAddonCommand(userId, addonId), ct);
+        var resultText = result.IsSuccess ? "✅ Дополнение удалено." : result.Errors[0].Message;
 
-        var result = await _adminService.DeleteAddonAsync(addonId);
-
-        await ShowEditProjectFormAsync(botClient, query.Message!.Chat.Id, query.Message!.MessageId, projectId.Value, userId, ct, result);
+        await ShowEditProjectFormAsync(botClient, query.Message!.Chat.Id, query.Message!.MessageId, projectResult.Value, userId, ct, resultText);
     }
 
     public async Task HandleAdminDeleteAddonCancelAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
@@ -263,10 +255,14 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
 
         var canEdit = CallbackData.FirstArg(data) == "yes";
         var displayName = session.TempStatusName;
-        var statuses = await _adminService.GetAllStatusesAsync();
+        var statusesResult = await _mediator.Send(new Application.Projects.Queries.GetProjectStatusesQuery(), ct);
+        var statuses = statusesResult.IsSuccess
+            ? statusesResult.Value
+            : new List<Application.Projects.DTOs.ProjectStatusDto>();
         var order = statuses.Count > 0 ? statuses.Max(s => s.Order) + 1 : 1;
 
-        var result = await _adminService.CreateProjectStatusAsync(displayName, order, canEdit);
+        var result = await _mediator.Send(
+            new CreateProjectStatusCommand(userId, displayName, order, canEdit), ct);
 
         session.PendingAction = null;
         session.TempProjectId = null;
@@ -277,7 +273,7 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
         await botClient.EditMessageText(
             query.Message!.Chat.Id,
             query.Message!.MessageId,
-            result,
+            result.IsSuccess ? $"✅ Статус «{displayName}» добавлен." : result.Errors[0].Message,
             cancellationToken: ct);
 
         await _menuHelper.SendReturnToMenuAsync(botClient, query.Message.Chat.Id, userId, ct);

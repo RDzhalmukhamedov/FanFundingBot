@@ -1,20 +1,25 @@
 using System.Reflection;
+using FanFundingBot.Application.Orders.Commands;
+using FanFundingBot.Application.Orders.DTOs;
+using FanFundingBot.Application.Orders.Queries;
+using FanFundingBot.Application.Projects.DTOs;
+using FanFundingBot.Application.Projects.Queries;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
 using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Enums;
-using FanFundingBot.Domain.Exceptions;
-using FanFundingBot.Domain.Interfaces;
 using FluentAssertions;
+using FluentResults;
+using MediatR;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
+using ApplicationAbstractions = FanFundingBot.Application.Abstractions;
 
 namespace FanFundingBot.Tests.Bot.Services;
 
@@ -23,12 +28,8 @@ public class UserCallbackQueryHandlerTests
 {
     private IMemoryCache _cache;
     private IUserStateService _stateService;
-    private IOrderFlowService _orderFlowService;
-    private IProjectRepository _projectRepo;
-    private IOrderRepository _orderRepo;
+    private IMediator _mediator;
     private IUIRenderer _uiRenderer;
-    private IAdminService _adminService;
-    private IOrderProcessingQueue _processingQueue;
     private UserCallbackQueryHandler _handler;
     private ITelegramBotClient _botClient;
 
@@ -44,20 +45,12 @@ public class UserCallbackQueryHandlerTests
         _cache = new MemoryCache(new MemoryCacheOptions());
         _stateService = new UserStateService(_cache);
 
-        _orderFlowService = Substitute.For<IOrderFlowService>();
+        _mediator = Substitute.For<IMediator>();
         _uiRenderer = Substitute.For<IUIRenderer>();
-        _adminService = Substitute.For<IAdminService>();
-        _orderRepo = Substitute.For<IOrderRepository>();
-
-        _projectRepo = Substitute.For<IProjectRepository>();
-        _processingQueue = Substitute.For<IOrderProcessingQueue>();
-        var menuHelper = new MainMenuHelper(_adminService);
-        var projectAccess = new ProjectAccessHelper(_projectRepo);
+        var authorization = Substitute.For<ApplicationAbstractions.IAuthorizationService>();
+        var menuHelper = new MainMenuHelper(authorization);
         _handler = new UserCallbackQueryHandler(
-            _stateService, _orderFlowService,
-            _projectRepo, _orderRepo,
-            _uiRenderer, _adminService,
-            _processingQueue, menuHelper, projectAccess);
+            _stateService, _mediator, _uiRenderer, menuHelper);
         _botClient = Substitute.For<ITelegramBotClient>();
     }
 
@@ -91,19 +84,30 @@ public class UserCallbackQueryHandlerTests
         p?.GetSetMethod(nonPublic: true)?.Invoke(obj, [val]);
     }
 
-    private static Project ProjectWithAddon()
+    private static ProjectDto ProjectWithAddon()
     {
-        var project = DomainTestFactory.NewProject();
-        project.AddAddon(DomainTestFactory.NewAddon(AddonId1, "A1", 100));
-        return project;
+        return new ProjectDto(
+            ProjectId, "P", null, 1, "S", true, null,
+            new List<AddonDto>
+            {
+                new(AddonId1, "A1", null, 100m)
+            },
+            new List<ProjectMemberDto>());
+    }
+
+    private void SetupProjectQuery(ProjectDto? project = null)
+    {
+        _mediator.Send(Arg.Any<GetProjectByIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(project is null
+                ? Result.Fail<ProjectDto>("Проект не найден.")
+                : Result.Ok(project));
     }
 
     [Test]
     public async Task AddonToggle_WhenNotSelected_AddsAddonId()
     {
         var session = GetOrCreateSession();
-        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
-            .Returns(DomainTestFactory.NewProject());
+        SetupProjectQuery(TestProjectDto(true));
 
         await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
@@ -115,8 +119,7 @@ public class UserCallbackQueryHandlerTests
     {
         var session = GetOrCreateSession();
         session.SelectedAddonIds.Add(AddonId1);
-        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
-            .Returns(DomainTestFactory.NewProject());
+        SetupProjectQuery(TestProjectDto(true));
 
         await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
@@ -136,14 +139,14 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.SelectedProjectId = null;
         await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
-        await _projectRepo.DidNotReceive().GetByIdWithAddonsAsync(Arg.Any<Guid>());
+        await _mediator.DidNotReceive().Send(Arg.Any<GetProjectByIdQuery>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AddonToggle_NullProject_ReturnsEarly()
     {
         GetOrCreateSession();
-        _projectRepo.GetByIdWithAddonsAsync(ProjectId).Returns((Project?)null);
+        SetupProjectQuery(null);
         await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
         await _uiRenderer.DidNotReceiveWithAnyArgs().SendAddonSelectionAsync(default, default, default, default, default);
     }
@@ -152,7 +155,7 @@ public class UserCallbackQueryHandlerTests
     public async Task AddonPage_ValidPage_UpdatesSession()
     {
         var session = GetOrCreateSession();
-        _projectRepo.GetByIdWithAddonsAsync(ProjectId).Returns(new Project());
+        SetupProjectQuery(TestProjectDto(true));
         await _handler.HandleAddonPageAsync(_botClient, MakeCq(), 1, "addon_page:3", CancellationToken.None);
         Assert.That(session.AddonPage, Is.EqualTo(3));
     }
@@ -226,46 +229,60 @@ public class UserCallbackQueryHandlerTests
     }
 
     [Test]
-    public async Task OrderConfirm_CreatesOrderAndRemovesSession()
+    public async Task OrderConfirm_NewOrder_SendsCreateCommand()
     {
         var session = GetOrCreateSession();
         session.Phone = "+7";
         session.DeliveryMethod = DeliveryMethod.Pickup;
-        _orderFlowService.CreateOrderAsync(1, ProjectId, session.SelectedAddonIds, Arg.Any<Dictionary<Guid, int>>(), "+7", DeliveryMethod.Pickup, null)
-            .Returns(DomainTestFactory.NewFormed());
+        var orderId = Guid.NewGuid();
+        _mediator.Send(Arg.Any<CreateOrderCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(orderId));
+
         await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
+
         Assert.That(_stateService.Get(1), Is.Null);
+        await _mediator.Received(1).Send(
+            Arg.Is<CreateOrderCommand>(c => c.CallerUserId == 1 && c.ProjectId == ProjectId),
+            Arg.Any<CancellationToken>());
     }
 
     [Test]
-    public async Task OrderConfirm_OrderSaveException_SessionRemoved()
+    public async Task OrderConfirm_FailedCreate_KeepsSession()
     {
         var session = GetOrCreateSession();
         session.Phone = "+7";
         session.DeliveryMethod = DeliveryMethod.Pickup;
-        _orderFlowService.CreateOrderAsync(Arg.Any<long>(), Arg.Any<Guid>(), Arg.Any<HashSet<Guid>>(), Arg.Any<Dictionary<Guid, int>>(), Arg.Any<string>(), Arg.Any<DeliveryMethod>(), Arg.Any<string?>())
-            .Returns<Task<Order>>(x => throw new OrderSaveException("fail"));
+        _mediator.Send(Arg.Any<CreateOrderCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Fail<Guid>("DB down"));
+
         await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
-        Assert.That(_stateService.Get(1), Is.Null);
+
+        Assert.That(_stateService.Get(1), Is.Not.Null);
     }
 
     [Test]
-    public async Task OrderConfirm_GenericException_SessionRemoved()
+    public async Task OrderConfirm_EditingOrder_SendsUpdateCommand()
     {
         var session = GetOrCreateSession();
         session.Phone = "+7";
         session.DeliveryMethod = DeliveryMethod.Pickup;
-        _orderFlowService.CreateOrderAsync(Arg.Any<long>(), Arg.Any<Guid>(), Arg.Any<HashSet<Guid>>(), Arg.Any<Dictionary<Guid, int>>(), Arg.Any<string>(), Arg.Any<DeliveryMethod>(), Arg.Any<string?>())
-            .Returns<Task<Order>>(x => throw new Exception());
+        session.EditingOrderId = Guid.NewGuid();
+        _mediator.Send(Arg.Any<UpdateOrderCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok());
+
         await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
+
         Assert.That(_stateService.Get(1), Is.Null);
+        await _mediator.Received(1).Send(
+            Arg.Is<UpdateOrderCommand>(c => c.OrderId == session.EditingOrderId),
+            Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task OrderConfirm_NullSession_ReturnsEarly()
     {
         await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
-        await _orderFlowService.DidNotReceiveWithAnyArgs().CreateOrderAsync(default, default, default, default, default, default, default);
+        await _mediator.DidNotReceive().Send(Arg.Any<CreateOrderCommand>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -274,21 +291,7 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.Phone = null;
         await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
-        await _orderFlowService.DidNotReceiveWithAnyArgs().CreateOrderAsync(default, default, default, default, default, default, default);
-    }
-
-    [Test]
-    public async Task OrderConfirm_EnqueuesToProcessingQueue()
-    {
-        var session = GetOrCreateSession();
-        session.Phone = "+71234567890";
-        session.DeliveryMethod = DeliveryMethod.Pickup;
-
-        await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
-
-        await _processingQueue.Received(1).EnqueueAsync(
-            Arg.Is<OrderSaveRequest>(r => r.UserId == 1 && r.Phone == "+71234567890" && r.IsEditing == false),
-            Arg.Any<CancellationToken>());
+        await _mediator.DidNotReceive().Send(Arg.Any<CreateOrderCommand>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -297,8 +300,7 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.AddonQuantities[AddonId1] = 2;
         session.SelectedAddonIds.Add(AddonId1);
-        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
-            .Returns(ProjectWithAddon());
+        SetupProjectQuery(ProjectWithAddon());
 
         await _handler.HandleAddonQtyIncAsync(_botClient, MakeCq(), 1, "addon_qty_inc:" + AddonId1, CancellationToken.None);
 
@@ -311,8 +313,7 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.AddonQuantities[AddonId1] = 3;
         session.SelectedAddonIds.Add(AddonId1);
-        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
-            .Returns(ProjectWithAddon());
+        SetupProjectQuery(ProjectWithAddon());
 
         await _handler.HandleAddonQtyDecAsync(_botClient, MakeCq(), 1, "addon_qty_dec:" + AddonId1, CancellationToken.None);
 
@@ -325,8 +326,7 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.AddonQuantities[AddonId1] = 1;
         session.SelectedAddonIds.Add(AddonId1);
-        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
-            .Returns(ProjectWithAddon());
+        SetupProjectQuery(ProjectWithAddon());
 
         await _handler.HandleAddonQtyDecAsync(_botClient, MakeCq(), 1, "addon_qty_dec:" + AddonId1, CancellationToken.None);
 
@@ -351,8 +351,7 @@ public class UserCallbackQueryHandlerTests
     public async Task AddonToggle_WhenNotSelected_SetsQuantityToOne()
     {
         var session = GetOrCreateSession();
-        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
-            .Returns(DomainTestFactory.NewProject());
+        SetupProjectQuery(TestProjectDto(true));
 
         await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
@@ -369,8 +368,7 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.SelectedAddonIds.Add(AddonId1);
         session.AddonQuantities[AddonId1] = 5;
-        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
-            .Returns(DomainTestFactory.NewProject());
+        SetupProjectQuery(TestProjectDto(true));
 
         await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
@@ -384,7 +382,8 @@ public class UserCallbackQueryHandlerTests
     [Test]
     public async Task OrderEditMy_NonExistentOrder_ShowsAlert()
     {
-        _orderRepo.GetByIdWithAddonsAsync(Arg.Any<Guid>()).Returns((Order?)null);
+        _mediator.Send(Arg.Any<GetOrderByIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Fail<OrderDto>("Заказ не найден."));
 
         await _handler.HandleOrderEditMyAsync(_botClient, MakeCq(), 1, "order_edit_my:" + Guid.NewGuid(), CancellationToken.None);
     }
@@ -392,31 +391,27 @@ public class UserCallbackQueryHandlerTests
     [Test]
     public async Task OrderEditMy_WhenCanEditFalse_ShowsAlert()
     {
-        var orderId = Guid.NewGuid();
-        var order = DomainTestFactory.NewFormed();
-        _orderRepo.GetByIdWithAddonsAsync(orderId).Returns(order);
+        var order = TestOrderDto(canEdit: false);
+        _mediator.Send(Arg.Any<GetOrderByIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(order));
+        SetupProjectQuery(TestProjectDto(canEdit: false));
 
-        var project = DomainTestFactory.NewProject(canEditOrders: false);
-        _projectRepo.GetByIdAsync(Arg.Any<Guid>()).Returns(project);
+        await _handler.HandleOrderEditMyAsync(_botClient, MakeCq(), 1, "order_edit_my:" + order.Id, CancellationToken.None);
 
-        await _handler.HandleOrderEditMyAsync(_botClient, MakeCq(), 1, "order_edit_my:" + orderId, CancellationToken.None);
+        Assert.That(_stateService.Get(1), Is.Null);
     }
 
     [Test]
     public async Task OrderEditMy_WhenCanEditTrue_StartsEditing()
     {
-        var orderId = Guid.NewGuid();
         var addonId = Guid.NewGuid();
-        var customer = DomainTestFactory.NewCustomer();
-        var orderProject = DomainTestFactory.NewProject();
-        var order = DomainTestFactory.NewFormed(customer, orderProject, addonId, 3, "+79991234567", DeliveryMethod.Delivery, "Test Address");
-        _orderRepo.GetByIdWithAddonsAsync(orderId).Returns(order);
-
-        var project = DomainTestFactory.NewProject();
-        _projectRepo.GetByIdAsync(Arg.Any<Guid>()).Returns(project);
+        var order = TestOrderDto(addonId, 3);
+        _mediator.Send(Arg.Any<GetOrderByIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(order));
+        SetupProjectQuery(TestProjectDto(canEdit: true));
         _stateService.GetOrCreate(1).EditMessageId = 1;
 
-        await _handler.HandleOrderEditMyAsync(_botClient, MakeCq(), 1, "order_edit_my:" + orderId, CancellationToken.None);
+        await _handler.HandleOrderEditMyAsync(_botClient, MakeCq(), 1, "order_edit_my:" + order.Id, CancellationToken.None);
 
         var session = _stateService.Get(1);
         Assert.Multiple(() =>
@@ -434,42 +429,70 @@ public class UserCallbackQueryHandlerTests
     [Test]
     public async Task OrderDeleteMy_ShowsConfirmation()
     {
-        var orderId = Guid.NewGuid();
-        _orderRepo.GetByIdWithAddonsAsync(orderId).Returns(DomainTestFactory.NewFormed());
-        _projectRepo.GetByIdAsync(Arg.Any<Guid>()).Returns(DomainTestFactory.NewProject());
+        var order = TestOrderDto();
+        _mediator.Send(Arg.Any<GetOrderByIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(order));
+        SetupProjectQuery(TestProjectDto(canEdit: true));
 
-        await _handler.HandleOrderDeleteMyAsync(_botClient, MakeCq(), 1, "order_delete_my:" + orderId, CancellationToken.None);
+        await _handler.HandleOrderDeleteMyAsync(_botClient, MakeCq(), 1, "order_delete_my:" + order.Id, CancellationToken.None);
+    }
+
+    [Test]
+    public async Task OrderDeleteMy_NotEditable_ShowsAlert()
+    {
+        var order = TestOrderDto();
+        _mediator.Send(Arg.Any<GetOrderByIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(order));
+        SetupProjectQuery(TestProjectDto(canEdit: false));
+
+        await _handler.HandleOrderDeleteMyAsync(_botClient, MakeCq(), 1, "order_delete_my:" + order.Id, CancellationToken.None);
     }
 
     [Test]
     public async Task OrderDeleteMyConfirm_DeletesOrder()
     {
-        var orderId = Guid.NewGuid();
-        _orderRepo.GetByIdWithAddonsAsync(orderId).Returns(DomainTestFactory.NewFormed());
-        _projectRepo.GetByIdAsync(Arg.Any<Guid>()).Returns(DomainTestFactory.NewProject());
-        _adminService.IsAdminAsync(1).Returns(false);
+        var order = TestOrderDto();
+        _mediator.Send(Arg.Any<GetOrderByIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(order));
+        SetupProjectQuery(TestProjectDto(canEdit: true));
+        _mediator.Send(Arg.Any<DeleteOrderCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok());
 
-        await _handler.HandleOrderDeleteMyConfirmAsync(_botClient, MakeCq(), 1, "order_delete_my_confirm:" + orderId, CancellationToken.None);
+        await _handler.HandleOrderDeleteMyConfirmAsync(_botClient, MakeCq(), 1, "order_delete_my_confirm:" + order.Id, CancellationToken.None);
 
-        await _orderFlowService.Received(1).DeleteOrderAsync(orderId);
+        await _mediator.Received(1).Send(
+            Arg.Is<DeleteOrderCommand>(c => c.OrderId == order.Id),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Test]
+    public async Task OrderDeleteMyConfirm_FailedDelete_ShowsAlert()
+    {
+        var order = TestOrderDto();
+        _mediator.Send(Arg.Any<GetOrderByIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(order));
+        SetupProjectQuery(TestProjectDto(canEdit: true));
+        _mediator.Send(Arg.Any<DeleteOrderCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Fail("Нет прав."));
+
+        await _handler.HandleOrderDeleteMyConfirmAsync(_botClient, MakeCq(), 1, "order_delete_my_confirm:" + order.Id, CancellationToken.None);
     }
 
     [Test]
     public async Task OrderDeleteMyCancel_ShowsCancelled()
     {
         var orderId = Guid.NewGuid();
-        _orderRepo.GetByIdWithAddonsAsync(orderId).Returns((Order?)null);
+        _mediator.Send(Arg.Any<GetOrderByIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Fail<OrderDto>("Заказ не найден."));
 
         await _handler.HandleOrderDeleteMyCancelAsync(_botClient, MakeCq(), 1, "order_delete_my_cancel:" + orderId, CancellationToken.None);
-
-        await _orderFlowService.DidNotReceiveWithAnyArgs().DeleteOrderAsync(default);
     }
 
     [Test]
     public async Task OrderEdit_GoesBackToAddonSelection()
     {
         var session = GetOrCreateSession();
-        _projectRepo.GetByIdWithAddonsAsync(ProjectId).Returns(new Project());
+        SetupProjectQuery(TestProjectDto(true));
         await _handler.HandleOrderEditAsync(_botClient, MakeCq(), 1, CancellationToken.None);
         Assert.That(session.State, Is.EqualTo(OrderFlowState.SelectingAddons));
     }
@@ -493,7 +516,7 @@ public class UserCallbackQueryHandlerTests
     public async Task Back_Phone_GoesToAddonSelection()
     {
         var session = GetOrCreateSession();
-        _projectRepo.GetByIdWithAddonsAsync(ProjectId).Returns(new Project());
+        SetupProjectQuery(TestProjectDto(true));
         await _handler.HandleBackAsync(_botClient, MakeCq(), 1, "back:phone", CancellationToken.None);
         Assert.That(session.State, Is.EqualTo(OrderFlowState.SelectingAddons));
     }
@@ -512,5 +535,26 @@ public class UserCallbackQueryHandlerTests
     {
         await _handler.HandleBackAsync(_botClient, MakeCq(), 1, "back:x", CancellationToken.None);
         await _uiRenderer.DidNotReceiveWithAnyArgs().SendAddonSelectionAsync(default, default, default, default, default);
+    }
+
+    private static OrderDto TestOrderDto(Guid? addonId = null, int quantity = 1, bool canEdit = true)
+    {
+        var aid = addonId ?? Guid.NewGuid();
+        return new OrderDto(
+            Guid.NewGuid(), 1, ProjectId, "P", "+79991234567",
+            DeliveryMethod.Delivery, "Test Address", OrderStatus.New, DateTime.UtcNow,
+            new List<OrderPositionDto>
+            {
+                new(aid, "A", 10m, quantity)
+            },
+            10m * quantity);
+    }
+
+    private static ProjectDto TestProjectDto(bool canEdit)
+    {
+        return new ProjectDto(
+            ProjectId, "P", null, 1, "S", canEdit, null,
+            new List<AddonDto>(),
+            new List<ProjectMemberDto>());
     }
 }

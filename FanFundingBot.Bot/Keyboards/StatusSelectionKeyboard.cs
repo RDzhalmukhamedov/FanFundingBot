@@ -1,5 +1,5 @@
+using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Bot.Helpers;
-using FanFundingBot.Domain.Entities;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Keyboards;
@@ -9,7 +9,7 @@ public static class StatusSelectionKeyboard
     private const int PageSize = 6;
 
     public static (InlineKeyboardMarkup Keyboard, int TotalPages) Create(
-        List<ProjectStatus> allStatuses,
+        List<ProjectStatusDto> allStatuses,
         Guid projectId,
         int page)
     {

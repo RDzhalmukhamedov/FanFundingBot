@@ -7,7 +7,9 @@ using MediatR;
 namespace FanFundingBot.Application.Projects.Commands;
 
 public sealed record UpdateProjectStatusCommand(long CallerUserId, Guid ProjectId, int StatusId)
-    : IRequest<Result>, IRequireProjectAccess;
+    : IRequest<Result<ProjectStatusUpdateResult>>, IRequireProjectAccess;
+
+public sealed record ProjectStatusUpdateResult(string ProjectName, string StatusName);
 
 public class UpdateProjectStatusCommandValidator : AbstractValidator<UpdateProjectStatusCommand>
 {
@@ -18,7 +20,7 @@ public class UpdateProjectStatusCommandValidator : AbstractValidator<UpdateProje
     }
 }
 
-public class UpdateProjectStatusCommandHandler : IRequestHandler<UpdateProjectStatusCommand, Result>
+public class UpdateProjectStatusCommandHandler : IRequestHandler<UpdateProjectStatusCommand, Result<ProjectStatusUpdateResult>>
 {
     private readonly IProjectRepository _projects;
     private readonly IProjectStatusRepository _statuses;
@@ -37,15 +39,15 @@ public class UpdateProjectStatusCommandHandler : IRequestHandler<UpdateProjectSt
         _notifications = notifications;
     }
 
-    public async Task<Result> Handle(UpdateProjectStatusCommand request, CancellationToken cancellationToken)
+    public async Task<Result<ProjectStatusUpdateResult>> Handle(UpdateProjectStatusCommand request, CancellationToken cancellationToken)
     {
         var project = await _projects.GetByIdAsync(request.ProjectId);
         if (project is null)
-            return Result.Fail("Проект не найден.");
+            return Result.Fail<ProjectStatusUpdateResult>("Проект не найден.");
 
         var status = await _statuses.GetByIdAsync(request.StatusId);
         if (status is null)
-            return Result.Fail("Статус не найден.");
+            return Result.Fail<ProjectStatusUpdateResult>("Статус не найден.");
 
         project.SetStatus(status);
         await _projects.UpdateAsync(project);
@@ -57,6 +59,6 @@ public class UpdateProjectStatusCommandHandler : IRequestHandler<UpdateProjectSt
             status.DisplayName,
             cancellationToken);
 
-        return Result.Ok();
+        return Result.Ok(new ProjectStatusUpdateResult(project.Name, status.DisplayName));
     }
 }

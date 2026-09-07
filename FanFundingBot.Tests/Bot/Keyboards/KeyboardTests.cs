@@ -1,3 +1,4 @@
+using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Enums;
@@ -128,10 +129,10 @@ public class KeyboardTests
     [Test]
     public void AddonSelectionKeyboard_ShouldShowAddonsWithCheckmarks()
     {
-        var addons = new List<Addon>
+        var addons = new List<AddonDto>
         {
-            new Addon(Guid.NewGuid(), "Addon1", "Desc", 100m, EditMode.Formed),
-            new Addon(Guid.NewGuid(), "Addon2", "Desc", 200m, EditMode.Formed)
+            new(Guid.NewGuid(), "Addon1", null, 100m),
+            new(Guid.NewGuid(), "Addon2", null, 200m)
         };
         var selectedIds = new HashSet<Guid> { addons[0].Id };
 
@@ -149,12 +150,11 @@ public class KeyboardTests
     [Test]
     public void AddonSelectionKeyboard_WithManyAddons_ShouldShowPagination()
     {
-        var addons = Enumerable.Range(0, 6).Select(i => new Addon(
+        var addons = Enumerable.Range(0, 6).Select(i => new AddonDto(
             Guid.NewGuid(),
             $"Addon{i}",
-            "Desc",
-            i * 10,
-            EditMode.Formed)).ToList();
+            null,
+            i * 10)).ToList();
 
         var (_, totalPages) = AddonSelectionKeyboard.Create(addons, new HashSet<Guid>(), 1, 12);
 
@@ -196,9 +196,9 @@ public class KeyboardTests
     [Test]
     public void AddonSelectionKeyboard_ShouldHaveConfirmAndCancel()
     {
-        var addons = new List<Addon>
+        var addons = new List<AddonDto>
         {
-            new Addon(Guid.NewGuid(), "A1", "Desc", 50m, EditMode.Formed)
+            new(Guid.NewGuid(), "A1", null, 50m)
         };
 
         var (keyboard, _) = AddonSelectionKeyboard.Create(addons, new HashSet<Guid>(), 1, 1);

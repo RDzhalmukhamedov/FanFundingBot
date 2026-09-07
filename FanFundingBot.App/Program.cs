@@ -1,3 +1,4 @@
+using FanFundingBot.Application;
 using FanFundingBot.App.Services;
 using FanFundingBot.Bot;
 using FanFundingBot.Bot.Handlers;
@@ -11,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
+builder.Services.AddApplication();
 builder.Services.AddDataLayer(builder.Configuration);
 builder.Services.AddBotLayer(builder.Configuration);
 builder.Services.AddExternalStorage(builder.Configuration);
@@ -25,7 +27,7 @@ builder.Services.AddHttpClient("telegram_bot")
 
 builder.Services.AddScoped<UpdateHandler>();
 
-builder.Services.AddHostedService<BackgroundOrderProcessor>();
+builder.Services.AddHostedService<OutboxProcessor>();
 builder.Services.AddHostedService<OutboxProcessor>();
 
 if (botConfig.UsePolling)

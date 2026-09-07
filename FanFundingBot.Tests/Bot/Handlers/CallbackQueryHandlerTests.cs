@@ -1,4 +1,5 @@
 using System.Reflection;
+using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Models;
@@ -16,7 +17,7 @@ namespace FanFundingBot.Tests.Bot.Handlers;
 public class CallbackQueryHandlerTests
 {
     private IUserStateService _stateService;
-    private IAdminService _adminService;
+    private IAuthorizationService _authorization;
     private IUserCallbackQueryHandler _userHandler;
     private IAdminStatusCallbackHandler _statusHandler;
     private IAdminQuestionCallbackHandler _questionHandler;
@@ -28,8 +29,8 @@ public class CallbackQueryHandlerTests
     public void Setup()
     {
         _stateService = new UserStateService(new MemoryCache(new MemoryCacheOptions()));
-        _adminService = Substitute.For<IAdminService>();
-        _adminService.IsAdminAsync(Arg.Any<long>()).Returns(false);
+        _authorization = Substitute.For<IAuthorizationService>();
+        _authorization.CanCreateProjectAsync(Arg.Any<long>()).Returns(false);
         _userHandler = Substitute.For<IUserCallbackQueryHandler>();
         _statusHandler = Substitute.For<IAdminStatusCallbackHandler>();
         _questionHandler = Substitute.For<IAdminQuestionCallbackHandler>();
@@ -40,7 +41,8 @@ public class CallbackQueryHandlerTests
             _statusHandler, _questionHandler, _projectHandler);
 
         _handler = new CallbackQueryHandler(
-            _adminService, new ICallbackCommandHandler[] { userCmdHandler, adminCmdHandler });
+            _authorization, new TelegramUserContext(),
+            new ICallbackCommandHandler[] { userCmdHandler, adminCmdHandler });
         _botClient = Substitute.For<ITelegramBotClient>();
     }
 
@@ -126,7 +128,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminStatus_AsAdmin_RoutesToStatusHandler()
     {
-        _adminService.IsAdminAsync(1).Returns(true);
+        _authorization.CanCreateProjectAsync(1).Returns(true);
         var cq = MakeCq("admin_status:id:Completed");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         await _statusHandler.Received(1).HandleAdminStatusAsync(_botClient, cq, 1, "admin_status:id:Completed", Arg.Any<CancellationToken>());
@@ -135,7 +137,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminStatus_AsNonAdmin_Rejects()
     {
-        _adminService.IsAdminAsync(1).Returns(false);
+        _authorization.CanCreateProjectAsync(1).Returns(false);
         var cq = MakeCq("admin_status:id:Completed");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         _statusHandler.ReceivedCalls().Should().BeEmpty();
@@ -144,7 +146,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminAnswer_AsAdmin_RoutesToQuestionHandler()
     {
-        _adminService.IsAdminAsync(1).Returns(true);
+        _authorization.CanCreateProjectAsync(1).Returns(true);
         var cq = MakeCq("admin_answer:g");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         await _questionHandler.Received(1).HandleAdminSelectQuestionAsync(_botClient, cq, 1, "admin_answer:g", Arg.Any<CancellationToken>());
@@ -153,7 +155,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminAnswer_AsNonAdmin_Rejects()
     {
-        _adminService.IsAdminAsync(1).Returns(false);
+        _authorization.CanCreateProjectAsync(1).Returns(false);
         var cq = MakeCq("admin_answer:g");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         _questionHandler.ReceivedCalls().Should().BeEmpty();
@@ -210,7 +212,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminAddStatusCanEdit_RoutesToProjectHandler()
     {
-        _adminService.IsAdminAsync(1).Returns(true);
+        _authorization.CanCreateProjectAsync(1).Returns(true);
         var cq = MakeCq("admin_add_status_can_edit:yes");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         await _projectHandler.Received(1).HandleAdminAddStatusCanEditAsync(_botClient, cq, 1, "admin_add_status_can_edit:yes", Arg.Any<CancellationToken>());
@@ -219,7 +221,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminAddStatusCanEdit_AsNonAdmin_Rejects()
     {
-        _adminService.IsAdminAsync(1).Returns(false);
+        _authorization.CanCreateProjectAsync(1).Returns(false);
         var cq = MakeCq("admin_add_status_can_edit:yes");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         _projectHandler.ReceivedCalls().Should().BeEmpty();
@@ -228,7 +230,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminCancel_RoutesToQuestionHandler()
     {
-        _adminService.IsAdminAsync(1).Returns(true);
+        _authorization.CanCreateProjectAsync(1).Returns(true);
         var cq = MakeCq("admin_cancel");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         await _questionHandler.Received(1).HandleAdminCancelAsync(_botClient, cq, 1, Arg.Any<CancellationToken>());
@@ -237,7 +239,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminCancel_AsNonAdmin_Rejects()
     {
-        _adminService.IsAdminAsync(1).Returns(false);
+        _authorization.CanCreateProjectAsync(1).Returns(false);
         var cq = MakeCq("admin_cancel");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         _questionHandler.ReceivedCalls().Should().BeEmpty();
@@ -257,7 +259,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminBroadcastConfirm_AsAdmin_RoutesToQuestionHandler()
     {
-        _adminService.IsAdminAsync(1).Returns(true);
+        _authorization.CanCreateProjectAsync(1).Returns(true);
         var cq = MakeCq("admin_broadcast_confirm");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         await _questionHandler.Received(1).HandleAdminBroadcastConfirmAsync(_botClient, cq, 1, Arg.Any<CancellationToken>());
@@ -266,7 +268,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminBroadcastConfirm_AsNonAdmin_Rejects()
     {
-        _adminService.IsAdminAsync(1).Returns(false);
+        _authorization.CanCreateProjectAsync(1).Returns(false);
         var cq = MakeCq("admin_broadcast_confirm");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         _questionHandler.ReceivedCalls().Should().BeEmpty();
@@ -275,7 +277,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminStatusConfirm_AsAdmin_RoutesToStatusHandler()
     {
-        _adminService.IsAdminAsync(1).Returns(true);
+        _authorization.CanCreateProjectAsync(1).Returns(true);
         var cq = MakeCq("admin_status_confirm:id:5");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         await _statusHandler.Received(1).HandleAdminStatusConfirmAsync(_botClient, cq, 1, "admin_status_confirm:id:5", Arg.Any<CancellationToken>());
@@ -284,7 +286,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminStatusConfirm_AsNonAdmin_Rejects()
     {
-        _adminService.IsAdminAsync(1).Returns(false);
+        _authorization.CanCreateProjectAsync(1).Returns(false);
         var cq = MakeCq("admin_status_confirm:id:5");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         _statusHandler.ReceivedCalls().Should().BeEmpty();
@@ -293,7 +295,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminStatusCancel_AsAdmin_RoutesToStatusHandler()
     {
-        _adminService.IsAdminAsync(1).Returns(true);
+        _authorization.CanCreateProjectAsync(1).Returns(true);
         var cq = MakeCq("admin_status_cancel:id");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         await _statusHandler.Received(1).HandleAdminStatusCancelAsync(_botClient, cq, 1, "admin_status_cancel:id", Arg.Any<CancellationToken>());
@@ -302,7 +304,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task AdminStatusCancel_AsNonAdmin_Rejects()
     {
-        _adminService.IsAdminAsync(1).Returns(false);
+        _authorization.CanCreateProjectAsync(1).Returns(false);
         var cq = MakeCq("admin_status_cancel:id");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
         _statusHandler.ReceivedCalls().Should().BeEmpty();
@@ -311,7 +313,7 @@ public class CallbackQueryHandlerTests
     [Test]
     public async Task ExceptionInHandler_SendsError()
     {
-        _adminService.IsAdminAsync(1).Returns(true);
+        _authorization.CanCreateProjectAsync(1).Returns(true);
         _statusHandler.HandleAdminStatusAsync(Arg.Any<ITelegramBotClient>(), Arg.Any<CallbackQuery>(), Arg.Any<long>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new Exception()));
         var cq = MakeCq("admin_status:id:Completed");

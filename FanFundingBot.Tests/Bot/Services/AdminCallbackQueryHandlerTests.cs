@@ -1,12 +1,18 @@
 using System.Reflection;
+using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Projects.Commands;
+using FanFundingBot.Application.Projects.DTOs;
+using FanFundingBot.Application.Projects.Queries;
+using FanFundingBot.Application.Questions.DTOs;
+using FanFundingBot.Application.Questions.Queries;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
 using FanFundingBot.Domain.Entities;
-using FanFundingBot.Domain.Enums;
-using FanFundingBot.Domain.Interfaces;
-using FanFundingBot.Tests;
+using FluentAssertions;
+using FluentResults;
+using MediatR;
 using NSubstitute;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -16,7 +22,7 @@ namespace FanFundingBot.Tests.Bot.Services;
 [TestFixture]
 public class AdminStatusCallbackHandlerTests
 {
-    private IAdminService _adminService;
+    private IMediator _mediator;
     private AdminStatusCallbackHandler _handler;
     private ITelegramBotClient _botClient;
 
@@ -25,11 +31,11 @@ public class AdminStatusCallbackHandlerTests
     [SetUp]
     public void Setup()
     {
-        _adminService = Substitute.For<IAdminService>();
-        var menuHelper = new MainMenuHelper(_adminService);
-        _handler = new AdminStatusCallbackHandler(_adminService, menuHelper);
+        _mediator = Substitute.For<IMediator>();
+        var authorization = Substitute.For<IAuthorizationService>();
+        var menuHelper = new MainMenuHelper(authorization);
+        _handler = new AdminStatusCallbackHandler(_mediator, menuHelper);
         _botClient = Substitute.For<ITelegramBotClient>();
-        _botClient.TestApi(Arg.Any<CancellationToken>()).Returns(true);
     }
 
     private static CallbackQuery MakeCq(string data)
@@ -52,54 +58,74 @@ public class AdminStatusCallbackHandlerTests
         p?.GetSetMethod(nonPublic: true)?.Invoke(obj, [val]);
     }
 
+    private static ProjectDto TestProject(string name = "Test Project")
+    {
+        return new ProjectDto(ProjectId, name, null, 1, "S", true, null,
+            new List<AddonDto>(), new List<ProjectMemberDto>());
+    }
+
+    private void SetupProject(ProjectDto? project = null)
+    {
+        _mediator.Send(Arg.Any<GetProjectByIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(project is null
+                ? Result.Fail<ProjectDto>("Проект не найден.")
+                : Result.Ok(project));
+        _mediator.Send(Arg.Any<GetProjectStatusesQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new List<ProjectStatusDto>()));
+    }
+
+    private void SetupStatuses(params ProjectStatusDto[] statuses)
+    {
+        _mediator.Send(Arg.Any<GetProjectStatusesQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(statuses.ToList()));
+    }
+
     [Test]
     public async Task AdminStatus_ShowsConfirmationDialog()
     {
         const int statusId = 5;
-        var currentStatus = new ProjectStatus("Current", 1, true);
-        var newStatus = new ProjectStatus("New Status", 2, true);
-
-        var project = DomainTestFactory.NewProject("Test Project");
-        _adminService.GetProjectAsync(ProjectId).Returns(project);
-        _adminService.GetAllStatusesAsync()
-            .Returns(new List<ProjectStatus> { currentStatus, newStatus });
+        SetupProject(TestProject());
+        SetupStatuses(
+            new ProjectStatusDto(1, "Current", 1, true),
+            new ProjectStatusDto(statusId, "New Status", 2, true));
 
         await _handler.HandleAdminStatusAsync(_botClient, MakeCq($"admin_status:{ProjectId}:{statusId}"), 1,
             $"admin_status:{ProjectId}:{statusId}", CancellationToken.None);
 
-        await _adminService.DidNotReceive().UpdateProjectStatusAsync(Arg.Any<Guid>(), Arg.Any<int>());
+        await _mediator.DidNotReceive().Send(Arg.Any<UpdateProjectStatusCommand>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminStatus_NullProject_ShowsNotFound()
     {
-        _adminService.GetProjectAsync(ProjectId).Returns((Project?)null);
+        SetupProject(null);
 
         await _handler.HandleAdminStatusAsync(_botClient, MakeCq($"admin_status:{ProjectId}:5"), 1,
             $"admin_status:{ProjectId}:5", CancellationToken.None);
 
-        await _adminService.DidNotReceive().UpdateProjectStatusAsync(Arg.Any<Guid>(), Arg.Any<int>());
+        await _mediator.DidNotReceive().Send(Arg.Any<UpdateProjectStatusCommand>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminStatusConfirm_UpdatesStatusAndEditsMessage()
     {
         const int statusId = 5;
-        _adminService.UpdateProjectStatusAsync(ProjectId, statusId)
-            .Returns("✅ Статус обновлён.");
+        _mediator.Send(Arg.Any<UpdateProjectStatusCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new ProjectStatusUpdateResult("P", "New Status")));
 
         await _handler.HandleAdminStatusConfirmAsync(_botClient, MakeCq($"admin_status_confirm:{ProjectId}:{statusId}"), 1,
             $"admin_status_confirm:{ProjectId}:{statusId}", CancellationToken.None);
 
-        await _adminService.Received(1).UpdateProjectStatusAsync(ProjectId, statusId);
+        await _mediator.Received(1).Send(
+            Arg.Is<UpdateProjectStatusCommand>(c => c.ProjectId == ProjectId && c.StatusId == statusId),
+            Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminStatusCancel_ReturnsToStatusSelection()
     {
-        _adminService.GetProjectAsync(ProjectId)
-            .Returns(DomainTestFactory.NewProject("Test Project"));
-        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
+        SetupProject(TestProject());
+        SetupStatuses();
 
         await _handler.HandleAdminStatusCancelAsync(_botClient, MakeCq($"admin_status_cancel:{ProjectId}"), 1,
             $"admin_status_cancel:{ProjectId}", CancellationToken.None);
@@ -108,7 +134,7 @@ public class AdminStatusCallbackHandlerTests
     [Test]
     public async Task AdminStatusCancel_NullProject_ShowsNotFound()
     {
-        _adminService.GetProjectAsync(ProjectId).Returns((Project?)null);
+        SetupProject(null);
 
         await _handler.HandleAdminStatusCancelAsync(_botClient, MakeCq($"admin_status_cancel:{ProjectId}"), 1,
             $"admin_status_cancel:{ProjectId}", CancellationToken.None);
@@ -119,8 +145,7 @@ public class AdminStatusCallbackHandlerTests
 public class AdminQuestionCallbackHandlerTests
 {
     private IUserStateService _stateService;
-    private IAdminService _adminService;
-    private IProjectRepository _projectRepo;
+    private IMediator _mediator;
     private AdminQuestionCallbackHandler _handler;
     private ITelegramBotClient _botClient;
     private UserSession _session;
@@ -130,14 +155,12 @@ public class AdminQuestionCallbackHandlerTests
     [SetUp]
     public void Setup()
     {
-        _adminService = Substitute.For<IAdminService>();
+        _mediator = Substitute.For<IMediator>();
         _stateService = Substitute.For<IUserStateService>();
-        _projectRepo = Substitute.For<IProjectRepository>();
-        var menuHelper = new MainMenuHelper(_adminService);
-        _handler = new AdminQuestionCallbackHandler(
-            _stateService, _projectRepo, _adminService, menuHelper);
+        var authorization = Substitute.For<IAuthorizationService>();
+        var menuHelper = new MainMenuHelper(authorization);
+        _handler = new AdminQuestionCallbackHandler(_stateService, _mediator, menuHelper);
         _botClient = Substitute.For<ITelegramBotClient>();
-        _botClient.TestApi(Arg.Any<CancellationToken>()).Returns(true);
         _session = new UserSession();
     }
 
@@ -167,17 +190,21 @@ public class AdminQuestionCallbackHandlerTests
         var messageText = "Important announcement!";
         _session.TempBroadcastText = messageText;
         _stateService.Get(1).Returns(_session);
-        _projectRepo.GetAllAsync().Returns(new List<Project>
-        {
-            DomainTestFactory.NewProjectWithId(ProjectId, "Test")
-        });
-        _adminService.BroadcastMessageAsync(ProjectId, messageText)
-            .Returns("✅ Рассылка выполнена.");
+        _mediator.Send(Arg.Any<GetProjectsQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new List<ProjectDto>
+            {
+                new(ProjectId, "Test", null, 1, "S", true, null,
+                    new List<AddonDto>(), new List<ProjectMemberDto>())
+            }));
+        _mediator.Send(Arg.Any<BroadcastCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok());
 
         await _handler.HandleAdminBroadcastConfirmAsync(_botClient, MakeCq("admin_broadcast_confirm"), 1,
             CancellationToken.None);
 
-        await _adminService.Received(1).BroadcastMessageAsync(ProjectId, messageText);
+        await _mediator.Received(1).Send(
+            Arg.Is<BroadcastCommand>(c => c.ProjectId == ProjectId && c.Message == messageText),
+            Arg.Any<CancellationToken>());
         Assert.That(_session.PendingAction, Is.Null);
         Assert.That(_session.TempBroadcastText, Is.Null);
     }
@@ -190,7 +217,7 @@ public class AdminQuestionCallbackHandlerTests
         await _handler.HandleAdminBroadcastConfirmAsync(_botClient, MakeCq("admin_broadcast_confirm"), 1,
             CancellationToken.None);
 
-        await _adminService.DidNotReceive().BroadcastMessageAsync(Arg.Any<Guid>(), Arg.Any<string>());
+        await _mediator.DidNotReceive().Send(Arg.Any<BroadcastCommand>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -198,12 +225,13 @@ public class AdminQuestionCallbackHandlerTests
     {
         _session.TempBroadcastText = "text";
         _stateService.Get(1).Returns(_session);
-        _projectRepo.GetAllAsync().Returns(new List<Project>());
+        _mediator.Send(Arg.Any<GetProjectsQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new List<ProjectDto>()));
 
         await _handler.HandleAdminBroadcastConfirmAsync(_botClient, MakeCq("admin_broadcast_confirm"), 1,
             CancellationToken.None);
 
-        await _adminService.DidNotReceive().BroadcastMessageAsync(Arg.Any<Guid>(), Arg.Any<string>());
+        await _mediator.DidNotReceive().Send(Arg.Any<BroadcastCommand>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -214,18 +242,18 @@ public class AdminQuestionCallbackHandlerTests
         await _handler.HandleAdminBroadcastConfirmAsync(_botClient, MakeCq("admin_broadcast_confirm"), 1,
             CancellationToken.None);
 
-        await _adminService.DidNotReceive().BroadcastMessageAsync(Arg.Any<Guid>(), Arg.Any<string>());
+        await _mediator.DidNotReceive().Send(Arg.Any<BroadcastCommand>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminSelectQuestion_ShowsUsername_WhenPresent()
     {
         var qId = Guid.NewGuid();
-        var user = DomainTestFactory.NewCustomer(5, "testuser");
-        _adminService.GetUnansweredQuestionsAsync().Returns(new List<Question>
-        {
-            new Question(user, "Q?")
-        });
+        _mediator.Send(Arg.Any<GetUnansweredQuestionsQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new List<QuestionDto>
+            {
+                new(qId, "Q?", 5, "testuser", "User1", DateTime.UtcNow, null)
+            }));
         _stateService.GetOrCreate(1).Returns(_session);
 
         await _handler.HandleAdminSelectQuestionAsync(_botClient, MakeCq("admin_answer:" + qId), 1,
@@ -242,11 +270,11 @@ public class AdminQuestionCallbackHandlerTests
     public async Task AdminSelectQuestion_HidesUsername_WhenNull()
     {
         var qId = Guid.NewGuid();
-        var user = DomainTestFactory.NewCustomer(5, null);
-        _adminService.GetUnansweredQuestionsAsync().Returns(new List<Question>
-        {
-            new Question(user, "Q?")
-        });
+        _mediator.Send(Arg.Any<GetUnansweredQuestionsQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new List<QuestionDto>
+            {
+                new(qId, "Q?", 5, null, "User1", DateTime.UtcNow, null)
+            }));
         _stateService.GetOrCreate(1).Returns(_session);
 
         await _handler.HandleAdminSelectQuestionAsync(_botClient, MakeCq("admin_answer:" + qId), 1,
@@ -266,8 +294,7 @@ public class AdminQuestionCallbackHandlerTests
 public class AdminProjectCallbackHandlerTests
 {
     private IUserStateService _stateService;
-    private IAdminService _adminService;
-    private IAddonRepository _addonRepo;
+    private IMediator _mediator;
     private AdminProjectCallbackHandler _handler;
     private ITelegramBotClient _botClient;
     private UserSession _session;
@@ -278,15 +305,14 @@ public class AdminProjectCallbackHandlerTests
     [SetUp]
     public void Setup()
     {
-        _adminService = Substitute.For<IAdminService>();
+        _mediator = Substitute.For<IMediator>();
         _stateService = Substitute.For<IUserStateService>();
-        _addonRepo = Substitute.For<IAddonRepository>();
-        var menuHelper = new MainMenuHelper(_adminService);
-        var editFormBuilder = new ProjectEditFormBuilder(_adminService, _addonRepo);
+        var authorization = Substitute.For<IAuthorizationService>();
+        var menuHelper = new MainMenuHelper(authorization);
+        var editFormBuilder = new ProjectEditFormBuilder(_mediator);
         _handler = new AdminProjectCallbackHandler(
-            _stateService, _adminService, _addonRepo, editFormBuilder, menuHelper);
+            _stateService, _mediator, editFormBuilder, menuHelper);
         _botClient = Substitute.For<ITelegramBotClient>();
-        _botClient.TestApi(Arg.Any<CancellationToken>()).Returns(true);
         _session = new UserSession();
     }
 
@@ -310,13 +336,31 @@ public class AdminProjectCallbackHandlerTests
         p?.GetSetMethod(nonPublic: true)?.Invoke(obj, [val]);
     }
 
+    private static ProjectDto TestProject()
+    {
+        return new ProjectDto(ProjectId, "P", null, 1, "S", true, null,
+            new List<AddonDto> { new(AddonId, "A1", null, 100m) },
+            new List<ProjectMemberDto>());
+    }
+
+    private void SetupProject(ProjectDto? project = null)
+    {
+        _mediator.Send(Arg.Any<GetProjectByIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(project is null
+                ? Result.Fail<ProjectDto>("Проект не найден.")
+                : Result.Ok(project));
+        _mediator.Send(Arg.Any<GetProjectStatusesQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new List<ProjectStatusDto>()));
+    }
+
     [Test]
     public async Task CreateProjectConfirm_CreatesAndRemovesSession()
     {
         _session.TempProjectName = "P";
         _session.TempProjectDescription = "D";
         _stateService.Get(1).Returns(_session);
-        _adminService.CreateProjectAsync(1, "P", "D", null).Returns("✅");
+        _mediator.Send(Arg.Any<CreateProjectCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(Guid.NewGuid()));
         await _handler.HandleAdminCreateProjectConfirmAsync(_botClient, MakeCq("x"), 1, CancellationToken.None);
         _stateService.Received(1).Remove(1);
     }
@@ -326,7 +370,7 @@ public class AdminProjectCallbackHandlerTests
     {
         _stateService.Get(1).Returns(_session);
         await _handler.HandleAdminCreateProjectConfirmAsync(_botClient, MakeCq("x"), 1, CancellationToken.None);
-        await _adminService.DidNotReceiveWithAnyArgs().CreateProjectAsync(default, default, default, default);
+        await _mediator.DidNotReceive().Send(Arg.Any<CreateProjectCommand>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -335,16 +379,19 @@ public class AdminProjectCallbackHandlerTests
         _session.TempProjectName = "P";
         _session.TempAddons = new List<(string, string, decimal)> { ("A", "D", 10m) };
         _stateService.Get(1).Returns(_session);
+        _mediator.Send(Arg.Any<CreateProjectCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(Guid.NewGuid()));
         await _handler.HandleAdminCreateProjectConfirmAsync(_botClient, MakeCq("x"), 1, CancellationToken.None);
         _stateService.Received(1).Remove(1);
+        await _mediator.Received(1).Send(
+            Arg.Is<CreateProjectCommand>(c => c.Addons != null && c.Addons.Count == 1),
+            Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task EditProject_ShowsEditForm()
     {
-        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
-        _adminService.GetProjectAsync(ProjectId).Returns(DomainTestFactory.NewProject("Test"));
-        _addonRepo.GetByProjectIdAsync(ProjectId).Returns(new List<Addon>());
+        SetupProject(TestProject());
         _stateService.GetOrCreate(1).Returns(_session);
         await _handler.HandleAdminEditProjectAsync(_botClient, MakeCq("admin_edit_project:" + ProjectId), 1,
             "admin_edit_project:" + ProjectId, CancellationToken.None);
@@ -353,18 +400,22 @@ public class AdminProjectCallbackHandlerTests
     [Test]
     public async Task EditProject_NullProject_ShowsNotFound()
     {
-        _adminService.GetProjectAsync(ProjectId).Returns((Project?)null);
-        await _handler.HandleAdminEditProjectAsync(_botClient, MakeCq("admin_edit_project:" + ProjectId), 1,
+        var editFormBuilder = Substitute.For<IProjectEditFormBuilder>();
+        editFormBuilder.BuildAsync(Arg.Any<Guid>(), Arg.Any<string?>())
+            .Returns(Task.FromException<ProjectEditForm>(new InvalidOperationException()));
+        var authorization = Substitute.For<IAuthorizationService>();
+        var handler = new AdminProjectCallbackHandler(
+            _stateService, _mediator, editFormBuilder, new MainMenuHelper(authorization));
+        SetupProject(null);
+
+        await handler.HandleAdminEditProjectAsync(_botClient, MakeCq("admin_edit_project:" + ProjectId), 1,
             "admin_edit_project:" + ProjectId, CancellationToken.None);
     }
 
     [Test]
     public async Task EditProject_WithAddons_IncludesSummary()
     {
-        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
-        _adminService.GetProjectAsync(ProjectId).Returns(DomainTestFactory.NewProject("P"));
-        _addonRepo.GetByProjectIdAsync(ProjectId)
-            .Returns(new List<Addon> { DomainTestFactory.NewAddon(AddonId, "A1", 100m) });
+        SetupProject(TestProject());
         _stateService.GetOrCreate(1).Returns(_session);
         await _handler.HandleAdminEditProjectAsync(_botClient, MakeCq("admin_edit_project:" + ProjectId), 1,
             "admin_edit_project:" + ProjectId, CancellationToken.None);
@@ -374,9 +425,7 @@ public class AdminProjectCallbackHandlerTests
     public async Task EditProject_ResetsPendingAction()
     {
         _session.PendingAction = "old";
-        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
-        _adminService.GetProjectAsync(ProjectId).Returns(DomainTestFactory.NewProject("P"));
-        _addonRepo.GetByProjectIdAsync(ProjectId).Returns(new List<Addon>());
+        SetupProject(TestProject());
         _stateService.GetOrCreate(1).Returns(_session);
         await _handler.HandleAdminEditProjectAsync(_botClient, MakeCq("admin_edit_project:" + ProjectId), 1,
             "admin_edit_project:" + ProjectId, CancellationToken.None);
@@ -419,7 +468,6 @@ public class AdminProjectCallbackHandlerTests
     {
         var addonId = Guid.NewGuid();
         _stateService.GetOrCreate(1).Returns(_session);
-        _addonRepo.GetByIdAsync(addonId).Returns(DomainTestFactory.NewAddon(addonId, "Test Addon"));
 
         await _handler.HandleAdminEditAddonAsync(_botClient, MakeCq($"admin_edit_addon:{addonId}"), 1,
             $"admin_edit_addon:{addonId}", CancellationToken.None);
@@ -435,8 +483,8 @@ public class AdminProjectCallbackHandlerTests
     public async Task DeleteAddon_ShowsConfirmation()
     {
         var addonId = Guid.NewGuid();
-        _addonRepo.GetByIdAsync(addonId).Returns(DomainTestFactory.NewAddon(addonId, "Test"));
-        _addonRepo.GetProjectIdByAddonAsync(addonId).Returns(ProjectId);
+        _mediator.Send(Arg.Any<GetProjectIdByAddonQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(ProjectId));
 
         await _handler.HandleAdminDeleteAddonAsync(_botClient, MakeCq($"admin_del_addon:{addonId}"), 1,
             $"admin_del_addon:{addonId}", CancellationToken.None);
@@ -446,26 +494,38 @@ public class AdminProjectCallbackHandlerTests
     public async Task DeleteAddonConfirm_DeletesAndShowsResult()
     {
         var addonId = Guid.NewGuid();
-        _addonRepo.GetByIdAsync(addonId).Returns(DomainTestFactory.NewAddon(addonId, "Test"));
-        _addonRepo.GetProjectIdByAddonAsync(addonId).Returns(ProjectId);
-        _adminService.DeleteAddonAsync(addonId).Returns("✅ Дополнение удалено.");
-        _adminService.GetProjectAsync(ProjectId).Returns(DomainTestFactory.NewProject("P"));
-        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
-        _addonRepo.GetByProjectIdAsync(Arg.Any<Guid>()).Returns(new List<Addon>());
+        SetupProject(TestProject());
         _stateService.GetOrCreate(1).Returns(_session);
+        _mediator.Send(Arg.Any<GetProjectIdByAddonQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(ProjectId));
+        _mediator.Send(Arg.Any<DeleteAddonCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok());
 
         await _handler.HandleAdminDeleteAddonConfirmAsync(_botClient, MakeCq($"admin_del_addon_confirm:{addonId}"), 1,
             $"admin_del_addon_confirm:{addonId}", CancellationToken.None);
 
-        await _adminService.Received(1).DeleteAddonAsync(addonId);
+        await _mediator.Received(1).Send(
+            Arg.Is<DeleteAddonCommand>(c => c.AddonId == addonId),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Test]
+    public async Task DeleteAddon_NotFound_ShowsNotFound()
+    {
+        var addonId = Guid.NewGuid();
+        _mediator.Send(Arg.Any<GetProjectIdByAddonQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Fail<Guid>("Дополнение не найдено."));
+
+        await _handler.HandleAdminDeleteAddonConfirmAsync(_botClient, MakeCq($"admin_del_addon_confirm:{addonId}"), 1,
+            $"admin_del_addon_confirm:{addonId}", CancellationToken.None);
+
+        await _mediator.DidNotReceive().Send(Arg.Any<DeleteAddonCommand>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task DeleteAddonCancel_ReturnsToEditForm()
     {
-        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
-        _adminService.GetProjectAsync(ProjectId).Returns(DomainTestFactory.NewProject("P"));
-        _addonRepo.GetByProjectIdAsync(ProjectId).Returns(new List<Addon>());
+        SetupProject(TestProject());
         _stateService.GetOrCreate(1).Returns(_session);
 
         await _handler.HandleAdminDeleteAddonCancelAsync(_botClient, MakeCq($"admin_del_addon_cancel:{ProjectId}"), 1,
@@ -492,14 +552,17 @@ public class AdminProjectCallbackHandlerTests
     {
         _session.TempStatusName = "Test Status";
         _stateService.Get(1).Returns(_session);
-        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
-        _adminService.CreateProjectStatusAsync("Test Status", 1, true)
-            .Returns("✅ Статус добавлен.");
+        _mediator.Send(Arg.Any<GetProjectStatusesQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new List<ProjectStatusDto>()));
+        _mediator.Send(Arg.Any<CreateProjectStatusCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(1));
 
         await _handler.HandleAdminAddStatusCanEditAsync(_botClient, MakeCq("admin_add_status_can_edit:yes"), 1,
             "admin_add_status_can_edit:yes", CancellationToken.None);
 
-        await _adminService.Received(1).CreateProjectStatusAsync("Test Status", 1, true);
+        await _mediator.Received(1).Send(
+            Arg.Is<CreateProjectStatusCommand>(c => c.DisplayName == "Test Status" && c.Order == 1 && c.CanEditOrders),
+            Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -507,14 +570,17 @@ public class AdminProjectCallbackHandlerTests
     {
         _session.TempStatusName = "Test Status";
         _stateService.Get(1).Returns(_session);
-        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
-        _adminService.CreateProjectStatusAsync("Test Status", 1, false)
-            .Returns("✅ Статус добавлен.");
+        _mediator.Send(Arg.Any<GetProjectStatusesQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new List<ProjectStatusDto>()));
+        _mediator.Send(Arg.Any<CreateProjectStatusCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(2));
 
         await _handler.HandleAdminAddStatusCanEditAsync(_botClient, MakeCq("admin_add_status_can_edit:no"), 1,
             "admin_add_status_can_edit:no", CancellationToken.None);
 
-        await _adminService.Received(1).CreateProjectStatusAsync("Test Status", 1, false);
+        await _mediator.Received(1).Send(
+            Arg.Is<CreateProjectStatusCommand>(c => !c.CanEditOrders),
+            Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -523,6 +589,6 @@ public class AdminProjectCallbackHandlerTests
         _stateService.Get(1).Returns(_session);
         await _handler.HandleAdminAddStatusCanEditAsync(_botClient, MakeCq("admin_add_status_can_edit:yes"), 1,
             "admin_add_status_can_edit:yes", CancellationToken.None);
-        await _adminService.DidNotReceiveWithAnyArgs().CreateProjectStatusAsync(default, default, default);
+        await _mediator.DidNotReceive().Send(Arg.Any<CreateProjectStatusCommand>(), Arg.Any<CancellationToken>());
     }
 }

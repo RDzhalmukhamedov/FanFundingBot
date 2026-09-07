@@ -1,12 +1,19 @@
 using System.Reflection;
+using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Users.Commands;
+using FanFundingBot.Application.Projects.Commands;
+using FanFundingBot.Application.Projects.Queries;
+using FanFundingBot.Application.Questions.Commands;
+using FanFundingBot.Application.Users.Commands;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
 using FanFundingBot.Domain.Interfaces;
+using MediatR;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -177,35 +184,31 @@ public class CommandHandlerBroadcastTests
     [Test]
     public async Task BroadcastMessage_SetsTempBroadcastTextAndShowsConfirmation()
     {
-        var userRepo = Substitute.For<IUserRepository>();
-        var projectRepo = Substitute.For<IProjectRepository>();
         var stateService = new UserStateService(new MemoryCache(new MemoryCacheOptions()));
-        var adminService = Substitute.For<IAdminService>();
-        var orderFlowService = Substitute.For<IOrderFlowService>();
+        var authorization = Substitute.For<IAuthorizationService>();
+        var mediator = Substitute.For<IMediator>();
+        var userContext = new TelegramUserContext();
         var config = new BotConfiguration { OwnerId = 1 };
         var uiRenderer = Substitute.For<IUIRenderer>();
-        var questionRepo = Substitute.For<IQuestionRepository>();
-        var addonRepo = Substitute.For<IAddonRepository>();
 
-        var questionHandler = new QuestionTextHandler(stateService, questionRepo, userRepo, adminService);
+        mediator.Send(Arg.Any<GetOrCreateUserCommand>(), Arg.Any<CancellationToken>())
+            .Returns(FluentResults.Result.Ok());
+
+        var questionHandler = new QuestionTextHandler(stateService, mediator);
         var broadcastHandler = new BroadcastTextHandler(stateService);
-        var orderHandler = new OrderTextHandler(stateService, orderFlowService, uiRenderer);
-        var creationHandler = new AdminProjectCreationTextHandler(stateService, orderFlowService);
-        var editingHandler = new AdminProjectEditingTextHandler(stateService, adminService, addonRepo,
-            new ProjectEditFormBuilder(adminService, addonRepo));
+        var orderHandler = new OrderTextHandler(stateService, uiRenderer);
+        var creationHandler = new AdminProjectCreationTextHandler(stateService);
+        var editingHandler = new AdminProjectEditingTextHandler(stateService, mediator,
+            new ProjectEditFormBuilder(mediator));
 
         var textInputHandler = new TextInputHandler(
-            stateService, adminService,
+            stateService, authorization,
             questionHandler, broadcastHandler, orderHandler, creationHandler, editingHandler);
 
-        adminService.IsAdminAsync(1).Returns(true);
-        userRepo.ExistsAsync(Arg.Any<long>()).Returns(true);
-
-        var menuHelper = new MainMenuHelper(adminService);
-        var adminCommandHandler = new AdminCommandHandler(stateService, adminService, projectRepo, questionRepo, menuHelper);
+        var menuHelper = new MainMenuHelper(authorization);
+        var adminCommandHandler = new AdminCommandHandler(stateService, mediator, menuHelper);
         var handler = new CommandHandler(
-            userRepo, projectRepo, stateService,
-            adminService, orderFlowService,
+            stateService, authorization, mediator, userContext,
             config, uiRenderer, textInputHandler, menuHelper, adminCommandHandler);
 
         var botClient = Substitute.For<ITelegramBotClient>();

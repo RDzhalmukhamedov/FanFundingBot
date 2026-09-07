@@ -6,4 +6,5 @@
   <Project Path="FanFundingBot.Infrastructure.Persistence/FanFundingBot.Infrastructure.Persistence.csproj" />
   <Project Path="FanFundingBot.Infrastructure.ExternalStorage/FanFundingBot.Infrastructure.ExternalStorage.csproj" />
   <Project Path="FanFundingBot.Tests/FanFundingBot.Tests.csproj" />
+  <Project Path="FanFundingBot.Web/FanFundingBot.Web.csproj" />
 </Solution>

@@ -1,45 +1,38 @@
-using FanFundingBot.Bot.Abstractions;
+using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Domain.Entities;
-using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot;
-using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
 namespace FanFundingBot.Bot.Services;
 
-public class NotificationService : INotificationService
+public class NotificationService : INotificationPort
 {
     private readonly ITelegramBotClient _botClient;
-    private readonly IUserRepository _userRepository;
     private readonly BotConfiguration _config;
     private static readonly SemaphoreSlim _sendSemaphore = new(1, 1);
 
-    public NotificationService(ITelegramBotClient botClient, IUserRepository userRepository, BotConfiguration config)
+    public NotificationService(ITelegramBotClient botClient, BotConfiguration config)
     {
         _botClient = botClient;
-        _userRepository = userRepository;
         _config = config;
     }
 
-    public async Task NotifyProjectStatusUpdateAsync(Guid projectId, string projectName, string newStatus)
+    public async Task NotifyProjectStatusChangedAsync(
+        IReadOnlyList<long> userIds, string projectName, string newStatus, CancellationToken ct)
     {
-        var users = await _userRepository.GetSubscribedToProjectAsync(projectId);
-
         var message = $"📋 <b>Статус проекта «{projectName}» обновлён</b>\n\n" +
                       $"Новый статус: <b>{GetStatusEmoji(newStatus)} {newStatus}</b>";
 
-        await SendWithRateLimitAsync(users, message);
+        await SendWithRateLimitAsync(userIds, message, ParseMode.Html, ct);
     }
 
-    public async Task BroadcastToProjectAsync(Guid projectId, string text)
+    public async Task BroadcastToProjectAsync(
+        IReadOnlyList<long> userIds, string message, CancellationToken ct)
     {
-        var users = await _userRepository.GetSubscribedToProjectAsync(projectId);
-
-        await SendWithRateLimitAsync(users, text, ParseMode.Html);
+        await SendWithRateLimitAsync(userIds, message, ParseMode.Html, ct);
     }
 
-    public async Task NotifyQuestionAnsweredAsync(long userId, string questionText, string answer)
+    public async Task NotifyQuestionAnsweredAsync(long userId, string questionText, string answer, CancellationToken ct)
     {
         try
         {
@@ -50,7 +43,8 @@ public class NotificationService : INotificationService
             await _botClient.SendMessage(
                 chatId: userId,
                 text: message,
-                parseMode: ParseMode.Html);
+                parseMode: ParseMode.Html,
+                cancellationToken: ct);
         }
         catch
         {
@@ -58,23 +52,24 @@ public class NotificationService : INotificationService
         }
     }
 
-    private async Task SendWithRateLimitAsync(List<Domain.Entities.User> users, string text, ParseMode? parseMode = null)
+    private async Task SendWithRateLimitAsync(
+        IReadOnlyList<long> userIds, string text, ParseMode parseMode, CancellationToken ct)
     {
-        await _sendSemaphore.WaitAsync();
+        await _sendSemaphore.WaitAsync(ct);
         try
         {
-            foreach (var user in users)
+            foreach (var userId in userIds)
             {
                 try
                 {
                     await _botClient.SendMessage(
-                        chatId: user.Id,
+                        chatId: userId,
                         text: text,
-                        parseMode: parseMode ?? ParseMode.Html,
-                        cancellationToken: default);
+                        parseMode: parseMode,
+                        cancellationToken: ct);
 
                     if (_config.SendDelayMs > 0)
-                        await Task.Delay(_config.SendDelayMs);
+                        await Task.Delay(_config.SendDelayMs, ct);
                 }
                 catch
                 {
