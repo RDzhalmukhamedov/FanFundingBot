@@ -1,7 +1,6 @@
 using System.Text.Json;
+using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Domain.Entities;
-using FanFundingBot.Domain.Enums;
-using FanFundingBot.Domain.Interfaces;
 
 namespace FanFundingBot.Infrastructure.ExternalStorage;
 
@@ -28,7 +27,7 @@ public class FileOrderStorage : IOrderExternalStorage
         _filePath = Path.Combine(dir, "orders.json");
     }
 
-    public async Task SaveOrderAsync(Order order)
+    public async Task SaveOrderAsync(Order order, CancellationToken cancellationToken = default)
     {
         var orders = await LoadOrdersAsync();
         orders.RemoveAll(o => o.Id == order.Id);
@@ -36,7 +35,7 @@ public class FileOrderStorage : IOrderExternalStorage
         await SaveOrdersAsync(orders);
     }
 
-    public async Task DeleteOrderAsync(Guid orderId)
+    public async Task DeleteOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
         var orders = await LoadOrdersAsync();
         orders.RemoveAll(o => o.Id == orderId);

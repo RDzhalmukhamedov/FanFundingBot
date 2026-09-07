@@ -7,10 +7,10 @@ using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Exceptions;
 using FanFundingBot.Domain.Interfaces;
-using FanFundingBot.Tests;
+using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
-using Moq;
+using NSubstitute;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -23,14 +23,14 @@ public class UserCallbackQueryHandlerTests
 {
     private IMemoryCache _cache;
     private IUserStateService _stateService;
-    private Mock<IOrderFlowService> _orderFlowServiceMock;
-    private Mock<IProjectRepository> _projectRepoMock;
-    private Mock<IOrderRepository> _orderRepoMock;
-    private Mock<IUIRenderer> _uiRendererMock;
-    private Mock<IAdminService> _adminServiceMock;
-    private Mock<IOrderProcessingQueue> _processingQueueMock;
+    private IOrderFlowService _orderFlowService;
+    private IProjectRepository _projectRepo;
+    private IOrderRepository _orderRepo;
+    private IUIRenderer _uiRenderer;
+    private IAdminService _adminService;
+    private IOrderProcessingQueue _processingQueue;
     private UserCallbackQueryHandler _handler;
-    private Mock<ITelegramBotClient> _botClientMock;
+    private ITelegramBotClient _botClient;
 
     private static readonly Guid ProjectId = Guid.NewGuid();
     private static readonly Guid AddonId1 = Guid.NewGuid();
@@ -44,27 +44,21 @@ public class UserCallbackQueryHandlerTests
         _cache = new MemoryCache(new MemoryCacheOptions());
         _stateService = new UserStateService(_cache);
 
-        _orderFlowServiceMock = new Mock<IOrderFlowService>();
-        _uiRendererMock = new Mock<IUIRenderer>();
-        _adminServiceMock = new Mock<IAdminService>();
-        _orderRepoMock = new Mock<IOrderRepository>();
+        _orderFlowService = Substitute.For<IOrderFlowService>();
+        _uiRenderer = Substitute.For<IUIRenderer>();
+        _adminService = Substitute.For<IAdminService>();
+        _orderRepo = Substitute.For<IOrderRepository>();
 
-        _projectRepoMock = new Mock<IProjectRepository>();
-        _processingQueueMock = new Mock<IOrderProcessingQueue>();
-        _orderFlowServiceMock
-            .Setup(s => s.GetAddonsPagedAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
-            .ReturnsAsync(new List<Addon>());
-        _orderFlowServiceMock
-            .Setup(s => s.GetAddonCountAsync(It.IsAny<Guid>()))
-            .ReturnsAsync(0);
-        var menuHelper = new MainMenuHelper(_adminServiceMock.Object);
-        var projectAccess = new ProjectAccessHelper(_projectRepoMock.Object);
+        _projectRepo = Substitute.For<IProjectRepository>();
+        _processingQueue = Substitute.For<IOrderProcessingQueue>();
+        var menuHelper = new MainMenuHelper(_adminService);
+        var projectAccess = new ProjectAccessHelper(_projectRepo);
         _handler = new UserCallbackQueryHandler(
-            _stateService, _orderFlowServiceMock.Object,
-            _projectRepoMock.Object, _orderRepoMock.Object,
-            _uiRendererMock.Object, _adminServiceMock.Object,
-            _processingQueueMock.Object, menuHelper, projectAccess);
-        _botClientMock = new Mock<ITelegramBotClient>();
+            _stateService, _orderFlowService,
+            _projectRepo, _orderRepo,
+            _uiRenderer, _adminService,
+            _processingQueue, menuHelper, projectAccess);
+        _botClient = Substitute.For<ITelegramBotClient>();
     }
 
     private UserSession GetOrCreateSession(long userId = 1)
@@ -97,16 +91,21 @@ public class UserCallbackQueryHandlerTests
         p?.GetSetMethod(nonPublic: true)?.Invoke(obj, [val]);
     }
 
-    // --- HandleAddonToggleAsync ---
+    private static Project ProjectWithAddon()
+    {
+        var project = DomainTestFactory.NewProject();
+        project.AddAddon(DomainTestFactory.NewAddon(AddonId1, "A1", 100));
+        return project;
+    }
 
     [Test]
     public async Task AddonToggle_WhenNotSelected_AddsAddonId()
     {
         var session = GetOrCreateSession();
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(DomainTestFactory.NewProject());
+        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
+            .Returns(DomainTestFactory.NewProject());
 
-        await _handler.HandleAddonToggleAsync(_botClientMock.Object, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
+        await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
         Assert.That(session.SelectedAddonIds, Contains.Item(AddonId1));
     }
@@ -116,10 +115,10 @@ public class UserCallbackQueryHandlerTests
     {
         var session = GetOrCreateSession();
         session.SelectedAddonIds.Add(AddonId1);
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(DomainTestFactory.NewProject());
+        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
+            .Returns(DomainTestFactory.NewProject());
 
-        await _handler.HandleAddonToggleAsync(_botClientMock.Object, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
+        await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
         Assert.That(session.SelectedAddonIds, Does.Not.Contain(AddonId1));
     }
@@ -127,8 +126,8 @@ public class UserCallbackQueryHandlerTests
     [Test]
     public async Task AddonToggle_NullSession_ReturnsEarly()
     {
-        await _handler.HandleAddonToggleAsync(_botClientMock.Object, MakeCq(), 999, "addon_toggle:" + Guid.NewGuid(), CancellationToken.None);
-        _uiRendererMock.VerifyNoOtherCalls();
+        await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 999, "addon_toggle:" + Guid.NewGuid(), CancellationToken.None);
+        await _uiRenderer.DidNotReceiveWithAnyArgs().SendAddonSelectionAsync(default, default, default, default, default);
     }
 
     [Test]
@@ -136,52 +135,48 @@ public class UserCallbackQueryHandlerTests
     {
         var session = GetOrCreateSession();
         session.SelectedProjectId = null;
-        await _handler.HandleAddonToggleAsync(_botClientMock.Object, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
-        _projectRepoMock.VerifyNoOtherCalls();
+        await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
+        await _projectRepo.DidNotReceive().GetByIdWithAddonsAsync(Arg.Any<Guid>());
     }
 
     [Test]
     public async Task AddonToggle_NullProject_ReturnsEarly()
     {
         GetOrCreateSession();
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId)).ReturnsAsync((Project?)null);
-        await _handler.HandleAddonToggleAsync(_botClientMock.Object, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
-        _uiRendererMock.VerifyNoOtherCalls();
+        _projectRepo.GetByIdWithAddonsAsync(ProjectId).Returns((Project?)null);
+        await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
+        await _uiRenderer.DidNotReceiveWithAnyArgs().SendAddonSelectionAsync(default, default, default, default, default);
     }
-
-    // --- HandleAddonPageAsync ---
 
     [Test]
     public async Task AddonPage_ValidPage_UpdatesSession()
     {
         var session = GetOrCreateSession();
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId)).ReturnsAsync(new Project());
-        await _handler.HandleAddonPageAsync(_botClientMock.Object, MakeCq(), 1, "addon_page:3", CancellationToken.None);
+        _projectRepo.GetByIdWithAddonsAsync(ProjectId).Returns(new Project());
+        await _handler.HandleAddonPageAsync(_botClient, MakeCq(), 1, "addon_page:3", CancellationToken.None);
         Assert.That(session.AddonPage, Is.EqualTo(3));
     }
 
     [Test]
     public async Task AddonPage_NoPage_ReturnsEarly()
     {
-        await _handler.HandleAddonPageAsync(_botClientMock.Object, MakeCq(), 1, "addon_page:nop", CancellationToken.None);
-        _uiRendererMock.VerifyNoOtherCalls();
+        await _handler.HandleAddonPageAsync(_botClient, MakeCq(), 1, "addon_page:nop", CancellationToken.None);
+        await _uiRenderer.DidNotReceiveWithAnyArgs().SendAddonSelectionAsync(default, default, default, default, default);
     }
 
     [Test]
     public async Task AddonPage_NullSession_ReturnsEarly()
     {
-        await _handler.HandleAddonPageAsync(_botClientMock.Object, MakeCq(), 1, "addon_page:2", CancellationToken.None);
-        _uiRendererMock.VerifyNoOtherCalls();
+        await _handler.HandleAddonPageAsync(_botClient, MakeCq(), 1, "addon_page:2", CancellationToken.None);
+        await _uiRenderer.DidNotReceiveWithAnyArgs().SendAddonSelectionAsync(default, default, default, default, default);
     }
-
-    // --- HandleAddonConfirmAsync ---
 
     [Test]
     public async Task AddonConfirm_WithAddons_MovesToEnteringPhone()
     {
         var session = GetOrCreateSession();
         session.SelectedAddonIds.Add(AddonId1);
-        await _handler.HandleAddonConfirmAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
+        await _handler.HandleAddonConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
         Assert.That(session.State, Is.EqualTo(OrderFlowState.EnteringPhone));
     }
 
@@ -189,23 +184,21 @@ public class UserCallbackQueryHandlerTests
     public async Task AddonConfirm_NoAddons_ShowsAlert()
     {
         GetOrCreateSession();
-        await _handler.HandleAddonConfirmAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
+        await _handler.HandleAddonConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
     }
 
     [Test]
     public async Task AddonConfirm_NullSession_ReturnsEarly()
     {
-        await _handler.HandleAddonConfirmAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
-        _botClientMock.VerifyNoOtherCalls();
+        await _handler.HandleAddonConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
+        _botClient.ReceivedCalls().Should().BeEmpty();
     }
-
-    // --- HandleDeliveryAsync ---
 
     [Test]
     public async Task Delivery_Pickup_SetsPickupAndConfirms()
     {
         var session = GetOrCreateSession();
-        await _handler.HandleDeliveryAsync(_botClientMock.Object, MakeCq(), 1, "delivery:pickup", CancellationToken.None);
+        await _handler.HandleDeliveryAsync(_botClient, MakeCq(), 1, "delivery:pickup", CancellationToken.None);
         Assert.Multiple(() =>
         {
             Assert.That(session.DeliveryMethod, Is.EqualTo(DeliveryMethod.Pickup));
@@ -217,7 +210,7 @@ public class UserCallbackQueryHandlerTests
     public async Task Delivery_Delivery_SetsDeliveryAndAsksAddress()
     {
         var session = GetOrCreateSession();
-        await _handler.HandleDeliveryAsync(_botClientMock.Object, MakeCq(), 1, "delivery:delivery", CancellationToken.None);
+        await _handler.HandleDeliveryAsync(_botClient, MakeCq(), 1, "delivery:delivery", CancellationToken.None);
         Assert.Multiple(() =>
         {
             Assert.That(session.DeliveryMethod, Is.EqualTo(DeliveryMethod.Delivery));
@@ -228,11 +221,9 @@ public class UserCallbackQueryHandlerTests
     [Test]
     public async Task Delivery_NullSession_ReturnsEarly()
     {
-        await _handler.HandleDeliveryAsync(_botClientMock.Object, MakeCq(), 1, "delivery:x", CancellationToken.None);
-        _botClientMock.VerifyNoOtherCalls();
+        await _handler.HandleDeliveryAsync(_botClient, MakeCq(), 1, "delivery:x", CancellationToken.None);
+        _botClient.ReceivedCalls().Should().BeEmpty();
     }
-
-    // --- HandleOrderConfirmAsync ---
 
     [Test]
     public async Task OrderConfirm_CreatesOrderAndRemovesSession()
@@ -240,9 +231,9 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.Phone = "+7";
         session.DeliveryMethod = DeliveryMethod.Pickup;
-        _orderFlowServiceMock.Setup(s => s.CreateOrderAsync(1, ProjectId, session.SelectedAddonIds, It.IsAny<Dictionary<Guid, int>>(), "+7", DeliveryMethod.Pickup, null))
-            .ReturnsAsync(DomainTestFactory.NewFormed());
-        await _handler.HandleOrderConfirmAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
+        _orderFlowService.CreateOrderAsync(1, ProjectId, session.SelectedAddonIds, Arg.Any<Dictionary<Guid, int>>(), "+7", DeliveryMethod.Pickup, null)
+            .Returns(DomainTestFactory.NewFormed());
+        await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
         Assert.That(_stateService.Get(1), Is.Null);
     }
 
@@ -252,9 +243,9 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.Phone = "+7";
         session.DeliveryMethod = DeliveryMethod.Pickup;
-        _orderFlowServiceMock.Setup(s => s.CreateOrderAsync(It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<HashSet<Guid>>(), It.IsAny<Dictionary<Guid, int>>(), It.IsAny<string>(), It.IsAny<DeliveryMethod>(), It.IsAny<string?>()))
-            .ThrowsAsync(new OrderSaveException("fail"));
-        await _handler.HandleOrderConfirmAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
+        _orderFlowService.CreateOrderAsync(Arg.Any<long>(), Arg.Any<Guid>(), Arg.Any<HashSet<Guid>>(), Arg.Any<Dictionary<Guid, int>>(), Arg.Any<string>(), Arg.Any<DeliveryMethod>(), Arg.Any<string?>())
+            .Returns<Task<Order>>(x => throw new OrderSaveException("fail"));
+        await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
         Assert.That(_stateService.Get(1), Is.Null);
     }
 
@@ -264,17 +255,17 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.Phone = "+7";
         session.DeliveryMethod = DeliveryMethod.Pickup;
-        _orderFlowServiceMock.Setup(s => s.CreateOrderAsync(It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<HashSet<Guid>>(), It.IsAny<Dictionary<Guid, int>>(), It.IsAny<string>(), It.IsAny<DeliveryMethod>(), It.IsAny<string?>()))
-            .ThrowsAsync(new Exception());
-        await _handler.HandleOrderConfirmAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
+        _orderFlowService.CreateOrderAsync(Arg.Any<long>(), Arg.Any<Guid>(), Arg.Any<HashSet<Guid>>(), Arg.Any<Dictionary<Guid, int>>(), Arg.Any<string>(), Arg.Any<DeliveryMethod>(), Arg.Any<string?>())
+            .Returns<Task<Order>>(x => throw new Exception());
+        await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
         Assert.That(_stateService.Get(1), Is.Null);
     }
 
     [Test]
     public async Task OrderConfirm_NullSession_ReturnsEarly()
     {
-        await _handler.HandleOrderConfirmAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
-        _orderFlowServiceMock.VerifyNoOtherCalls();
+        await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
+        await _orderFlowService.DidNotReceiveWithAnyArgs().CreateOrderAsync(default, default, default, default, default, default, default);
     }
 
     [Test]
@@ -282,8 +273,8 @@ public class UserCallbackQueryHandlerTests
     {
         var session = GetOrCreateSession();
         session.Phone = null;
-        await _handler.HandleOrderConfirmAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
-        _orderFlowServiceMock.VerifyNoOtherCalls();
+        await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
+        await _orderFlowService.DidNotReceiveWithAnyArgs().CreateOrderAsync(default, default, default, default, default, default, default);
     }
 
     [Test]
@@ -293,20 +284,11 @@ public class UserCallbackQueryHandlerTests
         session.Phone = "+71234567890";
         session.DeliveryMethod = DeliveryMethod.Pickup;
 
-        await _handler.HandleOrderConfirmAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
+        await _handler.HandleOrderConfirmAsync(_botClient, MakeCq(), 1, CancellationToken.None);
 
-        _processingQueueMock.Verify(q => q.EnqueueAsync(
-            It.Is<OrderSaveRequest>(r => r.UserId == 1 && r.Phone == "+71234567890" && r.IsEditing == false),
-            It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    // --- HandleAddonQtyIncAsync / HandleAddonQtyDecAsync ---
-
-    private static Project ProjectWithAddon()
-    {
-        var project = DomainTestFactory.NewProject();
-        project.AddAddon(DomainTestFactory.NewAddon(AddonId1, "A1", 100));
-        return project;
+        await _processingQueue.Received(1).EnqueueAsync(
+            Arg.Is<OrderSaveRequest>(r => r.UserId == 1 && r.Phone == "+71234567890" && r.IsEditing == false),
+            Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -315,10 +297,10 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.AddonQuantities[AddonId1] = 2;
         session.SelectedAddonIds.Add(AddonId1);
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(ProjectWithAddon());
+        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
+            .Returns(ProjectWithAddon());
 
-        await _handler.HandleAddonQtyIncAsync(_botClientMock.Object, MakeCq(), 1, "addon_qty_inc:" + AddonId1, CancellationToken.None);
+        await _handler.HandleAddonQtyIncAsync(_botClient, MakeCq(), 1, "addon_qty_inc:" + AddonId1, CancellationToken.None);
 
         Assert.That(session.AddonQuantities[AddonId1], Is.EqualTo(3));
     }
@@ -329,10 +311,10 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.AddonQuantities[AddonId1] = 3;
         session.SelectedAddonIds.Add(AddonId1);
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(ProjectWithAddon());
+        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
+            .Returns(ProjectWithAddon());
 
-        await _handler.HandleAddonQtyDecAsync(_botClientMock.Object, MakeCq(), 1, "addon_qty_dec:" + AddonId1, CancellationToken.None);
+        await _handler.HandleAddonQtyDecAsync(_botClient, MakeCq(), 1, "addon_qty_dec:" + AddonId1, CancellationToken.None);
 
         Assert.That(session.AddonQuantities[AddonId1], Is.EqualTo(2));
     }
@@ -343,10 +325,10 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.AddonQuantities[AddonId1] = 1;
         session.SelectedAddonIds.Add(AddonId1);
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(ProjectWithAddon());
+        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
+            .Returns(ProjectWithAddon());
 
-        await _handler.HandleAddonQtyDecAsync(_botClientMock.Object, MakeCq(), 1, "addon_qty_dec:" + AddonId1, CancellationToken.None);
+        await _handler.HandleAddonQtyDecAsync(_botClient, MakeCq(), 1, "addon_qty_dec:" + AddonId1, CancellationToken.None);
 
         Assert.That(session.AddonQuantities[AddonId1], Is.EqualTo(1));
     }
@@ -354,27 +336,25 @@ public class UserCallbackQueryHandlerTests
     [Test]
     public async Task AddonQtyInc_NullSession_ReturnsEarly()
     {
-        await _handler.HandleAddonQtyIncAsync(_botClientMock.Object, MakeCq(), 999, "addon_qty_inc:" + Guid.NewGuid(), CancellationToken.None);
-        _uiRendererMock.VerifyNoOtherCalls();
+        await _handler.HandleAddonQtyIncAsync(_botClient, MakeCq(), 999, "addon_qty_inc:" + Guid.NewGuid(), CancellationToken.None);
+        await _uiRenderer.DidNotReceiveWithAnyArgs().ShowConfirmationAsync(default, default, default, default);
     }
 
     [Test]
     public async Task AddonQtyDec_NullSession_ReturnsEarly()
     {
-        await _handler.HandleAddonQtyDecAsync(_botClientMock.Object, MakeCq(), 999, "addon_qty_dec:" + Guid.NewGuid(), CancellationToken.None);
-        _uiRendererMock.VerifyNoOtherCalls();
+        await _handler.HandleAddonQtyDecAsync(_botClient, MakeCq(), 999, "addon_qty_dec:" + Guid.NewGuid(), CancellationToken.None);
+        await _uiRenderer.DidNotReceiveWithAnyArgs().ShowConfirmationAsync(default, default, default, default);
     }
-
-    // --- HandleAddonToggleAsync (quantity tracking) ---
 
     [Test]
     public async Task AddonToggle_WhenNotSelected_SetsQuantityToOne()
     {
         var session = GetOrCreateSession();
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(DomainTestFactory.NewProject());
+        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
+            .Returns(DomainTestFactory.NewProject());
 
-        await _handler.HandleAddonToggleAsync(_botClientMock.Object, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
+        await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -389,10 +369,10 @@ public class UserCallbackQueryHandlerTests
         var session = GetOrCreateSession();
         session.SelectedAddonIds.Add(AddonId1);
         session.AddonQuantities[AddonId1] = 5;
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId))
-            .ReturnsAsync(DomainTestFactory.NewProject());
+        _projectRepo.GetByIdWithAddonsAsync(ProjectId)
+            .Returns(DomainTestFactory.NewProject());
 
-        await _handler.HandleAddonToggleAsync(_botClientMock.Object, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
+        await _handler.HandleAddonToggleAsync(_botClient, MakeCq(), 1, "addon_toggle:" + AddonId1, CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -401,15 +381,12 @@ public class UserCallbackQueryHandlerTests
         });
     }
 
-    // --- HandleOrderEditMyAsync ---
-
     [Test]
     public async Task OrderEditMy_NonExistentOrder_ShowsAlert()
     {
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(It.IsAny<Guid>())).ReturnsAsync((Order?)null);
+        _orderRepo.GetByIdWithAddonsAsync(Arg.Any<Guid>()).Returns((Order?)null);
 
-        await _handler.HandleOrderEditMyAsync(_botClientMock.Object, MakeCq(), 1, "order_edit_my:" + Guid.NewGuid(), CancellationToken.None);
-        // No exception thrown = alert was shown
+        await _handler.HandleOrderEditMyAsync(_botClient, MakeCq(), 1, "order_edit_my:" + Guid.NewGuid(), CancellationToken.None);
     }
 
     [Test]
@@ -417,14 +394,12 @@ public class UserCallbackQueryHandlerTests
     {
         var orderId = Guid.NewGuid();
         var order = DomainTestFactory.NewFormed();
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(order);
+        _orderRepo.GetByIdWithAddonsAsync(orderId).Returns(order);
 
         var project = DomainTestFactory.NewProject(canEditOrders: false);
-        _projectRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(project);
+        _projectRepo.GetByIdAsync(Arg.Any<Guid>()).Returns(project);
 
-        await _handler.HandleOrderEditMyAsync(_botClientMock.Object, MakeCq(), 1, "order_edit_my:" + orderId, CancellationToken.None);
-
-        // No exception thrown = alert was shown
+        await _handler.HandleOrderEditMyAsync(_botClient, MakeCq(), 1, "order_edit_my:" + orderId, CancellationToken.None);
     }
 
     [Test]
@@ -435,13 +410,13 @@ public class UserCallbackQueryHandlerTests
         var customer = DomainTestFactory.NewCustomer();
         var orderProject = DomainTestFactory.NewProject();
         var order = DomainTestFactory.NewFormed(customer, orderProject, addonId, 3, "+79991234567", DeliveryMethod.Delivery, "Test Address");
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(order);
+        _orderRepo.GetByIdWithAddonsAsync(orderId).Returns(order);
 
         var project = DomainTestFactory.NewProject();
-        _projectRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(project);
+        _projectRepo.GetByIdAsync(Arg.Any<Guid>()).Returns(project);
         _stateService.GetOrCreate(1).EditMessageId = 1;
 
-        await _handler.HandleOrderEditMyAsync(_botClientMock.Object, MakeCq(), 1, "order_edit_my:" + orderId, CancellationToken.None);
+        await _handler.HandleOrderEditMyAsync(_botClient, MakeCq(), 1, "order_edit_my:" + orderId, CancellationToken.None);
 
         var session = _stateService.Get(1);
         Assert.Multiple(() =>
@@ -456,78 +431,70 @@ public class UserCallbackQueryHandlerTests
         _stateService.Remove(1);
     }
 
-    // --- HandleOrderDeleteMyAsync / Confirm / Cancel ---
-
     [Test]
     public async Task OrderDeleteMy_ShowsConfirmation()
     {
         var orderId = Guid.NewGuid();
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(DomainTestFactory.NewFormed());
-        _projectRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(DomainTestFactory.NewProject());
-        await _handler.HandleOrderDeleteMyAsync(_botClientMock.Object, MakeCq(), 1, "order_delete_my:" + orderId, CancellationToken.None);
-        // Verify no exception was thrown - keyboard with confirmation was shown
+        _orderRepo.GetByIdWithAddonsAsync(orderId).Returns(DomainTestFactory.NewFormed());
+        _projectRepo.GetByIdAsync(Arg.Any<Guid>()).Returns(DomainTestFactory.NewProject());
+
+        await _handler.HandleOrderDeleteMyAsync(_botClient, MakeCq(), 1, "order_delete_my:" + orderId, CancellationToken.None);
     }
 
     [Test]
     public async Task OrderDeleteMyConfirm_DeletesOrder()
     {
         var orderId = Guid.NewGuid();
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(DomainTestFactory.NewFormed());
-        _projectRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync(DomainTestFactory.NewProject());
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(false);
+        _orderRepo.GetByIdWithAddonsAsync(orderId).Returns(DomainTestFactory.NewFormed());
+        _projectRepo.GetByIdAsync(Arg.Any<Guid>()).Returns(DomainTestFactory.NewProject());
+        _adminService.IsAdminAsync(1).Returns(false);
 
-        await _handler.HandleOrderDeleteMyConfirmAsync(_botClientMock.Object, MakeCq(), 1, "order_delete_my_confirm:" + orderId, CancellationToken.None);
+        await _handler.HandleOrderDeleteMyConfirmAsync(_botClient, MakeCq(), 1, "order_delete_my_confirm:" + orderId, CancellationToken.None);
 
-        _orderFlowServiceMock.Verify(s => s.DeleteOrderAsync(orderId), Times.Once);
+        await _orderFlowService.Received(1).DeleteOrderAsync(orderId);
     }
 
     [Test]
     public async Task OrderDeleteMyCancel_ShowsCancelled()
     {
         var orderId = Guid.NewGuid();
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync((Order?)null);
+        _orderRepo.GetByIdWithAddonsAsync(orderId).Returns((Order?)null);
 
-        await _handler.HandleOrderDeleteMyCancelAsync(_botClientMock.Object, MakeCq(), 1, "order_delete_my_cancel:" + orderId, CancellationToken.None);
+        await _handler.HandleOrderDeleteMyCancelAsync(_botClient, MakeCq(), 1, "order_delete_my_cancel:" + orderId, CancellationToken.None);
 
-        _orderFlowServiceMock.VerifyNoOtherCalls();
+        await _orderFlowService.DidNotReceiveWithAnyArgs().DeleteOrderAsync(default);
     }
-
-    // --- HandleOrderEditAsync ---
 
     [Test]
     public async Task OrderEdit_GoesBackToAddonSelection()
     {
         var session = GetOrCreateSession();
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId)).ReturnsAsync(new Project());
-        await _handler.HandleOrderEditAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
+        _projectRepo.GetByIdWithAddonsAsync(ProjectId).Returns(new Project());
+        await _handler.HandleOrderEditAsync(_botClient, MakeCq(), 1, CancellationToken.None);
         Assert.That(session.State, Is.EqualTo(OrderFlowState.SelectingAddons));
     }
 
     [Test]
     public async Task OrderEdit_NullSession_ReturnsEarly()
     {
-        await _handler.HandleOrderEditAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
-        _uiRendererMock.VerifyNoOtherCalls();
+        await _handler.HandleOrderEditAsync(_botClient, MakeCq(), 1, CancellationToken.None);
+        await _uiRenderer.DidNotReceiveWithAnyArgs().SendAddonSelectionAsync(default, default, default, default, default);
     }
-
-    // --- HandleOrderCancelAsync ---
 
     [Test]
     public async Task OrderCancel_RemovesSession()
     {
         GetOrCreateSession();
-        await _handler.HandleOrderCancelAsync(_botClientMock.Object, MakeCq(), 1, CancellationToken.None);
+        await _handler.HandleOrderCancelAsync(_botClient, MakeCq(), 1, CancellationToken.None);
         Assert.That(_stateService.Get(1), Is.Null);
     }
-
-    // --- HandleBackAsync ---
 
     [Test]
     public async Task Back_Phone_GoesToAddonSelection()
     {
         var session = GetOrCreateSession();
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(ProjectId)).ReturnsAsync(new Project());
-        await _handler.HandleBackAsync(_botClientMock.Object, MakeCq(), 1, "back:phone", CancellationToken.None);
+        _projectRepo.GetByIdWithAddonsAsync(ProjectId).Returns(new Project());
+        await _handler.HandleBackAsync(_botClient, MakeCq(), 1, "back:phone", CancellationToken.None);
         Assert.That(session.State, Is.EqualTo(OrderFlowState.SelectingAddons));
     }
 
@@ -536,14 +503,14 @@ public class UserCallbackQueryHandlerTests
     {
         var session = GetOrCreateSession();
         session.State = OrderFlowState.EnteringAddress;
-        await _handler.HandleBackAsync(_botClientMock.Object, MakeCq(), 1, "back:delivery", CancellationToken.None);
+        await _handler.HandleBackAsync(_botClient, MakeCq(), 1, "back:delivery", CancellationToken.None);
         Assert.That(session.State, Is.EqualTo(OrderFlowState.SelectingDelivery));
     }
 
     [Test]
     public async Task Back_NullSession_ReturnsEarly()
     {
-        await _handler.HandleBackAsync(_botClientMock.Object, MakeCq(), 1, "back:x", CancellationToken.None);
-        _uiRendererMock.VerifyNoOtherCalls();
+        await _handler.HandleBackAsync(_botClient, MakeCq(), 1, "back:x", CancellationToken.None);
+        await _uiRenderer.DidNotReceiveWithAnyArgs().SendAddonSelectionAsync(default, default, default, default, default);
     }
 }

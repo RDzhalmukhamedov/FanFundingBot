@@ -14,6 +14,12 @@ using NSubstitute;
 
 namespace FanFundingBot.Tests.Application.Common;
 
+internal sealed class PassThroughUnitOfWork : IUnitOfWork
+{
+    public Task<T> ExecuteAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)
+        => action();
+}
+
 [TestFixture]
 public class ValidationBehaviorTests
 {
@@ -104,7 +110,7 @@ public class TransactionBehaviorTests
     [Test]
     public async Task DomainException_ShouldBecomeFailure()
     {
-        var behavior = new TransactionBehavior<PingCommand, Result<string>>();
+        var behavior = new TransactionBehavior<PingCommand, Result<string>>(new PassThroughUnitOfWork());
 
         Task<Result<string>> Next() => throw new DomainException("invariant violated");
 
@@ -117,7 +123,7 @@ public class TransactionBehaviorTests
     [Test]
     public async Task Success_ShouldPassThrough()
     {
-        var behavior = new TransactionBehavior<PingCommand, Result<string>>();
+        var behavior = new TransactionBehavior<PingCommand, Result<string>>(new PassThroughUnitOfWork());
 
         var result = await behavior.Handle(
             new PingCommand(), () => Task.FromResult(Result.Ok("ok")), CancellationToken.None);
@@ -128,7 +134,7 @@ public class TransactionBehaviorTests
     [Test]
     public void UnexpectedException_ShouldPropagate()
     {
-        var behavior = new TransactionBehavior<PingCommand, Result<string>>();
+        var behavior = new TransactionBehavior<PingCommand, Result<string>>(new PassThroughUnitOfWork());
 
         Task<Result<string>> Next() => throw new InvalidOperationException("boom");
 

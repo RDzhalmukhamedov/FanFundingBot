@@ -3,8 +3,8 @@ using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Services;
 using FanFundingBot.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Moq;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Telegram.Bot;
 
 namespace FanFundingBot.Tests.Bot.Services;
@@ -12,26 +12,31 @@ namespace FanFundingBot.Tests.Bot.Services;
 [TestFixture]
 public class BackgroundOrderProcessorTests
 {
+    private static (BackgroundOrderProcessor processor, OrderProcessingQueue queue, IOrderFlowService orderFlow)
+        CreateProcessor()
+    {
+        var queue = new OrderProcessingQueue(NullLogger<OrderProcessingQueue>.Instance);
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        var botClient = Substitute.For<ITelegramBotClient>();
+        var orderFlow = Substitute.For<IOrderFlowService>();
+
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IOrderFlowService)).Returns(orderFlow);
+        serviceProvider.GetService(typeof(ITelegramBotClient)).Returns(botClient);
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+        scopeFactory.CreateScope().Returns(scope);
+
+        var processor = new BackgroundOrderProcessor(
+            queue, scopeFactory, NullLogger<BackgroundOrderProcessor>.Instance);
+
+        return (processor, queue, orderFlow);
+    }
+
     [Test]
     public async Task ProcessOrder_CreatesOrderAndNotifiesUser()
     {
-        var loggerMock = new Mock<ILogger<OrderProcessingQueue>>();
-        var queue = new OrderProcessingQueue(loggerMock.Object);
-        var scopeFactoryMock = new Mock<IServiceScopeFactory>();
-        var botClientMock = new Mock<ITelegramBotClient>();
-        var orderFlowMock = new Mock<IOrderFlowService>();
-        var processorLoggerMock = new Mock<ILogger<BackgroundOrderProcessor>>();
-
-        var serviceProviderMock = new Mock<IServiceProvider>();
-        serviceProviderMock.Setup(s => s.GetService(typeof(IOrderFlowService)))
-            .Returns(orderFlowMock.Object);
-        serviceProviderMock.Setup(s => s.GetService(typeof(ITelegramBotClient)))
-            .Returns(botClientMock.Object);
-        var scopeMock = new Mock<IServiceScope>();
-        scopeMock.Setup(s => s.ServiceProvider).Returns(serviceProviderMock.Object);
-        scopeFactoryMock.Setup(f => f.CreateScope()).Returns(scopeMock.Object);
-
-        var processor = new BackgroundOrderProcessor(queue, scopeFactoryMock.Object, processorLoggerMock.Object);
+        var (processor, queue, orderFlow) = CreateProcessor();
 
         var request = new OrderSaveRequest(
             1, 100, 50, false, null,
@@ -43,33 +48,16 @@ public class BackgroundOrderProcessorTests
         await processor.StartAsync(cts.Token);
         await Task.Delay(200);
 
-        orderFlowMock.Verify(s => s.CreateOrderAsync(
-            It.IsAny<long>(), It.IsAny<Guid>(),
-            It.IsAny<HashSet<Guid>>(), It.IsAny<Dictionary<Guid, int>>(),
-            It.IsAny<string>(), It.IsAny<DeliveryMethod>(), It.IsAny<string?>()),
-            Times.Once);
+        await orderFlow.Received(1).CreateOrderAsync(
+            Arg.Any<long>(), Arg.Any<Guid>(),
+            Arg.Any<HashSet<Guid>>(), Arg.Any<Dictionary<Guid, int>>(),
+            Arg.Any<string>(), Arg.Any<DeliveryMethod>(), Arg.Any<string?>());
     }
 
     [Test]
     public async Task ProcessOrder_UpdateOrder_WhenIsEditing()
     {
-        var loggerMock = new Mock<ILogger<OrderProcessingQueue>>();
-        var queue = new OrderProcessingQueue(loggerMock.Object);
-        var scopeFactoryMock = new Mock<IServiceScopeFactory>();
-        var botClientMock = new Mock<ITelegramBotClient>();
-        var orderFlowMock = new Mock<IOrderFlowService>();
-        var processorLoggerMock = new Mock<ILogger<BackgroundOrderProcessor>>();
-
-        var serviceProviderMock = new Mock<IServiceProvider>();
-        serviceProviderMock.Setup(s => s.GetService(typeof(IOrderFlowService)))
-            .Returns(orderFlowMock.Object);
-        serviceProviderMock.Setup(s => s.GetService(typeof(ITelegramBotClient)))
-            .Returns(botClientMock.Object);
-        var scopeMock = new Mock<IServiceScope>();
-        scopeMock.Setup(s => s.ServiceProvider).Returns(serviceProviderMock.Object);
-        scopeFactoryMock.Setup(f => f.CreateScope()).Returns(scopeMock.Object);
-
-        var processor = new BackgroundOrderProcessor(queue, scopeFactoryMock.Object, processorLoggerMock.Object);
+        var (processor, queue, orderFlow) = CreateProcessor();
 
         var request = new OrderSaveRequest(
             1, 100, 50, true, Guid.NewGuid(),
@@ -81,10 +69,9 @@ public class BackgroundOrderProcessorTests
         await processor.StartAsync(cts.Token);
         await Task.Delay(200);
 
-        orderFlowMock.Verify(s => s.UpdateOrderAsync(
-            It.IsAny<Guid>(), It.IsAny<Guid>(),
-            It.IsAny<HashSet<Guid>>(), It.IsAny<Dictionary<Guid, int>>(),
-            It.IsAny<string>(), It.IsAny<DeliveryMethod>(), It.IsAny<string?>()),
-            Times.Once);
+        await orderFlow.Received(1).UpdateOrderAsync(
+            Arg.Any<Guid>(), Arg.Any<Guid>(),
+            Arg.Any<HashSet<Guid>>(), Arg.Any<Dictionary<Guid, int>>(),
+            Arg.Any<string>(), Arg.Any<DeliveryMethod>(), Arg.Any<string?>());
     }
 }

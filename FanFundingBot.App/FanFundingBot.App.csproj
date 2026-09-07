@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FanFundingBot.Domain\FanFundingBot.Domain.csproj" />
+    <ProjectReference Include="..\FanFundingBot.Application\FanFundingBot.Application.csproj" />
     <ProjectReference Include="..\FanFundingBot.Infrastructure.Persistence\FanFundingBot.Infrastructure.Persistence.csproj" />
     <ProjectReference Include="..\FanFundingBot.Bot\FanFundingBot.Bot.csproj" />
     <ProjectReference Include="..\FanFundingBot.Infrastructure.ExternalStorage\FanFundingBot.Infrastructure.ExternalStorage.csproj" />

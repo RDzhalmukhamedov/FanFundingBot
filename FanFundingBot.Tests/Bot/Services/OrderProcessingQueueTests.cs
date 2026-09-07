@@ -1,7 +1,8 @@
 using FanFundingBot.Bot.Services;
 using FanFundingBot.Domain.Enums;
 using Microsoft.Extensions.Logging;
-using Moq;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 
 namespace FanFundingBot.Tests.Bot.Services;
 
@@ -11,8 +12,7 @@ public class OrderProcessingQueueTests
     [Test]
     public async Task EnqueueDequeue_SameOrder_ReturnsOrder()
     {
-        var loggerMock = new Mock<ILogger<OrderProcessingQueue>>();
-        var queue = new OrderProcessingQueue(loggerMock.Object);
+        var queue = new OrderProcessingQueue(NullLogger<OrderProcessingQueue>.Instance);
         var request = new OrderSaveRequest(
             1, 100, 50, false, null,
             Guid.NewGuid(), new HashSet<Guid>(), new Dictionary<Guid, int>(),
@@ -28,8 +28,7 @@ public class OrderProcessingQueueTests
     [Test]
     public async Task Enqueue_MultipleOrders_DequeuesInOrder()
     {
-        var loggerMock = new Mock<ILogger<OrderProcessingQueue>>();
-        var queue = new OrderProcessingQueue(loggerMock.Object);
+        var queue = new OrderProcessingQueue(NullLogger<OrderProcessingQueue>.Instance);
         var projectId = Guid.NewGuid();
         var req1 = new OrderSaveRequest(
             1, 100, 50, false, null,

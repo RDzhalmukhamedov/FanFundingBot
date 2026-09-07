@@ -1,23 +1,24 @@
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
+using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Exceptions;
 using FanFundingBot.Domain.Interfaces;
 using FanFundingBot.Domain.ValueObjects;
-using Moq;
+using NSubstitute;
 
 namespace FanFundingBot.Tests.Bot.Services;
 
 [TestFixture]
 public class OrderFlowServiceTests
 {
-    private Mock<IOrderRepository> _orderRepoMock;
-    private Mock<IProjectRepository> _projectRepoMock;
-    private Mock<IAddonRepository> _addonRepoMock;
-    private Mock<IUserRepository> _userRepoMock;
-    private Mock<IOrderExternalStorage> _externalStorageMock;
+    private IOrderRepository _orders;
+    private IProjectRepository _projects;
+    private IAddonRepository _addons;
+    private IUserRepository _users;
+    private IOrderExternalStorage _externalStorage;
     private OwnerNotificationDelegate _notifyOwner;
     private OrderFlowService _service;
 
@@ -51,24 +52,23 @@ public class OrderFlowServiceTests
     [SetUp]
     public void Setup()
     {
-        _orderRepoMock = new Mock<IOrderRepository>();
-        _projectRepoMock = new Mock<IProjectRepository>();
-        _addonRepoMock = new Mock<IAddonRepository>();
-        _userRepoMock = new Mock<IUserRepository>();
-        _externalStorageMock = new Mock<IOrderExternalStorage>();
+        _orders = Substitute.For<IOrderRepository>();
+        _projects = Substitute.For<IProjectRepository>();
+        _addons = Substitute.For<IAddonRepository>();
+        _users = Substitute.For<IUserRepository>();
+        _externalStorage = Substitute.For<IOrderExternalStorage>();
         _notifyOwner = (_) => Task.CompletedTask;
 
         _service = new OrderFlowService(
-            _orderRepoMock.Object,
-            _projectRepoMock.Object,
-            _addonRepoMock.Object,
-            _userRepoMock.Object,
-            _externalStorageMock.Object,
+            _orders,
+            _projects,
+            _addons,
+            _users,
+            _externalStorage,
             _notifyOwner);
 
-        _orderRepoMock
-            .Setup(r => r.GetByProjectAndUserAsync(It.IsAny<Guid>(), It.IsAny<long>()))
-            .ReturnsAsync(new List<Order>());
+        _orders.GetByProjectAndUserAsync(Arg.Any<Guid>(), Arg.Any<long>())
+            .Returns(new List<Order>());
     }
 
     [Test]
@@ -125,19 +125,15 @@ public class OrderFlowServiceTests
         var phone = "+71234567890";
 
         var user = NewUser(userId, "old_phone");
-        _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+        _users.GetByIdAsync(userId).Returns(user);
 
         var project = NewProject(projectId);
         project.AddAddon(NewAddon(addonId1, "Addon 1", 10m));
         project.AddAddon(NewAddon(addonId2, "Addon 2", 15m));
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(projectId)).ReturnsAsync(project);
-
-        _externalStorageMock.Setup(s => s.SaveOrderAsync(It.IsAny<Order>())).Returns(Task.CompletedTask);
+        _projects.GetByIdWithAddonsAsync(projectId).Returns(project);
 
         Order? savedOrder = null;
-        _orderRepoMock.Setup(r => r.AddAsync(It.IsAny<Order>()))
-            .Callback<Order>(o => savedOrder = o)
-            .Returns(Task.CompletedTask);
+        await _orders.AddAsync(Arg.Do<Order>(o => savedOrder = o));
 
         var order = await _service.CreateOrderAsync(userId, projectId, addonIds, new Dictionary<Guid, int>(), phone, DeliveryMethod.Delivery, "Test Address");
 
@@ -154,8 +150,8 @@ public class OrderFlowServiceTests
             Assert.That(order.OrderAddons.All(oa => oa.Addon != null), Is.True);
         });
 
-        _userRepoMock.Verify(r => r.UpdateAsync(It.Is<User>(u => u.Phone == phone)), Times.Once);
-        _externalStorageMock.Verify(s => s.SaveOrderAsync(It.IsAny<Order>()), Times.Once);
+        await _users.Received(1).UpdateAsync(Arg.Is<User>(u => u.Phone == phone));
+        await _externalStorage.Received(1).SaveOrderAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -167,12 +163,11 @@ public class OrderFlowServiceTests
         var addonIds = new HashSet<Guid> { addonId };
 
         var user = NewUser(userId);
-        _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+        _users.GetByIdAsync(userId).Returns(user);
 
         var project = NewProject(projectId);
         project.AddAddon(NewAddon(addonId, "Test", 10m));
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(projectId)).ReturnsAsync(project);
-        _externalStorageMock.Setup(s => s.SaveOrderAsync(It.IsAny<Order>())).Returns(Task.CompletedTask);
+        _projects.GetByIdWithAddonsAsync(projectId).Returns(project);
 
         var order = await _service.CreateOrderAsync(userId, projectId, addonIds, new Dictionary<Guid, int>(), "+71234567890", DeliveryMethod.Pickup, null);
 
@@ -195,19 +190,15 @@ public class OrderFlowServiceTests
         var phone = "+71234567890";
 
         var user = NewUser(userId, "old_phone");
-        _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+        _users.GetByIdAsync(userId).Returns(user);
 
         var project = NewProject(projectId);
         project.AddAddon(NewAddon(addonId1, "Addon 1", 10m));
         project.AddAddon(NewAddon(addonId2, "Addon 2", 15m));
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(projectId)).ReturnsAsync(project);
-
-        _externalStorageMock.Setup(s => s.SaveOrderAsync(It.IsAny<Order>())).Returns(Task.CompletedTask);
+        _projects.GetByIdWithAddonsAsync(projectId).Returns(project);
 
         Order? savedOrder = null;
-        _orderRepoMock.Setup(r => r.AddAsync(It.IsAny<Order>()))
-            .Callback<Order>(o => savedOrder = o)
-            .Returns(Task.CompletedTask);
+        await _orders.AddAsync(Arg.Do<Order>(o => savedOrder = o));
 
         await _service.CreateOrderAsync(userId, projectId, addonIds, quantities, phone, DeliveryMethod.Pickup, null);
 
@@ -228,17 +219,14 @@ public class OrderFlowServiceTests
         var addonIds = new HashSet<Guid> { addonId };
 
         var user = NewUser(userId);
-        _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+        _users.GetByIdAsync(userId).Returns(user);
 
         var project = NewProject(projectId);
         project.AddAddon(NewAddon(addonId, "Test", 10m));
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(projectId)).ReturnsAsync(project);
-        _externalStorageMock.Setup(s => s.SaveOrderAsync(It.IsAny<Order>())).Returns(Task.CompletedTask);
+        _projects.GetByIdWithAddonsAsync(projectId).Returns(project);
 
         Order? savedOrder = null;
-        _orderRepoMock.Setup(r => r.AddAsync(It.IsAny<Order>()))
-            .Callback<Order>(o => savedOrder = o)
-            .Returns(Task.CompletedTask);
+        await _orders.AddAsync(Arg.Do<Order>(o => savedOrder = o));
 
         await _service.CreateOrderAsync(userId, projectId, addonIds, new Dictionary<Guid, int>(), "+71234567890", DeliveryMethod.Pickup, null);
 
@@ -256,25 +244,23 @@ public class OrderFlowServiceTests
         var addonIds = new HashSet<Guid> { addonId };
 
         var user = NewUser(userId);
-        _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+        _users.GetByIdAsync(userId).Returns(user);
 
         var project = NewProject(projectId);
         project.AddAddon(NewAddon(addonId, "Test", 10m));
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(projectId)).ReturnsAsync(project);
+        _projects.GetByIdWithAddonsAsync(projectId).Returns(project);
 
         var orderId = Guid.Empty;
-        _orderRepoMock.Setup(r => r.AddAsync(It.IsAny<Order>()))
-            .Callback<Order>(o => orderId = o.Id)
-            .Returns(Task.CompletedTask);
+        await _orders.AddAsync(Arg.Do<Order>(o => orderId = o.Id));
 
-        _externalStorageMock.Setup(s => s.SaveOrderAsync(It.IsAny<Order>()))
-            .ThrowsAsync(new IOException("External storage unavailable"));
+        _externalStorage.SaveOrderAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new IOException("External storage unavailable")));
 
         var ex = Assert.ThrowsAsync<OrderSaveException>(() =>
             _service.CreateOrderAsync(userId, projectId, addonIds, new Dictionary<Guid, int>(), "+71234567890", DeliveryMethod.Pickup, null));
 
         Assert.That(ex.Message, Does.Contain("Не удалось сохранить заказ"));
-        _orderRepoMock.Verify(r => r.DeleteAsync(orderId), Times.Once);
+        await _orders.Received(1).DeleteAsync(orderId);
     }
 
     [Test]
@@ -286,21 +272,21 @@ public class OrderFlowServiceTests
         var addonIds = new HashSet<Guid> { addonId };
 
         var user = NewUser(userId);
-        _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+        _users.GetByIdAsync(userId).Returns(user);
 
         var project = NewProject(projectId);
         project.AddAddon(NewAddon(addonId, "Test", 10m));
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(projectId)).ReturnsAsync(project);
+        _projects.GetByIdWithAddonsAsync(projectId).Returns(project);
 
-        _orderRepoMock.Setup(r => r.AddAsync(It.IsAny<Order>()))
-            .ThrowsAsync(new InvalidOperationException("DB connection failed"));
+        _orders.AddAsync(Arg.Any<Order>())
+            .Returns(Task.FromException(new InvalidOperationException("DB connection failed")));
 
         var ex = Assert.ThrowsAsync<OrderSaveException>(() =>
             _service.CreateOrderAsync(userId, projectId, addonIds, new Dictionary<Guid, int>(), "+71234567890", DeliveryMethod.Pickup, null));
 
         Assert.That(ex.Message, Does.Contain("Не удалось сохранить заказ"));
-        _orderRepoMock.Verify(r => r.DeleteAsync(It.IsAny<Guid>()), Times.Never);
-        _externalStorageMock.Verify(s => s.SaveOrderAsync(It.IsAny<Order>()), Times.Never);
+        await _orders.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+        await _externalStorage.DidNotReceive().SaveOrderAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -318,18 +304,14 @@ public class OrderFlowServiceTests
         existingDraft.SetPhoneNumber("+71111111111");
         existingDraft.SetDeliveryMethod(DeliveryMethod.Pickup);
 
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(existingDraft);
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(It.IsAny<Guid>())).ReturnsAsync(project);
+        _orders.GetByIdWithAddonsAsync(orderId).Returns(existingDraft);
+        _projects.GetByIdWithAddonsAsync(Arg.Any<Guid>()).Returns(project);
 
         var newAddon = NewAddon(addonId, "Updated Addon", 20m);
         project.AddAddon(newAddon);
 
-        _externalStorageMock.Setup(s => s.SaveOrderAsync(It.IsAny<Order>())).Returns(Task.CompletedTask);
-
         Order? updatedOrder = null;
-        _orderRepoMock.Setup(r => r.UpdateAsync(It.IsAny<Order>()))
-            .Callback<Order>(o => updatedOrder = o)
-            .Returns(Task.CompletedTask);
+        await _orders.UpdateAsync(Arg.Do<Order>(o => updatedOrder = o));
 
         await _service.UpdateOrderAsync(orderId, projectId, addonIds, quantities, "+72222222222", DeliveryMethod.Delivery, "New Address");
 
@@ -342,14 +324,14 @@ public class OrderFlowServiceTests
             Assert.That(updatedOrder.OrderAddons, Has.Count.EqualTo(1));
             Assert.That((int)updatedOrder.OrderAddons[0].Quantity, Is.EqualTo(5));
         });
-        _orderRepoMock.Verify(r => r.UpdateAsync(It.IsAny<Order>()), Times.Once);
-        _externalStorageMock.Verify(s => s.SaveOrderAsync(It.IsAny<Order>()), Times.Once);
+        await _orders.Received(1).UpdateAsync(Arg.Any<Order>());
+        await _externalStorage.Received(1).SaveOrderAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
     public void UpdateOrderAsync_NonExistent_Throws()
     {
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(It.IsAny<Guid>())).ReturnsAsync((Order?)null);
+        _orders.GetByIdWithAddonsAsync(Arg.Any<Guid>()).Returns((Order?)null);
 
         Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await _service.UpdateOrderAsync(Guid.NewGuid(), Guid.NewGuid(), new HashSet<Guid>(), new Dictionary<Guid, int>(), "phone", DeliveryMethod.Pickup, null));
@@ -372,21 +354,21 @@ public class OrderFlowServiceTests
         existingDraft.SetPhoneNumber("+71111111111");
         existingDraft.SetDeliveryMethod(DeliveryMethod.Pickup);
 
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(existingDraft);
+        _orders.GetByIdWithAddonsAsync(orderId).Returns(existingDraft);
 
         var currentProject = NewProject(projectId);
         currentProject.AddAddon(NewAddon(oldAddonId, "Old", 5m));
         currentProject.AddAddon(NewAddon(addonId, "Addon", 10m));
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(It.IsAny<Guid>())).ReturnsAsync(currentProject);
+        _projects.GetByIdWithAddonsAsync(Arg.Any<Guid>()).Returns(currentProject);
 
-        _externalStorageMock.Setup(s => s.SaveOrderAsync(It.IsAny<Order>()))
-            .ThrowsAsync(new IOException("External storage unavailable"));
+        _externalStorage.SaveOrderAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new IOException("External storage unavailable")));
 
         var ex = Assert.ThrowsAsync<OrderSaveException>(() =>
             _service.UpdateOrderAsync(orderId, projectId, addonIds, quantities, "+72222222222", DeliveryMethod.Delivery, "New Address"));
 
         Assert.That(ex.Message, Does.Contain("Не удалось обновить заказ"));
-        _orderRepoMock.Verify(r => r.UpdateAsync(It.IsAny<Order>()), Times.Exactly(2));
+        await _orders.Received(2).UpdateAsync(Arg.Any<Order>());
     }
 
     [Test]
@@ -403,20 +385,20 @@ public class OrderFlowServiceTests
         existingDraft.SetPhoneNumber("+71111111111");
         existingDraft.SetDeliveryMethod(DeliveryMethod.Pickup);
 
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(existingDraft);
+        _orders.GetByIdWithAddonsAsync(orderId).Returns(existingDraft);
 
         var currentProject = NewProject(projectId);
         currentProject.AddAddon(NewAddon(addonId, "Addon", 10m));
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(It.IsAny<Guid>())).ReturnsAsync(currentProject);
+        _projects.GetByIdWithAddonsAsync(Arg.Any<Guid>()).Returns(currentProject);
 
-        _orderRepoMock.Setup(r => r.UpdateAsync(It.IsAny<Order>()))
-            .ThrowsAsync(new InvalidOperationException("DB update failed"));
+        _orders.UpdateAsync(Arg.Any<Order>())
+            .Returns(Task.FromException(new InvalidOperationException("DB update failed")));
 
         var ex = Assert.ThrowsAsync<OrderSaveException>(() =>
             _service.UpdateOrderAsync(orderId, projectId, addonIds, new Dictionary<Guid, int>(), "phone", DeliveryMethod.Pickup, null));
 
         Assert.That(ex.Message, Does.Contain("Не удалось обновить заказ"));
-        _externalStorageMock.Verify(s => s.SaveOrderAsync(It.IsAny<Order>()), Times.Never);
+        await _externalStorage.DidNotReceive().SaveOrderAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -424,26 +406,25 @@ public class OrderFlowServiceTests
     {
         var orderId = Guid.NewGuid();
 
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId))
-            .ReturnsAsync(NewStoredOrder(orderId, 1, Guid.NewGuid(), Guid.NewGuid()));
-        _externalStorageMock.Setup(s => s.DeleteOrderAsync(orderId)).Returns(Task.CompletedTask);
+        _orders.GetByIdWithAddonsAsync(orderId)
+            .Returns(NewStoredOrder(orderId, 1, Guid.NewGuid(), Guid.NewGuid()));
 
         await _service.DeleteOrderAsync(orderId);
 
-        _orderRepoMock.Verify(r => r.DeleteAsync(orderId), Times.Once);
-        _externalStorageMock.Verify(s => s.DeleteOrderAsync(orderId), Times.Once);
+        await _orders.Received(1).DeleteAsync(orderId);
+        await _externalStorage.Received(1).DeleteOrderAsync(orderId, Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task DeleteOrderAsync_NonExistent_DoesNothing()
     {
         var orderId = Guid.NewGuid();
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync((Order?)null);
+        _orders.GetByIdWithAddonsAsync(orderId).Returns((Order?)null);
 
         await _service.DeleteOrderAsync(orderId);
 
-        _orderRepoMock.Verify(r => r.DeleteAsync(It.IsAny<Guid>()), Times.Never);
-        _externalStorageMock.Verify(s => s.DeleteOrderAsync(It.IsAny<Guid>()), Times.Never);
+        await _orders.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+        await _externalStorage.DidNotReceive().DeleteOrderAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -452,18 +433,18 @@ public class OrderFlowServiceTests
         var orderId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
 
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId))
-            .ReturnsAsync(NewStoredOrder(orderId, 1, projectId, Guid.NewGuid(), 1, "+71234567890"));
+        _orders.GetByIdWithAddonsAsync(orderId)
+            .Returns(NewStoredOrder(orderId, 1, projectId, Guid.NewGuid(), 1, "+71234567890"));
 
-        _externalStorageMock.Setup(s => s.DeleteOrderAsync(orderId))
-            .ThrowsAsync(new IOException("External storage unavailable"));
+        _externalStorage.DeleteOrderAsync(orderId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new IOException("External storage unavailable")));
 
         var ex = Assert.ThrowsAsync<OrderSaveException>(() =>
             _service.DeleteOrderAsync(orderId));
 
         Assert.That(ex.Message, Does.Contain("Не удалось удалить заказ"));
-        _orderRepoMock.Verify(r => r.DeleteAsync(orderId), Times.Once);
-        _orderRepoMock.Verify(r => r.AddAsync(It.IsAny<Order>()), Times.Once);
+        await _orders.Received(1).DeleteAsync(orderId);
+        await _orders.Received(1).AddAsync(Arg.Any<Order>());
     }
 
     [Test]
@@ -471,16 +452,16 @@ public class OrderFlowServiceTests
     {
         var orderId = Guid.NewGuid();
 
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId))
-            .ReturnsAsync(NewStoredOrder(orderId, 1, Guid.NewGuid(), Guid.NewGuid()));
-        _orderRepoMock.Setup(r => r.DeleteAsync(orderId))
-            .ThrowsAsync(new InvalidOperationException("DB delete failed"));
+        _orders.GetByIdWithAddonsAsync(orderId)
+            .Returns(NewStoredOrder(orderId, 1, Guid.NewGuid(), Guid.NewGuid()));
+        _orders.DeleteAsync(orderId)
+            .Returns(Task.FromException(new InvalidOperationException("DB delete failed")));
 
         var ex = Assert.ThrowsAsync<OrderSaveException>(() =>
             _service.DeleteOrderAsync(orderId));
 
         Assert.That(ex.Message, Does.Contain("Не удалось удалить заказ"));
-        _externalStorageMock.Verify(s => s.DeleteOrderAsync(It.IsAny<Guid>()), Times.Never);
+        await _externalStorage.DidNotReceive().DeleteOrderAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -495,7 +476,7 @@ public class OrderFlowServiceTests
             new DraftOrder(customer, project)
         };
 
-        _orderRepoMock.Setup(r => r.GetByUserAsync(userId)).ReturnsAsync(orders);
+        _orders.GetByUserAsync(userId).Returns(orders);
 
         var result = await _service.GetLatestOrderAsync(userId);
         Assert.That(result, Is.Not.Null);
@@ -511,20 +492,20 @@ public class OrderFlowServiceTests
         var addonIds = new HashSet<Guid> { addonId };
 
         var user = NewUser(userId);
-        _userRepoMock.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+        _users.GetByIdAsync(userId).Returns(user);
 
         var project = NewProject(projectId);
         project.AddAddon(NewAddon(addonId));
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(projectId)).ReturnsAsync(project);
+        _projects.GetByIdWithAddonsAsync(projectId).Returns(project);
 
-        _orderRepoMock.Setup(r => r.AddAsync(It.IsAny<Order>()))
-            .ThrowsAsync(new InvalidOperationException("DB connection failed"));
+        _orders.AddAsync(Arg.Any<Order>())
+            .Returns(Task.FromException(new InvalidOperationException("DB connection failed")));
 
         var notifiedMessages = new List<string>();
         _notifyOwner = (msg) => { notifiedMessages.Add(msg); return Task.CompletedTask; };
         _service = new OrderFlowService(
-            _orderRepoMock.Object, _projectRepoMock.Object, _addonRepoMock.Object,
-            _userRepoMock.Object, _externalStorageMock.Object, _notifyOwner);
+            _orders, _projects, _addons,
+            _users, _externalStorage, _notifyOwner);
 
         try { await _service.CreateOrderAsync(userId, projectId, addonIds, new Dictionary<Guid, int>(), "+71234567890", DeliveryMethod.Pickup, null); }
         catch { }
@@ -548,20 +529,18 @@ public class OrderFlowServiceTests
         order.SetPhoneNumber("+71111111111");
         order.SetDeliveryMethod(DeliveryMethod.Pickup);
 
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(order);
+        _orders.GetByIdWithAddonsAsync(orderId).Returns(order);
 
         var currentProject = NewProject(projectId);
         currentProject.AddAddon(NewAddon(originalAddonId, "Original", 5m));
         currentProject.AddAddon(NewAddon(newAddonId, "New", 5m));
-        _projectRepoMock.Setup(r => r.GetByIdWithAddonsAsync(It.IsAny<Guid>())).ReturnsAsync(currentProject);
+        _projects.GetByIdWithAddonsAsync(Arg.Any<Guid>()).Returns(currentProject);
 
-        _externalStorageMock.Setup(s => s.SaveOrderAsync(It.IsAny<Order>()))
-            .ThrowsAsync(new Exception("External storage failed"));
+        _externalStorage.SaveOrderAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new Exception("External storage failed")));
 
         var updatedOrders = new List<Order>();
-        _orderRepoMock.Setup(r => r.UpdateAsync(It.IsAny<Order>()))
-            .Callback<Order>(o => updatedOrders.Add(o))
-            .Returns(Task.CompletedTask);
+        await _orders.UpdateAsync(Arg.Do<Order>(o => updatedOrders.Add(o)));
 
         try
         {
@@ -590,15 +569,15 @@ public class OrderFlowServiceTests
         var orderId = Guid.NewGuid();
         var order = NewStoredOrder(orderId, 1, Guid.NewGuid(), Guid.NewGuid(), 1, "+71111111111");
 
-        _orderRepoMock.Setup(r => r.GetByIdWithAddonsAsync(orderId)).ReturnsAsync(order);
-        _externalStorageMock.Setup(s => s.DeleteOrderAsync(orderId))
-            .ThrowsAsync(new Exception("External storage failed"));
+        _orders.GetByIdWithAddonsAsync(orderId).Returns(order);
+        _externalStorage.DeleteOrderAsync(orderId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new Exception("External storage failed")));
 
         var notifiedMessages = new List<string>();
         _notifyOwner = (msg) => { notifiedMessages.Add(msg); return Task.CompletedTask; };
         _service = new OrderFlowService(
-            _orderRepoMock.Object, _projectRepoMock.Object, _addonRepoMock.Object,
-            _userRepoMock.Object, _externalStorageMock.Object, _notifyOwner);
+            _orders, _projects, _addons,
+            _users, _externalStorage, _notifyOwner);
 
         try { await _service.DeleteOrderAsync(orderId); }
         catch { }

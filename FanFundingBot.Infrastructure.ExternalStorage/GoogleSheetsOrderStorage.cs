@@ -1,6 +1,6 @@
+using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Exceptions;
-using FanFundingBot.Domain.Interfaces;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
@@ -51,7 +51,7 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
         _logger = logger;
     }
 
-    public async Task SaveOrderAsync(Order order)
+    public async Task SaveOrderAsync(Order order, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -94,7 +94,7 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
         }
     }
 
-    public async Task DeleteOrderAsync(Guid orderId)
+    public async Task DeleteOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
         try
         {

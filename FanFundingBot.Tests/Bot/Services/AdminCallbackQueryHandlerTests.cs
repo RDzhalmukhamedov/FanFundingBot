@@ -7,7 +7,7 @@ using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Interfaces;
 using FanFundingBot.Tests;
-using Moq;
+using NSubstitute;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
@@ -16,22 +16,20 @@ namespace FanFundingBot.Tests.Bot.Services;
 [TestFixture]
 public class AdminStatusCallbackHandlerTests
 {
-    private Mock<IAdminService> _adminServiceMock;
+    private IAdminService _adminService;
     private AdminStatusCallbackHandler _handler;
-    private Mock<ITelegramBotClient> _botClientMock;
+    private ITelegramBotClient _botClient;
 
     private static readonly Guid ProjectId = Guid.NewGuid();
 
     [SetUp]
     public void Setup()
     {
-        _adminServiceMock = new Mock<IAdminService>();
-        var menuHelper = new MainMenuHelper(_adminServiceMock.Object);
-        _handler = new AdminStatusCallbackHandler(_adminServiceMock.Object, menuHelper);
-        _botClientMock = new Mock<ITelegramBotClient>();
-        _botClientMock
-            .Setup(c => c.TestApi(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        _adminService = Substitute.For<IAdminService>();
+        var menuHelper = new MainMenuHelper(_adminService);
+        _handler = new AdminStatusCallbackHandler(_adminService, menuHelper);
+        _botClient = Substitute.For<ITelegramBotClient>();
+        _botClient.TestApi(Arg.Any<CancellationToken>()).Returns(true);
     }
 
     private static CallbackQuery MakeCq(string data)
@@ -58,74 +56,61 @@ public class AdminStatusCallbackHandlerTests
     public async Task AdminStatus_ShowsConfirmationDialog()
     {
         const int statusId = 5;
-        var projectName = "Test Project";
         var currentStatus = new ProjectStatus("Current", 1, true);
         var newStatus = new ProjectStatus("New Status", 2, true);
 
-        var project = DomainTestFactory.NewProject(projectName);
-        _adminServiceMock
-            .Setup(s => s.GetProjectAsync(ProjectId))
-            .ReturnsAsync(project);
-        _adminServiceMock
-            .Setup(s => s.GetAllStatusesAsync())
-            .ReturnsAsync(new List<ProjectStatus> { currentStatus, newStatus });
+        var project = DomainTestFactory.NewProject("Test Project");
+        _adminService.GetProjectAsync(ProjectId).Returns(project);
+        _adminService.GetAllStatusesAsync()
+            .Returns(new List<ProjectStatus> { currentStatus, newStatus });
 
-        await _handler.HandleAdminStatusAsync(_botClientMock.Object, MakeCq($"admin_status:{ProjectId}:{statusId}"), 1,
+        await _handler.HandleAdminStatusAsync(_botClient, MakeCq($"admin_status:{ProjectId}:{statusId}"), 1,
             $"admin_status:{ProjectId}:{statusId}", CancellationToken.None);
 
-        _adminServiceMock.Verify(s => s.UpdateProjectStatusAsync(It.IsAny<Guid>(), It.IsAny<int>()), Times.Never);
+        await _adminService.DidNotReceive().UpdateProjectStatusAsync(Arg.Any<Guid>(), Arg.Any<int>());
     }
 
     [Test]
     public async Task AdminStatus_NullProject_ShowsNotFound()
     {
-        _adminServiceMock
-            .Setup(s => s.GetProjectAsync(ProjectId))
-            .ReturnsAsync((Project?)null);
+        _adminService.GetProjectAsync(ProjectId).Returns((Project?)null);
 
-        await _handler.HandleAdminStatusAsync(_botClientMock.Object, MakeCq($"admin_status:{ProjectId}:5"), 1,
+        await _handler.HandleAdminStatusAsync(_botClient, MakeCq($"admin_status:{ProjectId}:5"), 1,
             $"admin_status:{ProjectId}:5", CancellationToken.None);
 
-        _adminServiceMock.Verify(s => s.UpdateProjectStatusAsync(It.IsAny<Guid>(), It.IsAny<int>()), Times.Never);
+        await _adminService.DidNotReceive().UpdateProjectStatusAsync(Arg.Any<Guid>(), Arg.Any<int>());
     }
 
     [Test]
     public async Task AdminStatusConfirm_UpdatesStatusAndEditsMessage()
     {
         const int statusId = 5;
-        _adminServiceMock
-            .Setup(s => s.UpdateProjectStatusAsync(ProjectId, statusId))
-            .ReturnsAsync("✅ Статус обновлён.");
+        _adminService.UpdateProjectStatusAsync(ProjectId, statusId)
+            .Returns("✅ Статус обновлён.");
 
-        await _handler.HandleAdminStatusConfirmAsync(_botClientMock.Object, MakeCq($"admin_status_confirm:{ProjectId}:{statusId}"), 1,
+        await _handler.HandleAdminStatusConfirmAsync(_botClient, MakeCq($"admin_status_confirm:{ProjectId}:{statusId}"), 1,
             $"admin_status_confirm:{ProjectId}:{statusId}", CancellationToken.None);
 
-        _adminServiceMock.Verify(s => s.UpdateProjectStatusAsync(ProjectId, statusId), Times.Once);
+        await _adminService.Received(1).UpdateProjectStatusAsync(ProjectId, statusId);
     }
 
     [Test]
     public async Task AdminStatusCancel_ReturnsToStatusSelection()
     {
-        var projectName = "Test Project";
-        _adminServiceMock
-            .Setup(s => s.GetProjectAsync(ProjectId))
-            .ReturnsAsync(DomainTestFactory.NewProject(projectName));
-        _adminServiceMock
-            .Setup(s => s.GetAllStatusesAsync())
-            .ReturnsAsync(new List<ProjectStatus>());
+        _adminService.GetProjectAsync(ProjectId)
+            .Returns(DomainTestFactory.NewProject("Test Project"));
+        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
 
-        await _handler.HandleAdminStatusCancelAsync(_botClientMock.Object, MakeCq($"admin_status_cancel:{ProjectId}"), 1,
+        await _handler.HandleAdminStatusCancelAsync(_botClient, MakeCq($"admin_status_cancel:{ProjectId}"), 1,
             $"admin_status_cancel:{ProjectId}", CancellationToken.None);
     }
 
     [Test]
     public async Task AdminStatusCancel_NullProject_ShowsNotFound()
     {
-        _adminServiceMock
-            .Setup(s => s.GetProjectAsync(ProjectId))
-            .ReturnsAsync((Project?)null);
+        _adminService.GetProjectAsync(ProjectId).Returns((Project?)null);
 
-        await _handler.HandleAdminStatusCancelAsync(_botClientMock.Object, MakeCq($"admin_status_cancel:{ProjectId}"), 1,
+        await _handler.HandleAdminStatusCancelAsync(_botClient, MakeCq($"admin_status_cancel:{ProjectId}"), 1,
             $"admin_status_cancel:{ProjectId}", CancellationToken.None);
     }
 }
@@ -133,11 +118,11 @@ public class AdminStatusCallbackHandlerTests
 [TestFixture]
 public class AdminQuestionCallbackHandlerTests
 {
-    private Mock<IUserStateService> _stateServiceMock;
-    private Mock<IAdminService> _adminServiceMock;
-    private Mock<IProjectRepository> _projectRepoMock;
+    private IUserStateService _stateService;
+    private IAdminService _adminService;
+    private IProjectRepository _projectRepo;
     private AdminQuestionCallbackHandler _handler;
-    private Mock<ITelegramBotClient> _botClientMock;
+    private ITelegramBotClient _botClient;
     private UserSession _session;
 
     private static readonly Guid ProjectId = Guid.NewGuid();
@@ -145,16 +130,14 @@ public class AdminQuestionCallbackHandlerTests
     [SetUp]
     public void Setup()
     {
-        _adminServiceMock = new Mock<IAdminService>();
-        _stateServiceMock = new Mock<IUserStateService>();
-        _projectRepoMock = new Mock<IProjectRepository>();
-        var menuHelper = new MainMenuHelper(_adminServiceMock.Object);
+        _adminService = Substitute.For<IAdminService>();
+        _stateService = Substitute.For<IUserStateService>();
+        _projectRepo = Substitute.For<IProjectRepository>();
+        var menuHelper = new MainMenuHelper(_adminService);
         _handler = new AdminQuestionCallbackHandler(
-            _stateServiceMock.Object, _projectRepoMock.Object, _adminServiceMock.Object, menuHelper);
-        _botClientMock = new Mock<ITelegramBotClient>();
-        _botClientMock
-            .Setup(c => c.TestApi(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+            _stateService, _projectRepo, _adminService, menuHelper);
+        _botClient = Substitute.For<ITelegramBotClient>();
+        _botClient.TestApi(Arg.Any<CancellationToken>()).Returns(true);
         _session = new UserSession();
     }
 
@@ -183,19 +166,18 @@ public class AdminQuestionCallbackHandlerTests
     {
         var messageText = "Important announcement!";
         _session.TempBroadcastText = messageText;
-        _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
-        _projectRepoMock.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<Project>
+        _stateService.Get(1).Returns(_session);
+        _projectRepo.GetAllAsync().Returns(new List<Project>
         {
             DomainTestFactory.NewProjectWithId(ProjectId, "Test")
         });
-        _adminServiceMock
-            .Setup(s => s.BroadcastMessageAsync(ProjectId, messageText))
-            .ReturnsAsync("✅ Рассылка выполнена.");
+        _adminService.BroadcastMessageAsync(ProjectId, messageText)
+            .Returns("✅ Рассылка выполнена.");
 
-        await _handler.HandleAdminBroadcastConfirmAsync(_botClientMock.Object, MakeCq("admin_broadcast_confirm"), 1,
+        await _handler.HandleAdminBroadcastConfirmAsync(_botClient, MakeCq("admin_broadcast_confirm"), 1,
             CancellationToken.None);
 
-        _adminServiceMock.Verify(s => s.BroadcastMessageAsync(ProjectId, messageText), Times.Once);
+        await _adminService.Received(1).BroadcastMessageAsync(ProjectId, messageText);
         Assert.That(_session.PendingAction, Is.Null);
         Assert.That(_session.TempBroadcastText, Is.Null);
     }
@@ -203,36 +185,36 @@ public class AdminQuestionCallbackHandlerTests
     [Test]
     public async Task BroadcastConfirm_NullText_ReturnsEarly()
     {
-        _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
+        _stateService.Get(1).Returns(_session);
 
-        await _handler.HandleAdminBroadcastConfirmAsync(_botClientMock.Object, MakeCq("admin_broadcast_confirm"), 1,
+        await _handler.HandleAdminBroadcastConfirmAsync(_botClient, MakeCq("admin_broadcast_confirm"), 1,
             CancellationToken.None);
 
-        _adminServiceMock.Verify(s => s.BroadcastMessageAsync(It.IsAny<Guid>(), It.IsAny<string>()), Times.Never);
+        await _adminService.DidNotReceive().BroadcastMessageAsync(Arg.Any<Guid>(), Arg.Any<string>());
     }
 
     [Test]
     public async Task BroadcastConfirm_NoProjects_ShowsError()
     {
         _session.TempBroadcastText = "text";
-        _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
-        _projectRepoMock.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<Project>());
+        _stateService.Get(1).Returns(_session);
+        _projectRepo.GetAllAsync().Returns(new List<Project>());
 
-        await _handler.HandleAdminBroadcastConfirmAsync(_botClientMock.Object, MakeCq("admin_broadcast_confirm"), 1,
+        await _handler.HandleAdminBroadcastConfirmAsync(_botClient, MakeCq("admin_broadcast_confirm"), 1,
             CancellationToken.None);
 
-        _adminServiceMock.Verify(s => s.BroadcastMessageAsync(It.IsAny<Guid>(), It.IsAny<string>()), Times.Never);
+        await _adminService.DidNotReceive().BroadcastMessageAsync(Arg.Any<Guid>(), Arg.Any<string>());
     }
 
     [Test]
     public async Task BroadcastConfirm_NullSession_ReturnsEarly()
     {
-        _stateServiceMock.Setup(s => s.Get(1)).Returns((UserSession?)null);
+        _stateService.Get(1).Returns((UserSession?)null);
 
-        await _handler.HandleAdminBroadcastConfirmAsync(_botClientMock.Object, MakeCq("admin_broadcast_confirm"), 1,
+        await _handler.HandleAdminBroadcastConfirmAsync(_botClient, MakeCq("admin_broadcast_confirm"), 1,
             CancellationToken.None);
 
-        _adminServiceMock.Verify(s => s.BroadcastMessageAsync(It.IsAny<Guid>(), It.IsAny<string>()), Times.Never);
+        await _adminService.DidNotReceive().BroadcastMessageAsync(Arg.Any<Guid>(), Arg.Any<string>());
     }
 
     [Test]
@@ -240,13 +222,13 @@ public class AdminQuestionCallbackHandlerTests
     {
         var qId = Guid.NewGuid();
         var user = DomainTestFactory.NewCustomer(5, "testuser");
-        _adminServiceMock.Setup(s => s.GetUnansweredQuestionsAsync()).ReturnsAsync(new List<Question>
+        _adminService.GetUnansweredQuestionsAsync().Returns(new List<Question>
         {
             new Question(user, "Q?")
         });
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
+        _stateService.GetOrCreate(1).Returns(_session);
 
-        await _handler.HandleAdminSelectQuestionAsync(_botClientMock.Object, MakeCq("admin_answer:" + qId), 1,
+        await _handler.HandleAdminSelectQuestionAsync(_botClient, MakeCq("admin_answer:" + qId), 1,
             "admin_answer:" + qId, CancellationToken.None);
 
         Assert.Multiple(() =>
@@ -261,13 +243,13 @@ public class AdminQuestionCallbackHandlerTests
     {
         var qId = Guid.NewGuid();
         var user = DomainTestFactory.NewCustomer(5, null);
-        _adminServiceMock.Setup(s => s.GetUnansweredQuestionsAsync()).ReturnsAsync(new List<Question>
+        _adminService.GetUnansweredQuestionsAsync().Returns(new List<Question>
         {
             new Question(user, "Q?")
         });
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
+        _stateService.GetOrCreate(1).Returns(_session);
 
-        await _handler.HandleAdminSelectQuestionAsync(_botClientMock.Object, MakeCq("admin_answer:" + qId), 1,
+        await _handler.HandleAdminSelectQuestionAsync(_botClient, MakeCq("admin_answer:" + qId), 1,
             "admin_answer:" + qId, CancellationToken.None);
 
         Assert.That(_session.PendingAction, Is.EqualTo("answer_question"));
@@ -276,18 +258,18 @@ public class AdminQuestionCallbackHandlerTests
     [Test]
     public async Task AdminCancel_ShowsCancellationMessage()
     {
-        await _handler.HandleAdminCancelAsync(_botClientMock.Object, MakeCq("admin_cancel"), 1, CancellationToken.None);
+        await _handler.HandleAdminCancelAsync(_botClient, MakeCq("admin_cancel"), 1, CancellationToken.None);
     }
 }
 
 [TestFixture]
 public class AdminProjectCallbackHandlerTests
 {
-    private Mock<IUserStateService> _stateServiceMock;
-    private Mock<IAdminService> _adminServiceMock;
-    private Mock<IAddonRepository> _addonRepoMock;
+    private IUserStateService _stateService;
+    private IAdminService _adminService;
+    private IAddonRepository _addonRepo;
     private AdminProjectCallbackHandler _handler;
-    private Mock<ITelegramBotClient> _botClientMock;
+    private ITelegramBotClient _botClient;
     private UserSession _session;
 
     private static readonly Guid ProjectId = Guid.NewGuid();
@@ -296,17 +278,15 @@ public class AdminProjectCallbackHandlerTests
     [SetUp]
     public void Setup()
     {
-        _adminServiceMock = new Mock<IAdminService>();
-        _stateServiceMock = new Mock<IUserStateService>();
-        _addonRepoMock = new Mock<IAddonRepository>();
-        var menuHelper = new MainMenuHelper(_adminServiceMock.Object);
-        var editFormBuilder = new ProjectEditFormBuilder(_adminServiceMock.Object, _addonRepoMock.Object);
+        _adminService = Substitute.For<IAdminService>();
+        _stateService = Substitute.For<IUserStateService>();
+        _addonRepo = Substitute.For<IAddonRepository>();
+        var menuHelper = new MainMenuHelper(_adminService);
+        var editFormBuilder = new ProjectEditFormBuilder(_adminService, _addonRepo);
         _handler = new AdminProjectCallbackHandler(
-            _stateServiceMock.Object, _adminServiceMock.Object, _addonRepoMock.Object, editFormBuilder, menuHelper);
-        _botClientMock = new Mock<ITelegramBotClient>();
-        _botClientMock
-            .Setup(c => c.TestApi(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+            _stateService, _adminService, _addonRepo, editFormBuilder, menuHelper);
+        _botClient = Substitute.For<ITelegramBotClient>();
+        _botClient.TestApi(Arg.Any<CancellationToken>()).Returns(true);
         _session = new UserSession();
     }
 
@@ -335,18 +315,18 @@ public class AdminProjectCallbackHandlerTests
     {
         _session.TempProjectName = "P";
         _session.TempProjectDescription = "D";
-        _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
-        _adminServiceMock.Setup(s => s.CreateProjectAsync(1, "P", "D", null)).ReturnsAsync("✅");
-        await _handler.HandleAdminCreateProjectConfirmAsync(_botClientMock.Object, MakeCq("x"), 1, CancellationToken.None);
-        _stateServiceMock.Verify(s => s.Remove(1));
+        _stateService.Get(1).Returns(_session);
+        _adminService.CreateProjectAsync(1, "P", "D", null).Returns("✅");
+        await _handler.HandleAdminCreateProjectConfirmAsync(_botClient, MakeCq("x"), 1, CancellationToken.None);
+        _stateService.Received(1).Remove(1);
     }
 
     [Test]
     public async Task CreateProjectConfirm_NullName_ReturnsEarly()
     {
-        _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
-        await _handler.HandleAdminCreateProjectConfirmAsync(_botClientMock.Object, MakeCq("x"), 1, CancellationToken.None);
-        _adminServiceMock.VerifyNoOtherCalls();
+        _stateService.Get(1).Returns(_session);
+        await _handler.HandleAdminCreateProjectConfirmAsync(_botClient, MakeCq("x"), 1, CancellationToken.None);
+        await _adminService.DidNotReceiveWithAnyArgs().CreateProjectAsync(default, default, default, default);
     }
 
     [Test]
@@ -354,38 +334,39 @@ public class AdminProjectCallbackHandlerTests
     {
         _session.TempProjectName = "P";
         _session.TempAddons = new List<(string, string, decimal)> { ("A", "D", 10m) };
-        _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
-        await _handler.HandleAdminCreateProjectConfirmAsync(_botClientMock.Object, MakeCq("x"), 1, CancellationToken.None);
-        _stateServiceMock.Verify(s => s.Remove(1));
+        _stateService.Get(1).Returns(_session);
+        await _handler.HandleAdminCreateProjectConfirmAsync(_botClient, MakeCq("x"), 1, CancellationToken.None);
+        _stateService.Received(1).Remove(1);
     }
 
     [Test]
     public async Task EditProject_ShowsEditForm()
     {
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
-        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(DomainTestFactory.NewProject("Test"));
-        _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon>());
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
-        await _handler.HandleAdminEditProjectAsync(_botClientMock.Object, MakeCq("admin_edit_project:" + ProjectId), 1,
+        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
+        _adminService.GetProjectAsync(ProjectId).Returns(DomainTestFactory.NewProject("Test"));
+        _addonRepo.GetByProjectIdAsync(ProjectId).Returns(new List<Addon>());
+        _stateService.GetOrCreate(1).Returns(_session);
+        await _handler.HandleAdminEditProjectAsync(_botClient, MakeCq("admin_edit_project:" + ProjectId), 1,
             "admin_edit_project:" + ProjectId, CancellationToken.None);
     }
 
     [Test]
     public async Task EditProject_NullProject_ShowsNotFound()
     {
-        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync((Project?)null);
-        await _handler.HandleAdminEditProjectAsync(_botClientMock.Object, MakeCq("admin_edit_project:" + ProjectId), 1,
+        _adminService.GetProjectAsync(ProjectId).Returns((Project?)null);
+        await _handler.HandleAdminEditProjectAsync(_botClient, MakeCq("admin_edit_project:" + ProjectId), 1,
             "admin_edit_project:" + ProjectId, CancellationToken.None);
     }
 
     [Test]
     public async Task EditProject_WithAddons_IncludesSummary()
     {
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
-        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(DomainTestFactory.NewProject("P"));
-        _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon> { DomainTestFactory.NewAddon(AddonId, "A1", 100m) });
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
-        await _handler.HandleAdminEditProjectAsync(_botClientMock.Object, MakeCq("admin_edit_project:" + ProjectId), 1,
+        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
+        _adminService.GetProjectAsync(ProjectId).Returns(DomainTestFactory.NewProject("P"));
+        _addonRepo.GetByProjectIdAsync(ProjectId)
+            .Returns(new List<Addon> { DomainTestFactory.NewAddon(AddonId, "A1", 100m) });
+        _stateService.GetOrCreate(1).Returns(_session);
+        await _handler.HandleAdminEditProjectAsync(_botClient, MakeCq("admin_edit_project:" + ProjectId), 1,
             "admin_edit_project:" + ProjectId, CancellationToken.None);
     }
 
@@ -393,11 +374,11 @@ public class AdminProjectCallbackHandlerTests
     public async Task EditProject_ResetsPendingAction()
     {
         _session.PendingAction = "old";
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
-        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(DomainTestFactory.NewProject("P"));
-        _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon>());
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
-        await _handler.HandleAdminEditProjectAsync(_botClientMock.Object, MakeCq("admin_edit_project:" + ProjectId), 1,
+        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
+        _adminService.GetProjectAsync(ProjectId).Returns(DomainTestFactory.NewProject("P"));
+        _addonRepo.GetByProjectIdAsync(ProjectId).Returns(new List<Addon>());
+        _stateService.GetOrCreate(1).Returns(_session);
+        await _handler.HandleAdminEditProjectAsync(_botClient, MakeCq("admin_edit_project:" + ProjectId), 1,
             "admin_edit_project:" + ProjectId, CancellationToken.None);
         Assert.That(_session.PendingAction, Is.Null);
     }
@@ -405,8 +386,8 @@ public class AdminProjectCallbackHandlerTests
     [Test]
     public async Task EditProjectName_SetsPendingAction()
     {
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
-        await _handler.HandleAdminEditProjectNameAsync(_botClientMock.Object, MakeCq("admin_edit_project_name:" + ProjectId), 1,
+        _stateService.GetOrCreate(1).Returns(_session);
+        await _handler.HandleAdminEditProjectNameAsync(_botClient, MakeCq("admin_edit_project_name:" + ProjectId), 1,
             "admin_edit_project_name:" + ProjectId, CancellationToken.None);
         Assert.That(_session.PendingAction, Is.EqualTo($"edit_project_name:{ProjectId:N}"));
     }
@@ -414,8 +395,8 @@ public class AdminProjectCallbackHandlerTests
     [Test]
     public async Task EditProjectDesc_SetsPendingAction()
     {
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
-        await _handler.HandleAdminEditProjectDescAsync(_botClientMock.Object, MakeCq("admin_edit_project_desc:" + ProjectId), 1,
+        _stateService.GetOrCreate(1).Returns(_session);
+        await _handler.HandleAdminEditProjectDescAsync(_botClient, MakeCq("admin_edit_project_desc:" + ProjectId), 1,
             "admin_edit_project_desc:" + ProjectId, CancellationToken.None);
         Assert.That(_session.PendingAction, Is.EqualTo($"edit_project_desc:{ProjectId:N}"));
     }
@@ -423,8 +404,8 @@ public class AdminProjectCallbackHandlerTests
     [Test]
     public async Task AddAddon_SetsPendingActionAndTempId()
     {
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
-        await _handler.HandleAdminAddAddonAsync(_botClientMock.Object, MakeCq("admin_edit_add_addon:" + ProjectId), 1,
+        _stateService.GetOrCreate(1).Returns(_session);
+        await _handler.HandleAdminAddAddonAsync(_botClient, MakeCq("admin_edit_add_addon:" + ProjectId), 1,
             "admin_edit_add_addon:" + ProjectId, CancellationToken.None);
         Assert.Multiple(() =>
         {
@@ -437,10 +418,10 @@ public class AdminProjectCallbackHandlerTests
     public async Task EditAddon_SetsPendingActionAndTempId()
     {
         var addonId = Guid.NewGuid();
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
-        _addonRepoMock.Setup(r => r.GetByIdAsync(addonId)).ReturnsAsync(DomainTestFactory.NewAddon(addonId, "Test Addon"));
+        _stateService.GetOrCreate(1).Returns(_session);
+        _addonRepo.GetByIdAsync(addonId).Returns(DomainTestFactory.NewAddon(addonId, "Test Addon"));
 
-        await _handler.HandleAdminEditAddonAsync(_botClientMock.Object, MakeCq($"admin_edit_addon:{addonId}"), 1,
+        await _handler.HandleAdminEditAddonAsync(_botClient, MakeCq($"admin_edit_addon:{addonId}"), 1,
             $"admin_edit_addon:{addonId}", CancellationToken.None);
 
         Assert.Multiple(() =>
@@ -454,10 +435,10 @@ public class AdminProjectCallbackHandlerTests
     public async Task DeleteAddon_ShowsConfirmation()
     {
         var addonId = Guid.NewGuid();
-        _addonRepoMock.Setup(r => r.GetByIdAsync(addonId)).ReturnsAsync(DomainTestFactory.NewAddon(addonId, "Test"));
-        _addonRepoMock.Setup(r => r.GetProjectIdByAddonAsync(addonId)).ReturnsAsync(ProjectId);
+        _addonRepo.GetByIdAsync(addonId).Returns(DomainTestFactory.NewAddon(addonId, "Test"));
+        _addonRepo.GetProjectIdByAddonAsync(addonId).Returns(ProjectId);
 
-        await _handler.HandleAdminDeleteAddonAsync(_botClientMock.Object, MakeCq($"admin_del_addon:{addonId}"), 1,
+        await _handler.HandleAdminDeleteAddonAsync(_botClient, MakeCq($"admin_del_addon:{addonId}"), 1,
             $"admin_del_addon:{addonId}", CancellationToken.None);
     }
 
@@ -465,38 +446,38 @@ public class AdminProjectCallbackHandlerTests
     public async Task DeleteAddonConfirm_DeletesAndShowsResult()
     {
         var addonId = Guid.NewGuid();
-        _addonRepoMock.Setup(r => r.GetByIdAsync(addonId)).ReturnsAsync(DomainTestFactory.NewAddon(addonId, "Test"));
-        _addonRepoMock.Setup(r => r.GetProjectIdByAddonAsync(addonId)).ReturnsAsync(ProjectId);
-        _adminServiceMock.Setup(s => s.DeleteAddonAsync(addonId)).ReturnsAsync("✅ Дополнение удалено.");
-        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(DomainTestFactory.NewProject("P"));
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
-        _addonRepoMock.Setup(r => r.GetByProjectIdAsync(It.IsAny<Guid>())).ReturnsAsync(new List<Addon>());
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
+        _addonRepo.GetByIdAsync(addonId).Returns(DomainTestFactory.NewAddon(addonId, "Test"));
+        _addonRepo.GetProjectIdByAddonAsync(addonId).Returns(ProjectId);
+        _adminService.DeleteAddonAsync(addonId).Returns("✅ Дополнение удалено.");
+        _adminService.GetProjectAsync(ProjectId).Returns(DomainTestFactory.NewProject("P"));
+        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
+        _addonRepo.GetByProjectIdAsync(Arg.Any<Guid>()).Returns(new List<Addon>());
+        _stateService.GetOrCreate(1).Returns(_session);
 
-        await _handler.HandleAdminDeleteAddonConfirmAsync(_botClientMock.Object, MakeCq($"admin_del_addon_confirm:{addonId}"), 1,
+        await _handler.HandleAdminDeleteAddonConfirmAsync(_botClient, MakeCq($"admin_del_addon_confirm:{addonId}"), 1,
             $"admin_del_addon_confirm:{addonId}", CancellationToken.None);
 
-        _adminServiceMock.Verify(s => s.DeleteAddonAsync(addonId), Times.Once);
+        await _adminService.Received(1).DeleteAddonAsync(addonId);
     }
 
     [Test]
     public async Task DeleteAddonCancel_ReturnsToEditForm()
     {
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
-        _adminServiceMock.Setup(s => s.GetProjectAsync(ProjectId)).ReturnsAsync(DomainTestFactory.NewProject("P"));
-        _addonRepoMock.Setup(r => r.GetByProjectIdAsync(ProjectId)).ReturnsAsync(new List<Addon>());
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
+        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
+        _adminService.GetProjectAsync(ProjectId).Returns(DomainTestFactory.NewProject("P"));
+        _addonRepo.GetByProjectIdAsync(ProjectId).Returns(new List<Addon>());
+        _stateService.GetOrCreate(1).Returns(_session);
 
-        await _handler.HandleAdminDeleteAddonCancelAsync(_botClientMock.Object, MakeCq($"admin_del_addon_cancel:{ProjectId}"), 1,
+        await _handler.HandleAdminDeleteAddonCancelAsync(_botClient, MakeCq($"admin_del_addon_cancel:{ProjectId}"), 1,
             $"admin_del_addon_cancel:{ProjectId}", CancellationToken.None);
     }
 
     [Test]
     public async Task AddStatus_SetsPendingAction()
     {
-        _stateServiceMock.Setup(s => s.GetOrCreate(1)).Returns(_session);
+        _stateService.GetOrCreate(1).Returns(_session);
 
-        await _handler.HandleAdminAddStatusAsync(_botClientMock.Object, MakeCq($"admin_add_status:{ProjectId}"), 1,
+        await _handler.HandleAdminAddStatusAsync(_botClient, MakeCq($"admin_add_status:{ProjectId}"), 1,
             $"admin_add_status:{ProjectId}", CancellationToken.None);
 
         Assert.Multiple(() =>
@@ -510,38 +491,38 @@ public class AdminProjectCallbackHandlerTests
     public async Task AddStatusCanEdit_Yes_CreatesStatusWithCanEditTrue()
     {
         _session.TempStatusName = "Test Status";
-        _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
-        _adminServiceMock.Setup(s => s.CreateProjectStatusAsync("Test Status", 1, true))
-            .ReturnsAsync("✅ Статус добавлен.");
+        _stateService.Get(1).Returns(_session);
+        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
+        _adminService.CreateProjectStatusAsync("Test Status", 1, true)
+            .Returns("✅ Статус добавлен.");
 
-        await _handler.HandleAdminAddStatusCanEditAsync(_botClientMock.Object, MakeCq("admin_add_status_can_edit:yes"), 1,
+        await _handler.HandleAdminAddStatusCanEditAsync(_botClient, MakeCq("admin_add_status_can_edit:yes"), 1,
             "admin_add_status_can_edit:yes", CancellationToken.None);
 
-        _adminServiceMock.Verify(s => s.CreateProjectStatusAsync("Test Status", 1, true), Times.Once);
+        await _adminService.Received(1).CreateProjectStatusAsync("Test Status", 1, true);
     }
 
     [Test]
     public async Task AddStatusCanEdit_No_CreatesStatusWithCanEditFalse()
     {
         _session.TempStatusName = "Test Status";
-        _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
-        _adminServiceMock.Setup(s => s.GetAllStatusesAsync()).ReturnsAsync(new List<ProjectStatus>());
-        _adminServiceMock.Setup(s => s.CreateProjectStatusAsync("Test Status", 1, false))
-            .ReturnsAsync("✅ Статус добавлен.");
+        _stateService.Get(1).Returns(_session);
+        _adminService.GetAllStatusesAsync().Returns(new List<ProjectStatus>());
+        _adminService.CreateProjectStatusAsync("Test Status", 1, false)
+            .Returns("✅ Статус добавлен.");
 
-        await _handler.HandleAdminAddStatusCanEditAsync(_botClientMock.Object, MakeCq("admin_add_status_can_edit:no"), 1,
+        await _handler.HandleAdminAddStatusCanEditAsync(_botClient, MakeCq("admin_add_status_can_edit:no"), 1,
             "admin_add_status_can_edit:no", CancellationToken.None);
 
-        _adminServiceMock.Verify(s => s.CreateProjectStatusAsync("Test Status", 1, false), Times.Once);
+        await _adminService.Received(1).CreateProjectStatusAsync("Test Status", 1, false);
     }
 
     [Test]
     public async Task AddStatusCanEdit_NullName_ReturnsEarly()
     {
-        _stateServiceMock.Setup(s => s.Get(1)).Returns(_session);
-        await _handler.HandleAdminAddStatusCanEditAsync(_botClientMock.Object, MakeCq("admin_add_status_can_edit:yes"), 1,
+        _stateService.Get(1).Returns(_session);
+        await _handler.HandleAdminAddStatusCanEditAsync(_botClient, MakeCq("admin_add_status_can_edit:yes"), 1,
             "admin_add_status_can_edit:yes", CancellationToken.None);
-        _adminServiceMock.VerifyNoOtherCalls();
+        await _adminService.DidNotReceiveWithAnyArgs().CreateProjectStatusAsync(default, default, default);
     }
 }

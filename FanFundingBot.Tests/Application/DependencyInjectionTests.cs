@@ -37,6 +37,7 @@ public class DependencyInjectionTests
         services.AddScoped(_ => statuses);
         services.AddScoped(_ => notifications);
         services.AddScoped(_ => currentUser);
+        services.AddScoped<IUnitOfWork>(_ => new Common.PassThroughUnitOfWork());
 
         currentUser.GetCurrentUserId().Returns(1);
 

@@ -1,3 +1,4 @@
+using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Domain.Exceptions;
 using FluentResults;
 
@@ -7,6 +8,13 @@ public class TransactionBehavior<TRequest, TResponse> : MediatR.IPipelineBehavio
     where TRequest : MediatR.IRequest<TResponse>
     where TResponse : ResultBase, new()
 {
+    private readonly IUnitOfWork _unitOfWork;
+
+    public TransactionBehavior(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public async Task<TResponse> Handle(
         TRequest request,
         MediatR.RequestHandlerDelegate<TResponse> next,
@@ -14,7 +22,7 @@ public class TransactionBehavior<TRequest, TResponse> : MediatR.IPipelineBehavio
     {
         try
         {
-            return await next();
+            return await _unitOfWork.ExecuteAsync(() => next(), cancellationToken);
         }
         catch (DomainException ex)
         {

@@ -1,6 +1,7 @@
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Extensions;
 using FanFundingBot.Bot.Models;
+using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Exceptions;

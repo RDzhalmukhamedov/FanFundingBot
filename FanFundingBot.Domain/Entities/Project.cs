@@ -74,6 +74,12 @@ public class Project : AggregateRoot, IEditable<Project>
     public void SetStatus(ProjectStatus status)
     {
         ArgumentNullException.ThrowIfNull(status);
+        if (ReferenceEquals(Status, status))
+            return;
+
+        if (Status is not null && Status.Id != 0 && Status.Id == status.Id)
+            return;
+
         Status = status;
 
         AddDomainEvent(new ProjectStatusChangedEvent(Id, status.Id, status.DisplayName));

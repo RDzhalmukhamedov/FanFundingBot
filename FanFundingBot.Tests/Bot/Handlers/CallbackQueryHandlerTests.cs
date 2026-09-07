@@ -4,8 +4,9 @@ using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
 using FanFundingBot.Domain.Interfaces;
+using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
-using Moq;
+using NSubstitute;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
@@ -15,33 +16,32 @@ namespace FanFundingBot.Tests.Bot.Handlers;
 public class CallbackQueryHandlerTests
 {
     private IUserStateService _stateService;
-    private Mock<IAdminService> _adminServiceMock;
-    private Mock<IUserCallbackQueryHandler> _userHandlerMock;
-    private Mock<IAdminStatusCallbackHandler> _statusHandlerMock;
-    private Mock<IAdminQuestionCallbackHandler> _questionHandlerMock;
-    private Mock<IAdminProjectCallbackHandler> _projectHandlerMock;
+    private IAdminService _adminService;
+    private IUserCallbackQueryHandler _userHandler;
+    private IAdminStatusCallbackHandler _statusHandler;
+    private IAdminQuestionCallbackHandler _questionHandler;
+    private IAdminProjectCallbackHandler _projectHandler;
     private CallbackQueryHandler _handler;
-    private Mock<ITelegramBotClient> _botClientMock;
+    private ITelegramBotClient _botClient;
 
     [SetUp]
     public void Setup()
     {
         _stateService = new UserStateService(new MemoryCache(new MemoryCacheOptions()));
-        _adminServiceMock = new Mock<IAdminService>();
-        _adminServiceMock.Setup(s => s.IsAdminAsync(It.IsAny<long>())).ReturnsAsync(false);
-        _userHandlerMock = new Mock<IUserCallbackQueryHandler>();
-        _statusHandlerMock = new Mock<IAdminStatusCallbackHandler>();
-        _questionHandlerMock = new Mock<IAdminQuestionCallbackHandler>();
-        _projectHandlerMock = new Mock<IAdminProjectCallbackHandler>();
+        _adminService = Substitute.For<IAdminService>();
+        _adminService.IsAdminAsync(Arg.Any<long>()).Returns(false);
+        _userHandler = Substitute.For<IUserCallbackQueryHandler>();
+        _statusHandler = Substitute.For<IAdminStatusCallbackHandler>();
+        _questionHandler = Substitute.For<IAdminQuestionCallbackHandler>();
+        _projectHandler = Substitute.For<IAdminProjectCallbackHandler>();
 
-        // Create the callback command handlers
-        var userCmdHandler = new UserCallbackCommandHandler(_userHandlerMock.Object);
+        var userCmdHandler = new UserCallbackCommandHandler(_userHandler);
         var adminCmdHandler = new AdminCallbackCommandHandler(
-            _statusHandlerMock.Object, _questionHandlerMock.Object, _projectHandlerMock.Object);
+            _statusHandler, _questionHandler, _projectHandler);
 
         _handler = new CallbackQueryHandler(
-            _adminServiceMock.Object, new ICallbackCommandHandler[] { userCmdHandler, adminCmdHandler });
-        _botClientMock = new Mock<ITelegramBotClient>();
+            _adminService, new ICallbackCommandHandler[] { userCmdHandler, adminCmdHandler });
+        _botClient = Substitute.For<ITelegramBotClient>();
     }
 
     private static CallbackQuery MakeCq(string data, long userId = 1)
@@ -63,258 +63,258 @@ public class CallbackQueryHandlerTests
     public async Task AddonToggle_RoutesToUserHandler()
     {
         var cq = MakeCq("addon_toggle:g");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleAddonToggleAsync(_botClientMock.Object, cq, 1, "addon_toggle:g", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleAddonToggleAsync(_botClient, cq, 1, "addon_toggle:g", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AddonPage_RoutesToUserHandler()
     {
         var cq = MakeCq("addon_page:2");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleAddonPageAsync(_botClientMock.Object, cq, 1, "addon_page:2", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleAddonPageAsync(_botClient, cq, 1, "addon_page:2", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AddonConfirm_RoutesToUserHandler()
     {
         var cq = MakeCq("addon_confirm");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleAddonConfirmAsync(_botClientMock.Object, cq, 1, It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleAddonConfirmAsync(_botClient, cq, 1, Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task Delivery_RoutesToUserHandler()
     {
         var cq = MakeCq("delivery:pickup");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleDeliveryAsync(_botClientMock.Object, cq, 1, "delivery:pickup", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleDeliveryAsync(_botClient, cq, 1, "delivery:pickup", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task OrderConfirm_RoutesToUserHandler()
     {
         var cq = MakeCq("order_confirm");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleOrderConfirmAsync(_botClientMock.Object, cq, 1, It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleOrderConfirmAsync(_botClient, cq, 1, Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task OrderEdit_RoutesToUserHandler()
     {
         var cq = MakeCq("order_edit");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleOrderEditAsync(_botClientMock.Object, cq, 1, It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleOrderEditAsync(_botClient, cq, 1, Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task OrderCancel_RoutesToUserHandler()
     {
         var cq = MakeCq("order_cancel");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleOrderCancelAsync(_botClientMock.Object, cq, 1, It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleOrderCancelAsync(_botClient, cq, 1, Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task Back_RoutesToUserHandler()
     {
         var cq = MakeCq("back:phone");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleBackAsync(_botClientMock.Object, cq, 1, "back:phone", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleBackAsync(_botClient, cq, 1, "back:phone", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminStatus_AsAdmin_RoutesToStatusHandler()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(true);
+        _adminService.IsAdminAsync(1).Returns(true);
         var cq = MakeCq("admin_status:id:Completed");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _statusHandlerMock.Verify(h => h.HandleAdminStatusAsync(_botClientMock.Object, cq, 1, "admin_status:id:Completed", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _statusHandler.Received(1).HandleAdminStatusAsync(_botClient, cq, 1, "admin_status:id:Completed", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminStatus_AsNonAdmin_Rejects()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(false);
+        _adminService.IsAdminAsync(1).Returns(false);
         var cq = MakeCq("admin_status:id:Completed");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _statusHandlerMock.VerifyNoOtherCalls();
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        _statusHandler.ReceivedCalls().Should().BeEmpty();
     }
 
     [Test]
     public async Task AdminAnswer_AsAdmin_RoutesToQuestionHandler()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(true);
+        _adminService.IsAdminAsync(1).Returns(true);
         var cq = MakeCq("admin_answer:g");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _questionHandlerMock.Verify(h => h.HandleAdminSelectQuestionAsync(_botClientMock.Object, cq, 1, "admin_answer:g", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _questionHandler.Received(1).HandleAdminSelectQuestionAsync(_botClient, cq, 1, "admin_answer:g", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminAnswer_AsNonAdmin_Rejects()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(false);
+        _adminService.IsAdminAsync(1).Returns(false);
         var cq = MakeCq("admin_answer:g");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _questionHandlerMock.VerifyNoOtherCalls();
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        _questionHandler.ReceivedCalls().Should().BeEmpty();
     }
 
     [Test]
     public async Task AddonQtyInc_RoutesToUserHandler()
     {
         var cq = MakeCq("addon_qty_inc:g");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleAddonQtyIncAsync(_botClientMock.Object, cq, 1, "addon_qty_inc:g", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleAddonQtyIncAsync(_botClient, cq, 1, "addon_qty_inc:g", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AddonQtyDec_RoutesToUserHandler()
     {
         var cq = MakeCq("addon_qty_dec:g");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleAddonQtyDecAsync(_botClientMock.Object, cq, 1, "addon_qty_dec:g", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleAddonQtyDecAsync(_botClient, cq, 1, "addon_qty_dec:g", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task OrderEditMy_RoutesToUserHandler()
     {
         var cq = MakeCq("order_edit_my:g");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleOrderEditMyAsync(_botClientMock.Object, cq, 1, "order_edit_my:g", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleOrderEditMyAsync(_botClient, cq, 1, "order_edit_my:g", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task OrderDeleteMy_RoutesToUserHandler()
     {
         var cq = MakeCq("order_delete_my:g");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleOrderDeleteMyAsync(_botClientMock.Object, cq, 1, "order_delete_my:g", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleOrderDeleteMyAsync(_botClient, cq, 1, "order_delete_my:g", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task OrderDeleteMyConfirm_RoutesToUserHandler()
     {
         var cq = MakeCq("order_delete_my_confirm:g");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleOrderDeleteMyConfirmAsync(_botClientMock.Object, cq, 1, "order_delete_my_confirm:g", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleOrderDeleteMyConfirmAsync(_botClient, cq, 1, "order_delete_my_confirm:g", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task OrderDeleteMyCancel_RoutesToUserHandler()
     {
         var cq = MakeCq("order_delete_my_cancel:g");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.Verify(h => h.HandleOrderDeleteMyCancelAsync(_botClientMock.Object, cq, 1, "order_delete_my_cancel:g", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _userHandler.Received(1).HandleOrderDeleteMyCancelAsync(_botClient, cq, 1, "order_delete_my_cancel:g", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminAddStatusCanEdit_RoutesToProjectHandler()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(true);
+        _adminService.IsAdminAsync(1).Returns(true);
         var cq = MakeCq("admin_add_status_can_edit:yes");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _projectHandlerMock.Verify(h => h.HandleAdminAddStatusCanEditAsync(_botClientMock.Object, cq, 1, "admin_add_status_can_edit:yes", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _projectHandler.Received(1).HandleAdminAddStatusCanEditAsync(_botClient, cq, 1, "admin_add_status_can_edit:yes", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminAddStatusCanEdit_AsNonAdmin_Rejects()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(false);
+        _adminService.IsAdminAsync(1).Returns(false);
         var cq = MakeCq("admin_add_status_can_edit:yes");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _projectHandlerMock.VerifyNoOtherCalls();
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        _projectHandler.ReceivedCalls().Should().BeEmpty();
     }
 
     [Test]
     public async Task AdminCancel_RoutesToQuestionHandler()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(true);
+        _adminService.IsAdminAsync(1).Returns(true);
         var cq = MakeCq("admin_cancel");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _questionHandlerMock.Verify(h => h.HandleAdminCancelAsync(_botClientMock.Object, cq, 1, It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _questionHandler.Received(1).HandleAdminCancelAsync(_botClient, cq, 1, Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminCancel_AsNonAdmin_Rejects()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(false);
+        _adminService.IsAdminAsync(1).Returns(false);
         var cq = MakeCq("admin_cancel");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _questionHandlerMock.VerifyNoOtherCalls();
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        _questionHandler.ReceivedCalls().Should().BeEmpty();
     }
 
     [Test]
     public async Task UnknownCommand_DoesNothing()
     {
         var cq = MakeCq("unknown:x");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _userHandlerMock.VerifyNoOtherCalls();
-        _statusHandlerMock.VerifyNoOtherCalls();
-        _questionHandlerMock.VerifyNoOtherCalls();
-        _projectHandlerMock.VerifyNoOtherCalls();
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        _userHandler.ReceivedCalls().Should().BeEmpty();
+        _statusHandler.ReceivedCalls().Should().BeEmpty();
+        _questionHandler.ReceivedCalls().Should().BeEmpty();
+        _projectHandler.ReceivedCalls().Should().BeEmpty();
     }
 
     [Test]
     public async Task AdminBroadcastConfirm_AsAdmin_RoutesToQuestionHandler()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(true);
+        _adminService.IsAdminAsync(1).Returns(true);
         var cq = MakeCq("admin_broadcast_confirm");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _questionHandlerMock.Verify(h => h.HandleAdminBroadcastConfirmAsync(_botClientMock.Object, cq, 1, It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _questionHandler.Received(1).HandleAdminBroadcastConfirmAsync(_botClient, cq, 1, Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminBroadcastConfirm_AsNonAdmin_Rejects()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(false);
+        _adminService.IsAdminAsync(1).Returns(false);
         var cq = MakeCq("admin_broadcast_confirm");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _questionHandlerMock.VerifyNoOtherCalls();
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        _questionHandler.ReceivedCalls().Should().BeEmpty();
     }
 
     [Test]
     public async Task AdminStatusConfirm_AsAdmin_RoutesToStatusHandler()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(true);
+        _adminService.IsAdminAsync(1).Returns(true);
         var cq = MakeCq("admin_status_confirm:id:5");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _statusHandlerMock.Verify(h => h.HandleAdminStatusConfirmAsync(_botClientMock.Object, cq, 1, "admin_status_confirm:id:5", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _statusHandler.Received(1).HandleAdminStatusConfirmAsync(_botClient, cq, 1, "admin_status_confirm:id:5", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminStatusConfirm_AsNonAdmin_Rejects()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(false);
+        _adminService.IsAdminAsync(1).Returns(false);
         var cq = MakeCq("admin_status_confirm:id:5");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _statusHandlerMock.VerifyNoOtherCalls();
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        _statusHandler.ReceivedCalls().Should().BeEmpty();
     }
 
     [Test]
     public async Task AdminStatusCancel_AsAdmin_RoutesToStatusHandler()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(true);
+        _adminService.IsAdminAsync(1).Returns(true);
         var cq = MakeCq("admin_status_cancel:id");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _statusHandlerMock.Verify(h => h.HandleAdminStatusCancelAsync(_botClientMock.Object, cq, 1, "admin_status_cancel:id", It.IsAny<CancellationToken>()));
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        await _statusHandler.Received(1).HandleAdminStatusCancelAsync(_botClient, cq, 1, "admin_status_cancel:id", Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task AdminStatusCancel_AsNonAdmin_Rejects()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(false);
+        _adminService.IsAdminAsync(1).Returns(false);
         var cq = MakeCq("admin_status_cancel:id");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
-        _statusHandlerMock.VerifyNoOtherCalls();
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
+        _statusHandler.ReceivedCalls().Should().BeEmpty();
     }
 
     [Test]
     public async Task ExceptionInHandler_SendsError()
     {
-        _adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(true);
-        _statusHandlerMock.Setup(h => h.HandleAdminStatusAsync(It.IsAny<ITelegramBotClient>(), It.IsAny<CallbackQuery>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new Exception());
+        _adminService.IsAdminAsync(1).Returns(true);
+        _statusHandler.HandleAdminStatusAsync(Arg.Any<ITelegramBotClient>(), Arg.Any<CallbackQuery>(), Arg.Any<long>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new Exception()));
         var cq = MakeCq("admin_status:id:Completed");
-        await _handler.HandleCallbackQueryAsync(_botClientMock.Object, cq, CancellationToken.None);
+        await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
     }
 }

@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using FanFundingBot.Domain.Interfaces;
+using FanFundingBot.Application.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

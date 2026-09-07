@@ -1,3 +1,4 @@
+using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Helpers;

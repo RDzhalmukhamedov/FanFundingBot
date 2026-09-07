@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FanFundingBot.Domain\FanFundingBot.Domain.csproj" />
+    <ProjectReference Include="..\FanFundingBot.Application\FanFundingBot.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
