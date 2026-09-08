@@ -289,6 +289,17 @@ public class CommandHandler : ICommandHandler
             }
         }
 
+        if (session?.PendingAction == "answer_question")
+        {
+            _stateService.Remove(userId);
+            await botClient.SendMessage(
+                message.Chat.Id,
+                "❌ Ввод ответа отменён.",
+                cancellationToken: ct);
+            await _menuHelper.SendReturnToMenuAsync(botClient, message.Chat.Id, userId, ct);
+            return;
+        }
+
         _stateService.Remove(userId);
         await _menuHelper.SendReturnToMenuAsync(botClient, message.Chat.Id, userId, ct);
     }

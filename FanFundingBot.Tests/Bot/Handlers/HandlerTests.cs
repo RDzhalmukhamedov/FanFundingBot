@@ -194,7 +194,8 @@ public class CommandHandlerBroadcastTests
         mediator.Send(Arg.Any<GetOrCreateUserCommand>(), Arg.Any<CancellationToken>())
             .Returns(FluentResults.Result.Ok());
 
-        var questionHandler = new QuestionTextHandler(stateService, mediator);
+        var menuHelper = new MainMenuHelper(authorization);
+        var questionHandler = new QuestionTextHandler(stateService, mediator, menuHelper);
         var broadcastHandler = new BroadcastTextHandler(stateService);
         var orderHandler = new OrderTextHandler(stateService, uiRenderer);
         var creationHandler = new AdminProjectCreationTextHandler(stateService);
@@ -205,7 +206,6 @@ public class CommandHandlerBroadcastTests
             stateService, authorization,
             questionHandler, broadcastHandler, orderHandler, creationHandler, editingHandler);
 
-        var menuHelper = new MainMenuHelper(authorization);
         var adminCommandHandler = new AdminCommandHandler(stateService, mediator, menuHelper);
         var handler = new CommandHandler(
             stateService, authorization, mediator, userContext,

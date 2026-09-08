@@ -1,6 +1,6 @@
 using FanFundingBot.Application.Questions.Commands;
 using FanFundingBot.Bot.Abstractions;
-using FanFundingBot.Bot.Keyboards;
+using FanFundingBot.Bot.Helpers;
 using MediatR;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -11,13 +11,16 @@ public class QuestionTextHandler : IQuestionTextHandler
 {
     private readonly IUserStateService _stateService;
     private readonly IMediator _mediator;
+    private readonly MainMenuHelper _menuHelper;
 
     public QuestionTextHandler(
         IUserStateService stateService,
-        IMediator mediator)
+        IMediator mediator,
+        MainMenuHelper menuHelper)
     {
         _stateService = stateService;
         _mediator = mediator;
+        _menuHelper = menuHelper;
     }
 
     public async Task SaveQuestionAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
@@ -39,7 +42,7 @@ public class QuestionTextHandler : IQuestionTextHandler
             result.IsSuccess
                 ? "✅ Ваш вопрос принят! Мы ответим вам в ближайшее время."
                 : result.Errors[0].Message,
-            replyMarkup: BackKeyboard.Create(),
+            replyMarkup: await _menuHelper.CreateKeyboardAsync(userId),
             cancellationToken: ct);
     }
 
@@ -61,7 +64,7 @@ public class QuestionTextHandler : IQuestionTextHandler
         await botClient.SendMessage(
             message.Chat.Id,
             result.IsSuccess ? "✅ Ответ отправлен пользователю." : result.Errors[0].Message,
-            replyMarkup: BackKeyboard.Create(),
+            replyMarkup: await _menuHelper.CreateKeyboardAsync(userId),
             cancellationToken: ct);
     }
 }

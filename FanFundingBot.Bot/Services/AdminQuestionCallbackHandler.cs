@@ -3,6 +3,7 @@ using FanFundingBot.Application.Projects.Queries;
 using FanFundingBot.Application.Questions.Queries;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
+using FanFundingBot.Bot.Keyboards;
 using MediatR;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -52,6 +53,12 @@ public class AdminQuestionCallbackHandler : IAdminQuestionCallbackHandler
             $"{selected?.Text}\n\n" +
             "Введите ваш ответ:",
             parseMode: ParseMode.Html,
+            cancellationToken: ct);
+
+        await botClient.SendMessage(
+            query.Message!.Chat.Id,
+            "Введите ваш ответ или нажмите ◀️ Назад для отмены.",
+            replyMarkup: BackKeyboard.Create(),
             cancellationToken: ct);
     }
 
