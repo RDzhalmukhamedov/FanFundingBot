@@ -286,11 +286,18 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
         var session = _stateService.Get(userId);
         if (session == null) return;
 
-        if (session.AddonQuantities.TryGetValue(addonId, out var qty) && qty > 1)
+        if (!session.AddonQuantities.TryGetValue(addonId, out var qty) || qty <= 1)
         {
-            session.AddonQuantities[addonId] = qty - 1;
-            _stateService.Update(userId, session);
+            await botClient.AnswerCallbackQuery(
+                query.Id,
+                "Количество не может быть меньше 1. Для удаления уберите дополнение.",
+                showAlert: true,
+                cancellationToken: ct);
+            return;
         }
+
+        session.AddonQuantities[addonId] = qty - 1;
+        _stateService.Update(userId, session);
 
         await _uiRenderer.ShowConfirmationAsync(
             botClient, query.Message!.Chat.Id, userId, ct);

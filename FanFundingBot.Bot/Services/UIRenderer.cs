@@ -14,6 +14,8 @@ namespace FanFundingBot.Bot.Services;
 
 public class UIRenderer : IUIRenderer
 {
+    private static readonly TimeZoneInfo MoscowTimeZone = GetMoscowTimeZone();
+
     private readonly IUserStateService _stateService;
     private readonly IMediator _mediator;
 
@@ -160,15 +162,20 @@ public class UIRenderer : IUIRenderer
             .Select(p => $"  • {p.AddonName} x{p.Quantity} — {p.Price * p.Quantity:F2}₽")
             .ToList();
 
+        var showAddress = order.DeliveryMethod == DeliveryMethod.Delivery
+            && !string.IsNullOrWhiteSpace(order.Address);
+        var utc = DateTime.SpecifyKind(order.CreatedAt, DateTimeKind.Utc);
+        var moscowTime = TimeZoneInfo.ConvertTimeFromUtc(utc, MoscowTimeZone);
+
         var text = $"📦 <b>Ваш заказ</b>\n\n" +
                    $"Проект: {order.ProjectName}\n" +
                    $"Статус: {statusName}\n" +
                    $"Телефон: {order.Phone}\n" +
                    $"Способ получения: {deliveryName}\n" +
-                   (order.Address != null ? $"Адрес: {order.Address}\n" : "") +
+                   (showAddress ? $"Адрес: {order.Address}\n" : "") +
                    (addonLines.Count > 0 ? $"\n<b>Дополнения:</b>\n{string.Join("\n", addonLines)}\n" : "") +
                    $"\n<b>Итого:</b> {order.Total:F2}₽\n" +
-                   $"Дата: {order.CreatedAt:dd.MM.yyyy HH:mm}";
+                   $"Дата: {moscowTime:dd.MM.yyyy HH:mm} (МСК)";
 
         var canEdit = false;
         var projectResult = await _mediator.Send(new GetProjectByIdQuery(order.ProjectId), ct);
@@ -197,5 +204,32 @@ public class UIRenderer : IUIRenderer
             parseMode: ParseMode.Html,
             replyMarkup: keyboard,
             cancellationToken: ct);
+    }
+
+    private static TimeZoneInfo GetMoscowTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Moscow");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+        }
+        catch (InvalidTimeZoneException)
+        {
+        }
+
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+        }
+        catch (InvalidTimeZoneException)
+        {
+        }
+
+        return TimeZoneInfo.CreateCustomTimeZone("MSK", TimeSpan.FromHours(3), "MSK", "MSK");
     }
 }

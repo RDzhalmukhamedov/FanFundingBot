@@ -16,6 +16,7 @@ using MediatR;
 using Microsoft.Extensions.Caching.Memory;
 using NSubstitute;
 using Telegram.Bot;
+using Telegram.Bot.Requests;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -321,7 +322,7 @@ public class UserCallbackQueryHandlerTests
     }
 
     [Test]
-    public async Task AddonQtyDec_AtMinimum_DoesNotDecrease()
+    public async Task AddonQtyDec_AtMinimum_ShowsAlertAndDoesNotDecrease()
     {
         var session = GetOrCreateSession();
         session.AddonQuantities[AddonId1] = 1;
@@ -331,6 +332,26 @@ public class UserCallbackQueryHandlerTests
         await _handler.HandleAddonQtyDecAsync(_botClient, MakeCq(), 1, "addon_qty_dec:" + AddonId1, CancellationToken.None);
 
         Assert.That(session.AddonQuantities[AddonId1], Is.EqualTo(1));
+        await _botClient.Received(1).SendRequest<bool>(
+            Arg.Is<AnswerCallbackQueryRequest>(r =>
+                r.Text != null && r.Text.Contains("меньше 1") && r.ShowAlert),
+            Arg.Any<CancellationToken>());
+        await _uiRenderer.DidNotReceiveWithAnyArgs().ShowConfirmationAsync(default, default, default, default);
+    }
+
+    [Test]
+    public async Task AddonQtyDec_MissingAddon_ShowsAlert()
+    {
+        GetOrCreateSession();
+        SetupProjectQuery(ProjectWithAddon());
+
+        await _handler.HandleAddonQtyDecAsync(_botClient, MakeCq(), 1, "addon_qty_dec:" + AddonId1, CancellationToken.None);
+
+        await _botClient.Received(1).SendRequest<bool>(
+            Arg.Is<AnswerCallbackQueryRequest>(r =>
+                r.Text != null && r.Text.Contains("меньше 1") && r.ShowAlert),
+            Arg.Any<CancellationToken>());
+        await _uiRenderer.DidNotReceiveWithAnyArgs().ShowConfirmationAsync(default, default, default, default);
     }
 
     [Test]
