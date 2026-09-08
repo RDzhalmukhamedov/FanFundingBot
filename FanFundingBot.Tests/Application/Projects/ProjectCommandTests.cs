@@ -183,13 +183,11 @@ public class UpdateProjectStatusCommandTests
 public class AddonCommandTests
 {
     private IProjectRepository _projects;
-    private IAddonRepository _addons;
 
     [SetUp]
     public void Setup()
     {
         _projects = Substitute.For<IProjectRepository>();
-        _addons = Substitute.For<IAddonRepository>();
     }
 
     [Test]
@@ -224,58 +222,90 @@ public class AddonCommandTests
     public async Task UpdateAddonName_Happy_ShouldUpdate()
     {
         var addon = DomainTestFactory.NewAddon();
-        _addons.GetByIdAsync(addon.Id).Returns(addon);
+        var project = DomainTestFactory.NewProject();
+        project.AddAddon(addon);
+        _projects.GetProjectIdByAddonAsync(addon.Id).Returns(project.Id);
+        _projects.GetByIdWithAddonsAsync(project.Id).Returns(project);
 
-        var handler = new UpdateAddonNameCommandHandler(_addons);
+        var handler = new UpdateAddonNameCommandHandler(_projects);
         var result = await handler.Handle(
             new UpdateAddonNameCommand(1, addon.Id, "Renamed"), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         addon.Name.Should().Be("Renamed");
+        await _projects.Received(1).UpdateAsync(project);
+    }
+
+    [Test]
+    public async Task UpdateAddonName_NotFound_ShouldFail()
+    {
+        _projects.GetProjectIdByAddonAsync(Arg.Any<Guid>()).Returns((Guid?)null);
+
+        var handler = new UpdateAddonNameCommandHandler(_projects);
+        var result = await handler.Handle(
+            new UpdateAddonNameCommand(1, Guid.NewGuid(), "Renamed"), CancellationToken.None);
+
+        result.IsFailed.Should().BeTrue();
+        await _projects.DidNotReceive().UpdateAsync(Arg.Any<Project>());
     }
 
     [Test]
     public async Task UpdateAddonPrice_Happy_ShouldUpdate()
     {
         var addon = DomainTestFactory.NewAddon();
-        _addons.GetByIdAsync(addon.Id).Returns(addon);
+        var project = DomainTestFactory.NewProject();
+        project.AddAddon(addon);
+        _projects.GetProjectIdByAddonAsync(addon.Id).Returns(project.Id);
+        _projects.GetByIdWithAddonsAsync(project.Id).Returns(project);
 
-        var handler = new UpdateAddonPriceCommandHandler(_addons);
+        var handler = new UpdateAddonPriceCommandHandler(_projects);
         var result = await handler.Handle(
             new UpdateAddonPriceCommand(1, addon.Id, 42m), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         ((decimal)addon.Price).Should().Be(42m);
+        await _projects.Received(1).UpdateAsync(project);
     }
 
     [Test]
     public async Task DeleteAddon_Happy_ShouldDelete()
     {
         var addon = DomainTestFactory.NewAddon();
-        _addons.GetByIdAsync(addon.Id).Returns(addon);
-        _addons.HasOrdersAsync(addon.Id).Returns(false);
+        var project = DomainTestFactory.NewProject();
+        project.AddAddon(addon);
+        _projects.GetProjectIdByAddonAsync(addon.Id).Returns(project.Id);
+        _projects.GetByIdWithAddonsAsync(project.Id).Returns(project);
+        var usage = Substitute.For<FanFundingBot.Application.Abstractions.IAddonUsageReader>();
+        usage.HasOrdersAsync(addon.Id, Arg.Any<CancellationToken>()).Returns(false);
 
-        var handler = new DeleteAddonCommandHandler(_addons);
+        var handler = new DeleteAddonCommandHandler(_projects, usage);
         var result = await handler.Handle(
             new DeleteAddonCommand(1, addon.Id), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        await _addons.Received(1).DeleteAsync(addon.Id);
+        project.Addons.Should().BeEmpty();
+        await _projects.Received(1).UpdateAsync(project);
     }
 
     [Test]
     public async Task DeleteAddon_HasOrders_ShouldFail()
     {
         var addon = DomainTestFactory.NewAddon();
-        _addons.GetByIdAsync(addon.Id).Returns(addon);
-        _addons.HasOrdersAsync(addon.Id).Returns(true);
+        var project = DomainTestFactory.NewProject();
+        project.AddAddon(addon);
+        _projects.GetProjectIdByAddonAsync(addon.Id).Returns(project.Id);
+        _projects.GetByIdWithAddonsAsync(project.Id).Returns(project);
+        var usage = Substitute.For<FanFundingBot.Application.Abstractions.IAddonUsageReader>();
+        usage.HasOrdersAsync(addon.Id, Arg.Any<CancellationToken>()).Returns(true);
 
-        var handler = new DeleteAddonCommandHandler(_addons);
+        var handler = new DeleteAddonCommandHandler(_projects, usage);
         var result = await handler.Handle(
             new DeleteAddonCommand(1, addon.Id), CancellationToken.None);
 
         result.IsFailed.Should().BeTrue();
-        await _addons.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+        result.Errors[0].Message.Should().Contain("Нельзя удалить");
+        project.Addons.Should().HaveCount(1);
+        await _projects.DidNotReceive().UpdateAsync(Arg.Any<Project>());
     }
 }
 

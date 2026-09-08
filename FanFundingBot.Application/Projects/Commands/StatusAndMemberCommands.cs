@@ -41,7 +41,7 @@ public class CreateProjectStatusCommandHandler : IRequestHandler<CreateProjectSt
 
 public sealed record AssignManagerCommand(
     long CallerUserId, Guid ProjectId, long TargetUserId, ProjectRole Role)
-    : IRequest<Result>;
+    : IRequest<Result>, IRequireProjectAccess;
 
 public class AssignManagerCommandValidator : AbstractValidator<AssignManagerCommand>
 {

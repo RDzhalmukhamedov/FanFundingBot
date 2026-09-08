@@ -28,7 +28,6 @@ builder.Services.AddHttpClient("telegram_bot")
 builder.Services.AddScoped<UpdateHandler>();
 
 builder.Services.AddHostedService<OutboxProcessor>();
-builder.Services.AddHostedService<OutboxProcessor>();
 
 if (botConfig.UsePolling)
     builder.Services.AddHostedService<PollingService>();

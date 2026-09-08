@@ -1,6 +1,5 @@
 using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Domain.Entities;
-using FanFundingBot.Domain.Exceptions;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
@@ -90,7 +89,7 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save order {OrderId} to Google Sheets", order.Id);
-            throw new OrderSaveException($"Failed to save order {order.Id} to Google Sheets", ex);
+            throw;
         }
     }
 
@@ -145,7 +144,7 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete order {OrderId} from Google Sheets", orderId);
-            throw new OrderSaveException($"Failed to delete order {orderId} from Google Sheets", ex);
+            throw;
         }
     }
 

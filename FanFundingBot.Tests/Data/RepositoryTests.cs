@@ -215,65 +215,52 @@ public class ProjectRepositoryTests : RepositoryTestBase
 }
 
 [TestFixture]
-public class AddonRepositoryTests : RepositoryTestBase
+public class ProjectAddonTests : RepositoryTestBase
 {
-    private static async Task<Project> CreateProjectWithAddonsAsync(
-        AppDbContext context, IProjectRepository projectRepo, int addonCount)
+    [Test]
+    public async Task UpdateAsync_ShouldRemoveAddon_WhenRemovedFromProject()
     {
+        using var context = CreateContext();
+        IProjectRepository repo = new ProjectRepository(context);
+
         var project = NewProject(context);
-        for (int i = 0; i < addonCount; i++)
-            project.AddAddon(DomainTestFactory.NewAddon(name: $"Addon {i}", price: i * 10));
-        await projectRepo.AddAsync(project);
-        return project;
+        var addon = DomainTestFactory.NewAddon(name: "A1", price: 100);
+        project.AddAddon(addon);
+        await repo.AddAsync(project);
+
+        project.StartEdit();
+        project.RemoveAddon(addon.Id, hasOrders: false);
+        project.FinishEdit();
+        await repo.UpdateAsync(project);
+
+        var reloaded = await repo.GetByIdWithAddonsAsync(project.Id);
+        Assert.That(reloaded!.Addons, Is.Empty);
+        Assert.That(await context.Addons.FindAsync(addon.Id), Is.Null);
     }
 
     [Test]
-    public async Task GetByProjectIdPagedAsync_ShouldReturnPagedResults()
+    public async Task GetProjectIdByAddonAsync_ShouldReturnProjectId()
     {
         using var context = CreateContext();
-        IProjectRepository projectRepo = new ProjectRepository(context);
-        IAddonRepository repo = new AddonRepository(context);
+        IProjectRepository repo = new ProjectRepository(context);
 
-        var project = await CreateProjectWithAddonsAsync(context, projectRepo, 10);
+        var project = NewProject(context);
+        var addon = DomainTestFactory.NewAddon(name: "A1", price: 100);
+        project.AddAddon(addon);
+        await repo.AddAsync(project);
 
-        var page1 = await repo.GetByProjectIdPagedAsync(project.Id, 1, 5);
-        var page2 = await repo.GetByProjectIdPagedAsync(project.Id, 2, 5);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(page1, Has.Count.EqualTo(5));
-            Assert.That(page2, Has.Count.EqualTo(5));
-            Assert.That(page1[0].Name, Is.Not.EqualTo(page2[0].Name));
-        });
+        var projectId = await repo.GetProjectIdByAddonAsync(addon.Id);
+        Assert.That(projectId, Is.EqualTo(project.Id));
     }
 
     [Test]
-    public async Task CountByProjectIdAsync_ShouldReturnCorrectCount()
+    public async Task GetProjectIdByAddonAsync_ShouldReturnNull_WhenNotFound()
     {
         using var context = CreateContext();
-        IProjectRepository projectRepo = new ProjectRepository(context);
-        IAddonRepository repo = new AddonRepository(context);
+        IProjectRepository repo = new ProjectRepository(context);
 
-        var project = await CreateProjectWithAddonsAsync(context, projectRepo, 7);
-
-        var count = await repo.CountByProjectIdAsync(project.Id);
-        Assert.That(count, Is.EqualTo(7));
-    }
-
-    [Test]
-    public async Task DeleteAsync_ShouldRemoveAddon()
-    {
-        using var context = CreateContext();
-        IProjectRepository projectRepo = new ProjectRepository(context);
-        IAddonRepository repo = new AddonRepository(context);
-
-        var project = await CreateProjectWithAddonsAsync(context, projectRepo, 1);
-        var addonId = project.Addons[0].Id;
-
-        await repo.DeleteAsync(addonId);
-
-        var result = await repo.GetByIdAsync(addonId);
-        Assert.That(result, Is.Null);
+        var projectId = await repo.GetProjectIdByAddonAsync(Guid.NewGuid());
+        Assert.That(projectId, Is.Null);
     }
 }
 

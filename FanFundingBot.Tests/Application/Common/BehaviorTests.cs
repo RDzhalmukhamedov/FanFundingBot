@@ -153,21 +153,21 @@ public class AuthorizationBehaviorTests
 
     private ICurrentUserProvider _currentUser;
     private IAuthorizationService _authorization;
-    private IAddonRepository _addons;
+    private IProjectRepository _projects;
 
     [SetUp]
     public void Setup()
     {
         _currentUser = Substitute.For<ICurrentUserProvider>();
         _authorization = Substitute.For<IAuthorizationService>();
-        _addons = Substitute.For<IAddonRepository>();
+        _projects = Substitute.For<IProjectRepository>();
 
         _currentUser.GetCurrentUserId().Returns(1);
     }
 
     private AuthorizationBehavior<TRequest, Result<string>> Create<TRequest>()
         where TRequest : IRequest<Result<string>>
-        => new(_currentUser, _authorization, _addons);
+        => new(_currentUser, _authorization, _projects);
 
     private static Task<Result<string>> OkNext() => Task.FromResult(Result.Ok("ok"));
 
@@ -217,7 +217,7 @@ public class AuthorizationBehaviorTests
     [Test]
     public async Task AddonAccess_UnknownAddon_ShouldFail()
     {
-        _addons.GetProjectIdByAddonAsync(Arg.Any<Guid>()).Returns((Guid?)null);
+        _projects.GetProjectIdByAddonAsync(Arg.Any<Guid>()).Returns((Guid?)null);
 
         var result = await Create<AddonOp>().Handle(new AddonOp(Guid.NewGuid()), OkNext, CancellationToken.None);
 
@@ -229,7 +229,7 @@ public class AuthorizationBehaviorTests
     {
         var addonId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
-        _addons.GetProjectIdByAddonAsync(addonId).Returns(projectId);
+        _projects.GetProjectIdByAddonAsync(addonId).Returns(projectId);
         _authorization.CanManageProjectAsync(1, projectId).Returns(true);
 
         var result = await Create<AddonOp>().Handle(new AddonOp(addonId), OkNext, CancellationToken.None);

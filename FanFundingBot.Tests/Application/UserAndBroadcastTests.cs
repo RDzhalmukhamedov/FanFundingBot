@@ -137,11 +137,15 @@ public class ProjectDetailsQueryTests
     public async Task GetProjectById_Happy_ShouldMap()
     {
         var projects = Substitute.For<IProjectRepository>();
+        var usage = Substitute.For<IAddonUsageReader>();
         var project = DomainTestFactory.NewProject("Details");
-        project.AddAddon(DomainTestFactory.NewAddon(name: "A", price: 10m));
+        var addon = DomainTestFactory.NewAddon(name: "A", price: 10m);
+        project.AddAddon(addon);
         projects.GetByIdWithAddonsAsync(project.Id).Returns(project);
+        usage.GetHasOrdersMapAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<Guid, bool> { [addon.Id] = false });
 
-        var handler = new GetProjectByIdQueryHandler(projects);
+        var handler = new GetProjectByIdQueryHandler(projects, usage);
         var result = await handler.Handle(new GetProjectByIdQuery(project.Id), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -153,9 +157,10 @@ public class ProjectDetailsQueryTests
     public async Task GetProjectById_NotFound_ShouldFail()
     {
         var projects = Substitute.For<IProjectRepository>();
+        var usage = Substitute.For<IAddonUsageReader>();
         projects.GetByIdWithAddonsAsync(Arg.Any<Guid>()).Returns((Project?)null);
 
-        var handler = new GetProjectByIdQueryHandler(projects);
+        var handler = new GetProjectByIdQueryHandler(projects, usage);
         var result = await handler.Handle(new GetProjectByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.IsFailed.Should().BeTrue();
@@ -164,11 +169,11 @@ public class ProjectDetailsQueryTests
     [Test]
     public async Task GetProjectIdByAddon_Happy_ShouldReturn()
     {
-        var addons = Substitute.For<IAddonRepository>();
+        var projects = Substitute.For<IProjectRepository>();
         var projectId = Guid.NewGuid();
-        addons.GetProjectIdByAddonAsync(Arg.Any<Guid>()).Returns(projectId);
+        projects.GetProjectIdByAddonAsync(Arg.Any<Guid>()).Returns(projectId);
 
-        var handler = new GetProjectIdByAddonQueryHandler(addons);
+        var handler = new GetProjectIdByAddonQueryHandler(projects);
         var result = await handler.Handle(new GetProjectIdByAddonQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -178,10 +183,10 @@ public class ProjectDetailsQueryTests
     [Test]
     public async Task GetProjectIdByAddon_NotFound_ShouldFail()
     {
-        var addons = Substitute.For<IAddonRepository>();
-        addons.GetProjectIdByAddonAsync(Arg.Any<Guid>()).Returns((Guid?)null);
+        var projects = Substitute.For<IProjectRepository>();
+        projects.GetProjectIdByAddonAsync(Arg.Any<Guid>()).Returns((Guid?)null);
 
-        var handler = new GetProjectIdByAddonQueryHandler(addons);
+        var handler = new GetProjectIdByAddonQueryHandler(projects);
         var result = await handler.Handle(new GetProjectIdByAddonQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.IsFailed.Should().BeTrue();

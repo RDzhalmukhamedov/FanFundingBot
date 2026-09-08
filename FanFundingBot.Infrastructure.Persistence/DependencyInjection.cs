@@ -1,5 +1,6 @@
 using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Domain.Interfaces;
+using FanFundingBot.Infrastructure.Persistence.Readers;
 using FanFundingBot.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -27,10 +28,10 @@ public static class DependencyInjection
 
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
-        services.AddScoped<IAddonRepository, AddonRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IQuestionRepository, QuestionRepository>();
         services.AddScoped<IProjectStatusRepository, ProjectStatusRepository>();
+        services.AddScoped<IAddonUsageReader, AddonUsageReader>();
 
         return services;
     }

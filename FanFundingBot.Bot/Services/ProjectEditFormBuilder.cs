@@ -30,7 +30,7 @@ public class ProjectEditFormBuilder : IProjectEditFormBuilder
 
         var addonSummary = project.Addons.Count == 0
             ? "Нет дополнений"
-            : string.Join("\n", project.Addons.Select(a => $"  • {a.Name} — {a.Price:F2}₽"));
+            : string.Join("\n", project.Addons.Select(a => $"  • {a.Name} — {a.Price:F2}₽" + (a.HasOrders ? " 🔒 используется" : "")));
 
         var statusName = statuses
             .FirstOrDefault(s => s.Id == project.StatusId)?.DisplayName ?? "—";
@@ -52,11 +52,21 @@ public class ProjectEditFormBuilder : IProjectEditFormBuilder
 
         foreach (var addon in project.Addons)
         {
-            editButtons.Add(new[]
+            if (addon.HasOrders)
             {
-                InlineKeyboardButton.WithCallbackData($"✏️ {addon.Name}", CallbackData.Build("admin_edit_addon", addon.Id)),
-                InlineKeyboardButton.WithCallbackData($"❌ {addon.Name} (удалить)", CallbackData.Build("admin_del_addon", addon.Id))
-            });
+                editButtons.Add(new[]
+                {
+                    InlineKeyboardButton.WithCallbackData($"✏️ {addon.Name}", CallbackData.Build("admin_edit_addon", addon.Id))
+                });
+            }
+            else
+            {
+                editButtons.Add(new[]
+                {
+                    InlineKeyboardButton.WithCallbackData($"✏️ {addon.Name}", CallbackData.Build("admin_edit_addon", addon.Id)),
+                    InlineKeyboardButton.WithCallbackData($"❌ {addon.Name} (удалить)", CallbackData.Build("admin_del_addon", addon.Id))
+                });
+            }
         }
 
         editButtons.Add(new[] { InlineKeyboardButton.WithCallbackData("❌ Закрыть", "admin_cancel") });

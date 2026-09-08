@@ -10,16 +10,16 @@ public class AuthorizationBehavior<TRequest, TResponse> : MediatR.IPipelineBehav
 {
     private readonly ICurrentUserProvider _currentUser;
     private readonly IAuthorizationService _authorization;
-    private readonly IAddonRepository _addons;
+    private readonly IProjectRepository _projects;
 
     public AuthorizationBehavior(
         ICurrentUserProvider currentUser,
         IAuthorizationService authorization,
-        IAddonRepository addons)
+        IProjectRepository projects)
     {
         _currentUser = currentUser;
         _authorization = authorization;
-        _addons = addons;
+        _projects = projects;
     }
 
     public async Task<TResponse> Handle(
@@ -45,7 +45,7 @@ public class AuthorizationBehavior<TRequest, TResponse> : MediatR.IPipelineBehav
 
     private async Task<bool> CheckAddonAsync(long userId, Guid addonId)
     {
-        var projectId = await _addons.GetProjectIdByAddonAsync(addonId);
+        var projectId = await _projects.GetProjectIdByAddonAsync(addonId);
         if (projectId is null)
             return false;
 

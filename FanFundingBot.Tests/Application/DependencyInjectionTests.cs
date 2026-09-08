@@ -23,7 +23,6 @@ public class DependencyInjectionTests
         var users = Substitute.For<IUserRepository>();
         var projects = Substitute.For<IProjectRepository>();
         var orders = Substitute.For<IOrderRepository>();
-        var addons = Substitute.For<IAddonRepository>();
         var questions = Substitute.For<IQuestionRepository>();
         var statuses = Substitute.For<IProjectStatusRepository>();
         var notifications = Substitute.For<INotificationPort>();
@@ -32,7 +31,6 @@ public class DependencyInjectionTests
         services.AddScoped(_ => users);
         services.AddScoped(_ => projects);
         services.AddScoped(_ => orders);
-        services.AddScoped(_ => addons);
         services.AddScoped(_ => questions);
         services.AddScoped(_ => statuses);
         services.AddScoped(_ => notifications);

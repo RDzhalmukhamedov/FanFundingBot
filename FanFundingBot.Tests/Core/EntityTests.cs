@@ -416,4 +416,102 @@ public class EntityTests
             Assert.That(question.AnsweredAt, Is.Null);
         });
     }
+
+    [Test]
+    public void Project_RemoveAddon_Happy_ShouldRemove()
+    {
+        var project = DomainTestFactory.NewProject();
+        var addon = DomainTestFactory.NewAddon();
+        project.AddAddon(addon);
+
+        project.RemoveAddon(addon.Id, hasOrders: false);
+
+        Assert.That(project.Addons, Is.Empty);
+    }
+
+    [Test]
+    public void Project_RemoveAddon_HasOrders_ShouldThrow()
+    {
+        var project = DomainTestFactory.NewProject();
+        var addon = DomainTestFactory.NewAddon();
+        project.AddAddon(addon);
+
+        var ex = Assert.Throws<DomainException>(() => project.RemoveAddon(addon.Id, hasOrders: true));
+        Assert.That(ex.Message, Does.Contain("Нельзя удалить"));
+        Assert.That(project.Addons, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void Project_RemoveAddon_NotFound_ShouldThrow()
+    {
+        var project = DomainTestFactory.NewProject();
+
+        Assert.Throws<DomainException>(() => project.RemoveAddon(Guid.NewGuid(), hasOrders: false));
+    }
+
+    [Test]
+    public void Project_RemoveAddon_NotEditMode_ShouldThrow()
+    {
+        var project = DomainTestFactory.NewProject();
+        var addon = DomainTestFactory.NewAddon();
+        project.AddAddon(addon);
+        project.FinishEdit();
+
+        Assert.Throws<ProjectNotEditModeException>(() => project.RemoveAddon(addon.Id, hasOrders: false));
+    }
+
+    [Test]
+    public void Project_UpdateAddonName_Happy_ShouldUpdate()
+    {
+        var project = DomainTestFactory.NewProject();
+        var addon = DomainTestFactory.NewAddon();
+        project.AddAddon(addon);
+
+        project.UpdateAddonName(addon.Id, "Renamed");
+
+        Assert.That(addon.Name, Is.EqualTo("Renamed"));
+    }
+
+    [Test]
+    public void Project_UpdateAddonName_NotFound_ShouldThrow()
+    {
+        var project = DomainTestFactory.NewProject();
+
+        Assert.Throws<DomainException>(() => project.UpdateAddonName(Guid.NewGuid(), "Renamed"));
+    }
+
+    [Test]
+    public void Project_UpdateAddonDescription_Happy_ShouldUpdate()
+    {
+        var project = DomainTestFactory.NewProject();
+        var addon = DomainTestFactory.NewAddon();
+        project.AddAddon(addon);
+
+        project.UpdateAddonDescription(addon.Id, "New desc");
+
+        Assert.That(addon.Description, Is.EqualTo("New desc"));
+    }
+
+    [Test]
+    public void Project_UpdateAddonPrice_Happy_ShouldUpdate()
+    {
+        var project = DomainTestFactory.NewProject();
+        var addon = DomainTestFactory.NewAddon();
+        project.AddAddon(addon);
+
+        project.UpdateAddonPrice(addon.Id, 42m);
+
+        Assert.That((decimal)addon.Price, Is.EqualTo(42m));
+    }
+
+    [Test]
+    public void Project_UpdateAddon_NotEditMode_ShouldThrow()
+    {
+        var project = DomainTestFactory.NewProject();
+        var addon = DomainTestFactory.NewAddon();
+        project.AddAddon(addon);
+        project.FinishEdit();
+
+        Assert.Throws<ProjectNotEditModeException>(() => project.UpdateAddonName(addon.Id, "Renamed"));
+    }
 }

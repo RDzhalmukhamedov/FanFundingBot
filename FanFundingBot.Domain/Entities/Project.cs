@@ -97,6 +97,50 @@ public class Project : AggregateRoot, IEditable<Project>
         _addons.Add(addon);
     }
 
+    public void RemoveAddon(Guid addonId, bool hasOrders)
+    {
+        ThrowIfNotEditMode();
+        var addon = _addons.FirstOrDefault(a => a.Id == addonId)
+            ?? throw new DomainException("Дополнение не найдено.");
+        if (hasOrders)
+            throw new DomainException("Нельзя удалить дополнение, так как оно есть в заказах.");
+
+        _addons.Remove(addon);
+    }
+
+    public void UpdateAddonName(Guid addonId, string name)
+    {
+        ThrowIfNotEditMode();
+        var addon = _addons.FirstOrDefault(a => a.Id == addonId)
+            ?? throw new DomainException("Дополнение не найдено.");
+
+        addon.StartEdit();
+        addon.SetName(name);
+        addon.FinishEdit();
+    }
+
+    public void UpdateAddonDescription(Guid addonId, string description)
+    {
+        ThrowIfNotEditMode();
+        var addon = _addons.FirstOrDefault(a => a.Id == addonId)
+            ?? throw new DomainException("Дополнение не найдено.");
+
+        addon.StartEdit();
+        addon.SetDescription(description);
+        addon.FinishEdit();
+    }
+
+    public void UpdateAddonPrice(Guid addonId, decimal price)
+    {
+        ThrowIfNotEditMode();
+        var addon = _addons.FirstOrDefault(a => a.Id == addonId)
+            ?? throw new DomainException("Дополнение не найдено.");
+
+        addon.StartEdit();
+        addon.SetPrice(price);
+        addon.FinishEdit();
+    }
+
     public void AddMember(long userId, ProjectRole role)
     {
         if (_members.Any(m => m.UserId == userId))

@@ -4,7 +4,7 @@ using FanFundingBot.Domain.Enums;
 namespace FanFundingBot.Application.Projects.DTOs;
 
 [ExcludeFromCodeCoverage]
-public sealed record AddonDto(Guid Id, string Name, string? Description, decimal Price);
+public sealed record AddonDto(Guid Id, string Name, string? Description, decimal Price, bool HasOrders = false);
 
 [ExcludeFromCodeCoverage]
 public sealed record ProjectMemberDto(long UserId, ProjectRole Role);
