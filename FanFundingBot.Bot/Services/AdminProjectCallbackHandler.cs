@@ -50,6 +50,8 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
                 : result.Errors[0].Message,
             parseMode: ParseMode.Html,
             cancellationToken: ct);
+
+        await _menuHelper.SendReturnToMenuAsync(botClient, query.Message.Chat.Id, userId, ct);
     }
 
     private async Task ShowEditProjectFormAsync(ITelegramBotClient botClient, long chatId, int messageId, Guid projectId, long userId, CancellationToken ct, string? prependText = null)

@@ -15,6 +15,7 @@ using FluentResults;
 using MediatR;
 using NSubstitute;
 using Telegram.Bot;
+using Telegram.Bot.Requests;
 using Telegram.Bot.Types;
 
 namespace FanFundingBot.Tests.Bot.Services;
@@ -363,6 +364,7 @@ public class AdminProjectCallbackHandlerTests
             .Returns(Result.Ok(Guid.NewGuid()));
         await _handler.HandleAdminCreateProjectConfirmAsync(_botClient, MakeCq("x"), 1, CancellationToken.None);
         _stateService.Received(1).Remove(1);
+        await AssertMenuSentAsync(_botClient);
     }
 
     [Test]
@@ -371,6 +373,7 @@ public class AdminProjectCallbackHandlerTests
         _stateService.Get(1).Returns(_session);
         await _handler.HandleAdminCreateProjectConfirmAsync(_botClient, MakeCq("x"), 1, CancellationToken.None);
         await _mediator.DidNotReceive().Send(Arg.Any<CreateProjectCommand>(), Arg.Any<CancellationToken>());
+        _botClient.ReceivedCalls().Should().BeEmpty();
     }
 
     [Test]
@@ -385,6 +388,29 @@ public class AdminProjectCallbackHandlerTests
         _stateService.Received(1).Remove(1);
         await _mediator.Received(1).Send(
             Arg.Is<CreateProjectCommand>(c => c.Addons != null && c.Addons.Count == 1),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Test]
+    public async Task CreateProjectConfirm_Failure_StillReturnsToMenu()
+    {
+        _session.TempProjectName = "P";
+        _session.TempProjectDescription = "D";
+        _stateService.Get(1).Returns(_session);
+        _mediator.Send(Arg.Any<CreateProjectCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Fail<Guid>("Ошибка создания."));
+        await _handler.HandleAdminCreateProjectConfirmAsync(_botClient, MakeCq("x"), 1, CancellationToken.None);
+        _stateService.Received(1).Remove(1);
+        await _botClient.Received(1).SendRequest<Message>(
+            Arg.Is<EditMessageTextRequest>(r => r.Text != null && r.Text.Contains("Ошибка создания.")),
+            Arg.Any<CancellationToken>());
+        await AssertMenuSentAsync(_botClient);
+    }
+
+    private static async Task AssertMenuSentAsync(ITelegramBotClient botClient)
+    {
+        await botClient.Received(1).SendRequest<Message>(
+            Arg.Is<SendMessageRequest>(r => r.Text == "Возвращаюсь в главное меню."),
             Arg.Any<CancellationToken>());
     }
 
