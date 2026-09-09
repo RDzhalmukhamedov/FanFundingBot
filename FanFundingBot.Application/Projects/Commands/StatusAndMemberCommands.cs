@@ -10,7 +10,7 @@ using MediatR;
 namespace FanFundingBot.Application.Projects.Commands;
 
 public sealed record CreateProjectStatusCommand(
-    long CallerUserId, string DisplayName, int Order, bool CanEditOrders)
+    long CallerUserId, string DisplayName, bool CanEditOrders)
     : IRequest<Result<int>>, IRequireGlobalAdmin;
 
 public class CreateProjectStatusCommandValidator : AbstractValidator<CreateProjectStatusCommand>
@@ -18,7 +18,6 @@ public class CreateProjectStatusCommandValidator : AbstractValidator<CreateProje
     public CreateProjectStatusCommandValidator()
     {
         RuleFor(x => x.DisplayName).NotEmpty().MaximumLength(64);
-        RuleFor(x => x.Order).GreaterThan(0);
     }
 }
 
@@ -33,7 +32,8 @@ public class CreateProjectStatusCommandHandler : IRequestHandler<CreateProjectSt
 
     public async Task<Result<int>> Handle(CreateProjectStatusCommand request, CancellationToken cancellationToken)
     {
-        var entry = new ProjectStatus(request.DisplayName, request.Order, request.CanEditOrders);
+        var order = await _statuses.GetMaxOrderAsync() + 1;
+        var entry = new ProjectStatus(request.DisplayName, order, request.CanEditOrders);
         await _statuses.AddAsync(entry);
 
         return Result.Ok(entry.Id);

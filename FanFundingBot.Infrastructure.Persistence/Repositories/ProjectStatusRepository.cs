@@ -20,6 +20,11 @@ public class ProjectStatusRepository : IProjectStatusRepository
             .ToListAsync();
     }
 
+    public async Task<int> GetMaxOrderAsync()
+    {
+        return await _context.ProjectStatusEntries.MaxAsync(s => (int?)s.Order) ?? 0;
+    }
+
     public async Task<ProjectStatus?> GetByIdAsync(int id)
     {
         return await _context.ProjectStatusEntries.FindAsync(id);

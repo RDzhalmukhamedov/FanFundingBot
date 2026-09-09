@@ -314,16 +314,35 @@ public class StatusAndMemberCommandTests
     public async Task CreateProjectStatus_Happy_ShouldAdd()
     {
         var statuses = Substitute.For<IProjectStatusRepository>();
+        statuses.GetMaxOrderAsync().Returns(2);
         ProjectStatus? saved = null;
         await statuses.AddAsync(Arg.Do<ProjectStatus>(s => saved = s));
 
         var handler = new CreateProjectStatusCommandHandler(statuses);
         var result = await handler.Handle(
-            new CreateProjectStatusCommand(1, "Draft", 3, true), CancellationToken.None);
+            new CreateProjectStatusCommand(1, "Draft", true), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         saved.Should().NotBeNull();
         saved!.DisplayName.Should().Be("Draft");
+        saved!.Order.Should().Be(3);
+    }
+
+    [Test]
+    public async Task CreateProjectStatus_NoStatuses_ShouldStartFromOne()
+    {
+        var statuses = Substitute.For<IProjectStatusRepository>();
+        statuses.GetMaxOrderAsync().Returns(0);
+        ProjectStatus? saved = null;
+        await statuses.AddAsync(Arg.Do<ProjectStatus>(s => saved = s));
+
+        var handler = new CreateProjectStatusCommandHandler(statuses);
+        var result = await handler.Handle(
+            new CreateProjectStatusCommand(1, "Draft", true), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        saved.Should().NotBeNull();
+        saved!.Order.Should().Be(1);
     }
 
     [Test]

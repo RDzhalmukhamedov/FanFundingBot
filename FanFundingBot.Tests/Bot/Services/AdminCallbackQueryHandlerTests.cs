@@ -578,8 +578,6 @@ public class AdminProjectCallbackHandlerTests
     {
         _session.TempStatusName = "Test Status";
         _stateService.Get(1).Returns(_session);
-        _mediator.Send(Arg.Any<GetProjectStatusesQuery>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Ok(new List<ProjectStatusDto>()));
         _mediator.Send(Arg.Any<CreateProjectStatusCommand>(), Arg.Any<CancellationToken>())
             .Returns(Result.Ok(1));
 
@@ -587,7 +585,7 @@ public class AdminProjectCallbackHandlerTests
             "admin_add_status_can_edit:yes", CancellationToken.None);
 
         await _mediator.Received(1).Send(
-            Arg.Is<CreateProjectStatusCommand>(c => c.DisplayName == "Test Status" && c.Order == 1 && c.CanEditOrders),
+            Arg.Is<CreateProjectStatusCommand>(c => c.DisplayName == "Test Status" && c.CanEditOrders),
             Arg.Any<CancellationToken>());
     }
 
@@ -596,8 +594,6 @@ public class AdminProjectCallbackHandlerTests
     {
         _session.TempStatusName = "Test Status";
         _stateService.Get(1).Returns(_session);
-        _mediator.Send(Arg.Any<GetProjectStatusesQuery>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Ok(new List<ProjectStatusDto>()));
         _mediator.Send(Arg.Any<CreateProjectStatusCommand>(), Arg.Any<CancellationToken>())
             .Returns(Result.Ok(2));
 

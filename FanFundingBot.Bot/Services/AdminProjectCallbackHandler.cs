@@ -256,14 +256,9 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
 
         var canEdit = CallbackData.FirstArg(data) == "yes";
         var displayName = session.TempStatusName;
-        var statusesResult = await _mediator.Send(new Application.Projects.Queries.GetProjectStatusesQuery(), ct);
-        var statuses = statusesResult.IsSuccess
-            ? statusesResult.Value
-            : new List<Application.Projects.DTOs.ProjectStatusDto>();
-        var order = statuses.Count > 0 ? statuses.Max(s => s.Order) + 1 : 1;
 
         var result = await _mediator.Send(
-            new CreateProjectStatusCommand(userId, displayName, order, canEdit), ct);
+            new CreateProjectStatusCommand(userId, displayName, canEdit), ct);
 
         session.PendingAction = null;
         session.TempProjectId = null;
