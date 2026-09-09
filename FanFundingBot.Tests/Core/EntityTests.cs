@@ -207,6 +207,8 @@ public class EntityTests
         var project = DomainTestFactory.NewProject();
 
         var draft = customer.StartOrdering(project);
+        draft.AddAddon(DomainTestFactory.NewAddon());
+        draft.SetPhoneNumber("+71234567890");
         var formed = customer.FormOrder(draft.Id);
 
         Assert.That(formed, Is.InstanceOf<FormedOrder>());
@@ -233,6 +235,35 @@ public class EntityTests
             Assert.That((int)formed.OrderAddons[0].Quantity, Is.EqualTo(2));
             Assert.That(formed.DomainEvents.OfType<OrderFormedEvent>(), Has.Exactly(1).Items);
         });
+    }
+
+    [Test]
+    public void DraftOrder_Form_Empty_ShouldThrow()
+    {
+        var draft = new DraftOrder(DomainTestFactory.NewCustomer(), DomainTestFactory.NewProject());
+        draft.SetPhoneNumber("+71234567890");
+
+        Assert.Throws<DomainException>(() => draft.Form());
+    }
+
+    [Test]
+    public void DraftOrder_Form_WithoutPhone_ShouldThrow()
+    {
+        var draft = new DraftOrder(DomainTestFactory.NewCustomer(), DomainTestFactory.NewProject());
+        draft.AddAddon(DomainTestFactory.NewAddon());
+
+        Assert.Throws<DomainException>(() => draft.Form());
+    }
+
+    [Test]
+    public void DraftOrder_Form_DeliveryWithoutAddress_ShouldThrow()
+    {
+        var draft = new DraftOrder(DomainTestFactory.NewCustomer(), DomainTestFactory.NewProject());
+        draft.AddAddon(DomainTestFactory.NewAddon());
+        draft.SetPhoneNumber("+71234567890");
+        draft.SetDeliveryMethod(DeliveryMethod.Delivery);
+
+        Assert.Throws<DomainException>(() => draft.Form());
     }
 
     [Test]
@@ -377,7 +408,7 @@ public class EntityTests
     [Test]
     public void ProjectStatus_InvalidOrder_ShouldThrow()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ProjectStatus("S", 0, true));
+        Assert.Throws<DomainException>(() => new ProjectStatus("S", 0, true));
     }
 
     [Test]

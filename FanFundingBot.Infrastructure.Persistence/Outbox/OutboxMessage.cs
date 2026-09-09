@@ -14,6 +14,8 @@ public class OutboxMessage
     public bool Processed { get; private set; }
     public DateTime? ProcessedOn { get; private set; }
     public int RetryCount { get; private set; }
+    public DateTime? NextRetryOn { get; private set; }
+    public string? LastError { get; private set; }
 
     private OutboxMessage()
     {
@@ -38,6 +40,19 @@ public class OutboxMessage
 
     public void MarkFailed()
     {
+        MarkFailed(null);
+    }
+
+    public void MarkFailed(Exception? ex)
+    {
         RetryCount++;
+        // Экспоненциальный backoff: 5s, 10s, 20s ... максимум 10 минут.
+        var delaySeconds = Math.Min(5 * Math.Pow(2, RetryCount - 1), 600);
+        NextRetryOn = DateTime.UtcNow.AddSeconds(delaySeconds);
+        if (ex is not null)
+        {
+            var message = ex.Message ?? ex.GetType().Name;
+            LastError = message.Length > 2000 ? message[..2000] : message;
+        }
     }
 }

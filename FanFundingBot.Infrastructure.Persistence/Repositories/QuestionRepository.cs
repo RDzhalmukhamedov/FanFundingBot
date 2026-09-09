@@ -48,12 +48,11 @@ public class QuestionRepository : IQuestionRepository
     public async Task AddAsync(Question question)
     {
         await _context.Questions.AddAsync(question);
-        await _context.SaveChangesAsync();
     }
 
-    public async Task UpdateAsync(Question question)
+    public Task UpdateAsync(Question question)
     {
         _context.Questions.Update(question);
-        await _context.SaveChangesAsync();
+        return Task.CompletedTask;
     }
 }

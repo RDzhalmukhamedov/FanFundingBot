@@ -1,3 +1,4 @@
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Extensions;
 using FanFundingBot.Domain.Interfaces;
@@ -54,11 +55,11 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Res
     {
         var user = await _users.GetByIdAsync(request.CallerUserId);
         if (user is null)
-            return Result.Fail<Guid>("Пользователь не найден.");
+            return Result.Fail<Guid>(ResultErrors.UserNotFound());
 
         var duplicates = await _orders.GetByProjectAndUserAsync(request.ProjectId, request.CallerUserId);
         if (duplicates.Any(o => o.Status != OrderStatus.Cancelled))
-            return Result.Fail<Guid>("У вас уже есть заказ на этот проект.");
+            return Result.Fail<Guid>(ResultErrors.DuplicateOrder());
 
         if (user.Phone != request.Phone)
         {
@@ -68,10 +69,10 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Res
 
         var project = await _projects.GetByIdWithAddonsAsync(request.ProjectId);
         if (project is null)
-            return Result.Fail<Guid>("Проект не найден.");
+            return Result.Fail<Guid>(ResultErrors.ProjectNotFound());
 
         if (!project.Status.CanEditOrders)
-            return Result.Fail<Guid>("Проект недоступен для заказа.");
+            return Result.Fail<Guid>(ResultErrors.ProjectUnavailable());
 
         var draft = user.StartOrdering(project);
 
@@ -79,7 +80,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Res
         {
             var addon = project.Addons.FirstOrDefault(a => a.Id == addonId);
             if (addon is null)
-                return Result.Fail<Guid>($"Дополнение {addonId} не найдено.");
+                return Result.Fail<Guid>(ResultErrors.AddonNotFound(addonId));
 
             draft.AddAddon(addon, quantity);
         }

@@ -18,12 +18,13 @@ public class ProjectEditFormBuilder : IProjectEditFormBuilder
         _mediator = mediator;
     }
 
-    public async Task<ProjectEditForm> BuildAsync(Guid projectId, string? prependText = null)
+    public async Task<ProjectEditForm?> BuildAsync(Guid projectId, string? prependText = null)
     {
         var projectResult = await _mediator.Send(new GetProjectByIdQuery(projectId));
-        var project = projectResult.IsSuccess
-            ? projectResult.Value
-            : throw new InvalidOperationException("Project not found");
+        if (projectResult.IsFailed)
+            return null;
+
+        var project = projectResult.Value;
 
         var statusesResult = await _mediator.Send(new GetProjectStatusesQuery());
         var statuses = statusesResult.IsSuccess ? statusesResult.Value : new List<ProjectStatusDto>();

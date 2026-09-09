@@ -68,7 +68,6 @@ public class OrderRepository : IOrderRepository
     public async Task AddAsync(Order order)
     {
         await _context.Orders.AddAsync(order);
-        await _context.SaveChangesAsync();
     }
 
     public async Task UpdateAsync(Order order)
@@ -88,8 +87,6 @@ public class OrderRepository : IOrderRepository
         _context.Orders.Update(order);
         foreach (var position in order.OrderAddons)
             _context.Entry(position).State = EntityState.Added;
-
-        await _context.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(Guid id)
@@ -98,7 +95,6 @@ public class OrderRepository : IOrderRepository
         if (order != null)
         {
             _context.Orders.Remove(order);
-            await _context.SaveChangesAsync();
         }
     }
 }

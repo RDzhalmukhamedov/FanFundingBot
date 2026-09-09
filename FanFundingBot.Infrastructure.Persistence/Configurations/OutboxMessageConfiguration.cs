@@ -19,6 +19,11 @@ public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage
         builder.Property(m => m.Payload)
             .IsRequired();
 
+        builder.Property(m => m.LastError)
+            .HasMaxLength(2000);
+
         builder.HasIndex(m => m.Processed);
+
+        builder.HasIndex(m => new { m.Processed, m.NextRetryOn });
     }
 }

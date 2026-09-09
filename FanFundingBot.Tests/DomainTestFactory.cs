@@ -47,8 +47,7 @@ internal static class DomainTestFactory
         string? address = null)
     {
         var draft = new DraftOrder(customer ?? NewCustomer(), project ?? NewProject());
-        if (addonId.HasValue)
-            draft.AddAddon(NewAddon(addonId.Value), quantity);
+        draft.AddAddon(NewAddon(addonId ?? Guid.NewGuid()), quantity);
         draft.SetPhoneNumber(phone);
         draft.SetDeliveryMethod(delivery);
         draft.SetShippingAddress(address);

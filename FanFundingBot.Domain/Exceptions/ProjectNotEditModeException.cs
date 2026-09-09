@@ -1,6 +1,6 @@
 namespace FanFundingBot.Domain.Exceptions;
 
-public class ProjectNotEditModeException : Exception
+public class ProjectNotEditModeException : DomainException
 {
     public ProjectNotEditModeException() : base() { }
 

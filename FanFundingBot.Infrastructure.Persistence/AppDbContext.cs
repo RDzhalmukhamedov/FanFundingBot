@@ -1,4 +1,5 @@
 using FanFundingBot.Domain.Entities;
+using FanFundingBot.Infrastructure.Persistence.Outbox;
 using Microsoft.EntityFrameworkCore;
 
 namespace FanFundingBot.Infrastructure.Persistence;
@@ -12,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<OrderPosition> OrderPositions => Set<OrderPosition>();
     public DbSet<Question> Questions => Set<Question>();
     public DbSet<ProjectStatus> ProjectStatusEntries => Set<ProjectStatus>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {

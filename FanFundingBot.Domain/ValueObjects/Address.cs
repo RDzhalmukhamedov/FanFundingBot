@@ -1,4 +1,5 @@
 using FanFundingBot.Domain.Exceptions;
+using FanFundingBot.Domain.Extensions;
 
 namespace FanFundingBot.Domain.ValueObjects;
 
@@ -12,6 +13,9 @@ public readonly record struct Address
     {
         if (string.IsNullOrWhiteSpace(value))
             throw new DomainException("Адрес не может быть пустым.");
+
+        if (!value.IsValidAddress())
+            throw new DomainException("Некорректный адрес доставки.");
 
         return new Address(value.Trim());
     }

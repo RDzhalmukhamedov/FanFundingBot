@@ -28,6 +28,5 @@ public class ProjectStatusRepository : IProjectStatusRepository
     public async Task AddAsync(ProjectStatus entry)
     {
         await _context.ProjectStatusEntries.AddAsync(entry);
-        await _context.SaveChangesAsync();
     }
 }

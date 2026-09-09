@@ -223,21 +223,20 @@ public class AdminCallbackQueryHandler : IAdminCallbackQueryHandler
 
     private async Task ShowEditProjectFormAsync(ITelegramBotClient botClient, long chatId, int messageId, Guid projectId, long userId, CancellationToken ct, string? prependText = null)
     {
-        try
-        {
-            var form = await _editFormBuilder.BuildAsync(projectId, prependText);
-            var session = _stateService.GetOrCreate(userId);
-            session.PendingAction = null;
-            _stateService.Update(userId, session);
-
-            await botClient.EditMessageText(
-                chatId, messageId, form.Text,
-                parseMode: ParseMode.Html, replyMarkup: form.Keyboard, cancellationToken: ct);
-        }
-        catch (InvalidOperationException)
+        var form = await _editFormBuilder.BuildAsync(projectId, prependText);
+        if (form is null)
         {
             await botClient.EditMessageText(chatId, messageId, "Проект не найден.", cancellationToken: ct);
+            return;
         }
+
+        var session = _stateService.GetOrCreate(userId);
+        session.PendingAction = null;
+        _stateService.Update(userId, session);
+
+        await botClient.EditMessageText(
+            chatId, messageId, form.Text,
+            parseMode: ParseMode.Html, replyMarkup: form.Keyboard, cancellationToken: ct);
     }
 
     public async Task HandleAdminEditProjectAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)

@@ -1,4 +1,5 @@
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Domain.Interfaces;
 using FluentResults;
@@ -24,7 +25,7 @@ public class GetProjectByIdQueryHandler : IRequestHandler<GetProjectByIdQuery, R
     {
         var project = await _projects.GetByIdWithAddonsAsync(request.ProjectId);
         if (project is null)
-            return Result.Fail<ProjectDto>("Проект не найден.");
+            return Result.Fail<ProjectDto>(ResultErrors.ProjectNotFound());
 
         var dto = project.Adapt<ProjectDto>();
 
@@ -54,7 +55,7 @@ public class GetProjectIdByAddonQueryHandler : IRequestHandler<GetProjectIdByAdd
     {
         var projectId = await _projects.GetProjectIdByAddonAsync(request.AddonId);
         if (projectId is null)
-            return Result.Fail<Guid>("Дополнение не найдено.");
+            return Result.Fail<Guid>(ResultErrors.AddonNotFound());
 
         return Result.Ok(projectId.Value);
     }

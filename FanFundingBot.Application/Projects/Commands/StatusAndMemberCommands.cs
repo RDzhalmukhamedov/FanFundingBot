@@ -1,4 +1,5 @@
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Interfaces;
@@ -72,15 +73,15 @@ public class AssignManagerCommandHandler : IRequestHandler<AssignManagerCommand,
     public async Task<Result> Handle(AssignManagerCommand request, CancellationToken cancellationToken)
     {
         if (!await _authorization.CanAssignManagerAsync(request.CallerUserId, request.ProjectId))
-            return Result.Fail("Нет прав.");
+            return Result.Fail(ResultErrors.Forbidden());
 
         var project = await _projects.GetByIdAsync(request.ProjectId);
         if (project is null)
-            return Result.Fail("Проект не найден.");
+            return Result.Fail(ResultErrors.ProjectNotFound());
 
         var target = await _users.GetByIdAsync(request.TargetUserId);
         if (target is null)
-            return Result.Fail("Пользователь не найден.");
+            return Result.Fail(ResultErrors.UserNotFound());
 
         project.AddMember(request.TargetUserId, request.Role);
         await _projects.UpdateAsync(project);

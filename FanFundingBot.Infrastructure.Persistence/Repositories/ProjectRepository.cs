@@ -50,7 +50,6 @@ public class ProjectRepository : IProjectRepository
     public async Task AddAsync(Project project)
     {
         await _context.Projects.AddAsync(project);
-        await _context.SaveChangesAsync();
     }
 
     public async Task UpdateAsync(Project project)
@@ -101,8 +100,6 @@ public class ProjectRepository : IProjectRepository
             if (!existingMemberIds.Contains(member.UserId))
                 _context.Entry(member).State = EntityState.Added;
         }
-
-        await _context.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(Guid id)
@@ -111,7 +108,6 @@ public class ProjectRepository : IProjectRepository
         if (project != null)
         {
             _context.Projects.Remove(project);
-            await _context.SaveChangesAsync();
         }
     }
 

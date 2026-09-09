@@ -288,7 +288,7 @@ public class AddonCommandTests
     }
 
     [Test]
-    public async Task DeleteAddon_HasOrders_ShouldFail()
+    public void DeleteAddon_HasOrders_ShouldThrow()
     {
         var addon = DomainTestFactory.NewAddon();
         var project = DomainTestFactory.NewProject();
@@ -299,13 +299,11 @@ public class AddonCommandTests
         usage.HasOrdersAsync(addon.Id, Arg.Any<CancellationToken>()).Returns(true);
 
         var handler = new DeleteAddonCommandHandler(_projects, usage);
-        var result = await handler.Handle(
-            new DeleteAddonCommand(1, addon.Id), CancellationToken.None);
 
-        result.IsFailed.Should().BeTrue();
-        result.Errors[0].Message.Should().Contain("Нельзя удалить");
+        // Доменное исключение конвертируется в Result.Fail пайплайном TransactionBehavior (см. BehaviorTests).
+        Assert.ThrowsAsync<FanFundingBot.Domain.Exceptions.DomainException>(async () => await handler.Handle(
+            new DeleteAddonCommand(1, addon.Id), CancellationToken.None));
         project.Addons.Should().HaveCount(1);
-        await _projects.DidNotReceive().UpdateAsync(Arg.Any<Project>());
     }
 }
 

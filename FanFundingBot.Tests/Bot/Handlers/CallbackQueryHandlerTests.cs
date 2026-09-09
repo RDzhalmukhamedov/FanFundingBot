@@ -7,6 +7,7 @@ using FanFundingBot.Bot.Services;
 using FanFundingBot.Domain.Interfaces;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -41,7 +42,7 @@ public class CallbackQueryHandlerTests
             _statusHandler, _questionHandler, _projectHandler);
 
         _handler = new CallbackQueryHandler(
-            _authorization, new TelegramUserContext(),
+            _authorization, new TelegramUserContext(), NullLogger<CallbackQueryHandler>.Instance,
             new ICallbackCommandHandler[] { userCmdHandler, adminCmdHandler });
         _botClient = Substitute.For<ITelegramBotClient>();
     }

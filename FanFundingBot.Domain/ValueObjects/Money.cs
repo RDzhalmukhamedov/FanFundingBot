@@ -20,9 +20,9 @@ public readonly record struct Money
 
     public static implicit operator decimal(Money money) => money._value;
 
-    public static Money operator +(Money left, Money right) => new(left._value + right._value);
+    public static Money operator +(Money left, Money right) => Create(left._value + right._value);
 
-    public static Money operator *(Money money, int quantity) => new(money._value * quantity);
+    public static Money operator *(Money money, int quantity) => Create(money._value * quantity);
 
     public override string ToString() => _value.ToString("F2");
 }

@@ -1,3 +1,4 @@
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Domain.DomainEvents;
 using FanFundingBot.Domain.Interfaces;
 using FluentResults;
@@ -32,7 +33,7 @@ public class DeleteOrderCommandHandler : IRequestHandler<DeleteOrderCommand, Res
             return Result.Ok();
 
         if (order.User.Id != request.CallerUserId)
-            return Result.Fail("Нет прав.");
+            return Result.Fail(ResultErrors.Forbidden());
 
         order.AddDomainEvent(new OrderDeletedEvent(order.Id));
         await _orders.DeleteAsync(request.OrderId);

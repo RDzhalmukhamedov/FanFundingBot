@@ -178,18 +178,18 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
         session.PendingAction = null;
         _stateService.Update(userId, session);
 
-        try
-        {
-            var form = await _editFormBuilder.BuildAsync(projectId, "✅ Дополнение обновлено.");
-            await botClient.SendMessage(message.Chat.Id, form.Text, parseMode: ParseMode.Html, replyMarkup: form.Keyboard, cancellationToken: ct);
-        }
-        catch (InvalidOperationException)
+        var updatedForm = await _editFormBuilder.BuildAsync(projectId, "✅ Дополнение обновлено.");
+        if (updatedForm is null)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
                 priceResult.IsSuccess ? "✅ Дополнение обновлено." : priceResult.Errors[0].Message,
                 replyMarkup: MainMenuKeyboard.Create(true),
                 cancellationToken: ct);
+        }
+        else
+        {
+            await botClient.SendMessage(message.Chat.Id, updatedForm.Text, parseMode: ParseMode.Html, replyMarkup: updatedForm.Keyboard, cancellationToken: ct);
         }
     }
 
@@ -249,14 +249,14 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
             ? $"✅ Дополнение «{addonName}» добавлено."
             : result.Errors[0].Message;
 
-        try
-        {
-            var form = await _editFormBuilder.BuildAsync(projectId, resultText);
-            await botClient.SendMessage(message.Chat.Id, form.Text, parseMode: ParseMode.Html, replyMarkup: form.Keyboard, cancellationToken: ct);
-        }
-        catch (InvalidOperationException)
+        var addedForm = await _editFormBuilder.BuildAsync(projectId, resultText);
+        if (addedForm is null)
         {
             await botClient.SendMessage(message.Chat.Id, resultText, replyMarkup: MainMenuKeyboard.Create(true), cancellationToken: ct);
+        }
+        else
+        {
+            await botClient.SendMessage(message.Chat.Id, addedForm.Text, parseMode: ParseMode.Html, replyMarkup: addedForm.Keyboard, cancellationToken: ct);
         }
     }
 

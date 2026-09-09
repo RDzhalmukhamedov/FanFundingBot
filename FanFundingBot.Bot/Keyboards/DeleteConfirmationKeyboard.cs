@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using FanFundingBot.Bot.Helpers;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Keyboards;
 
+[ExcludeFromCodeCoverage]
 public static class DeleteConfirmationKeyboard
 {
     public static InlineKeyboardMarkup Create(Guid orderId)

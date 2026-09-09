@@ -61,11 +61,32 @@ public class OutboxProcessor : BackgroundService
         var orders = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
         var storage = scope.ServiceProvider.GetRequiredService<IOrderExternalStorage>();
 
-        var messages = await dbContext.Set<OutboxMessage>()
-            .Where(m => !m.Processed)
-            .OrderBy(m => m.OccurredOn)
-            .Take(BatchSize)
-            .ToListAsync(cancellationToken);
+        var now = DateTime.UtcNow;
+
+        List<OutboxMessage> messages;
+        if (dbContext.Database.IsNpgsql())
+        {
+            // Атомарный захват пачки между репликами: пропуск заблокированных строк.
+            messages = await dbContext.OutboxMessages
+                .FromSqlRaw(
+                    """
+                    SELECT * FROM "OutboxMessages"
+                    WHERE "Processed" = false AND ("NextRetryOn" IS NULL OR "NextRetryOn" <= {0})
+                    ORDER BY "OccurredOn" LIMIT {1}
+                    FOR UPDATE SKIP LOCKED
+                    """,
+                    now, BatchSize)
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            // InMemory (тесты) не поддерживает FromSql: та же выборка через LINQ.
+            messages = await dbContext.OutboxMessages
+                .Where(m => !m.Processed && (m.NextRetryOn == null || m.NextRetryOn <= now))
+                .OrderBy(m => m.OccurredOn)
+                .Take(BatchSize)
+                .ToListAsync(cancellationToken);
+        }
 
         foreach (var message in messages)
         {
@@ -76,7 +97,7 @@ public class OutboxProcessor : BackgroundService
             }
             catch (Exception ex)
             {
-                message.MarkFailed();
+                message.MarkFailed(ex);
                 _logger.LogError(ex, "Outbox dispatch failed for {MessageId} ({MessageType})",
                     message.Id, message.Type);
             }

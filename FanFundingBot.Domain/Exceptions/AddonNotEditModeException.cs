@@ -1,6 +1,6 @@
 namespace FanFundingBot.Domain.Exceptions;
 
-public class AddonNotEditModeException : Exception
+public class AddonNotEditModeException : DomainException
 {
     public AddonNotEditModeException() : base() { }
 

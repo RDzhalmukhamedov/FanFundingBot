@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using FanFundingBot.Bot.Helpers;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Keyboards;
 
+[ExcludeFromCodeCoverage]
 public static class ConfirmationKeyboard
 {
     public static InlineKeyboardMarkup Create(bool showEditButton = true)

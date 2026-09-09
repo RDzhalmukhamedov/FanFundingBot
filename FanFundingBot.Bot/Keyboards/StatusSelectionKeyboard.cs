@@ -1,9 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Bot.Helpers;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Keyboards;
 
+[ExcludeFromCodeCoverage]
 public static class StatusSelectionKeyboard
 {
     private const int PageSize = 6;

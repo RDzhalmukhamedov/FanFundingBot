@@ -1,4 +1,5 @@
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Domain.Interfaces;
 using FluentResults;
 using FluentValidation;
@@ -38,7 +39,7 @@ public class BroadcastCommandHandler : IRequestHandler<BroadcastCommand, Result>
     {
         var project = await _projects.GetByIdAsync(request.ProjectId);
         if (project is null)
-            return Result.Fail("Проект не найден.");
+            return Result.Fail(ResultErrors.ProjectNotFound());
 
         var subscribers = await _users.GetSubscribedToProjectAsync(request.ProjectId);
         await _notifications.BroadcastToProjectAsync(

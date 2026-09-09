@@ -14,6 +14,7 @@ using FanFundingBot.Bot.Services;
 using FanFundingBot.Domain.Interfaces;
 using MediatR;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -92,7 +93,7 @@ public class UpdateHandlerTests
         var callbackHandler = Substitute.For<ICallbackQueryHandler>();
         var contactHandler = Substitute.For<IContactHandler>();
 
-        var updateHandler = new UpdateHandler(commandHandler, callbackHandler, contactHandler);
+        var updateHandler = new UpdateHandler(commandHandler, callbackHandler, contactHandler, NullLogger<UpdateHandler>.Instance);
         var botClient = Substitute.For<ITelegramBotClient>();
 
         var update = TelegramFactory.CreateUpdate(
@@ -113,7 +114,7 @@ public class UpdateHandlerTests
         var callbackHandler = Substitute.For<ICallbackQueryHandler>();
         var contactHandler = Substitute.For<IContactHandler>();
 
-        var updateHandler = new UpdateHandler(commandHandler, callbackHandler, contactHandler);
+        var updateHandler = new UpdateHandler(commandHandler, callbackHandler, contactHandler, NullLogger<UpdateHandler>.Instance);
         var botClient = Substitute.For<ITelegramBotClient>();
 
         var cq = TelegramFactory.CreateCallbackQuery("1", "test_data", 1,
@@ -135,7 +136,7 @@ public class UpdateHandlerTests
         var callbackHandler = Substitute.For<ICallbackQueryHandler>();
         var contactHandler = Substitute.For<IContactHandler>();
 
-        var updateHandler = new UpdateHandler(commandHandler, callbackHandler, contactHandler);
+        var updateHandler = new UpdateHandler(commandHandler, callbackHandler, contactHandler, NullLogger<UpdateHandler>.Instance);
         var botClient = Substitute.For<ITelegramBotClient>();
 
         var update = TelegramFactory.CreateUpdate(

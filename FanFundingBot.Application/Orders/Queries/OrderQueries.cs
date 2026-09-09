@@ -1,3 +1,4 @@
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Application.Orders.DTOs;
 using FanFundingBot.Domain.Interfaces;
 using FluentResults;
@@ -39,10 +40,10 @@ public class GetOrderByIdQueryHandler : IRequestHandler<GetOrderByIdQuery, Resul
     {
         var order = await _orders.GetByIdWithAddonsAsync(request.OrderId);
         if (order is null)
-            return Result.Fail<OrderDto>("Заказ не найден.");
+            return Result.Fail<OrderDto>(ResultErrors.OrderNotFound());
 
         if (order.User.Id != request.RequesterUserId)
-            return Result.Fail<OrderDto>("Нет прав.");
+            return Result.Fail<OrderDto>(ResultErrors.Forbidden());
 
         return Result.Ok(order.Adapt<OrderDto>());
     }

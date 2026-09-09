@@ -1,6 +1,6 @@
 namespace FanFundingBot.Domain.Exceptions;
 
-public class OrderNotEditModeException : Exception
+public class OrderNotEditModeException : DomainException
 {
     public OrderNotEditModeException() : base() { }
 

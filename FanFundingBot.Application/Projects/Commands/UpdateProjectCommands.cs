@@ -1,4 +1,5 @@
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Domain.Interfaces;
 using FluentResults;
 using FluentValidation;
@@ -31,7 +32,7 @@ public class RenameProjectCommandHandler : IRequestHandler<RenameProjectCommand,
     {
         var project = await _projects.GetByIdAsync(request.ProjectId);
         if (project is null)
-            return Result.Fail("Проект не найден.");
+            return Result.Fail(ResultErrors.ProjectNotFound());
 
         project.StartEdit();
         project.SetName(request.Name);
@@ -68,7 +69,7 @@ public class UpdateProjectDescriptionCommandHandler : IRequestHandler<UpdateProj
     {
         var project = await _projects.GetByIdAsync(request.ProjectId);
         if (project is null)
-            return Result.Fail("Проект не найден.");
+            return Result.Fail(ResultErrors.ProjectNotFound());
 
         project.StartEdit();
         project.SetDescription(request.Description);

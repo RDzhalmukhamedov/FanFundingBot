@@ -279,6 +279,13 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime?>("NextRetryOn")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("OccurredOn")
                         .HasColumnType("timestamp with time zone");
 
@@ -303,6 +310,8 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Processed");
+
+                    b.HasIndex("Processed", "NextRetryOn");
 
                     b.ToTable("OutboxMessages", (string)null);
                 });

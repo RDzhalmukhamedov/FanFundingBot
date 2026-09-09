@@ -1,5 +1,7 @@
 namespace FanFundingBot.Domain.Entities;
 
+using FanFundingBot.Domain.Exceptions;
+
 public class ProjectStatus
 {
     public int Id { get; private set; }
@@ -16,7 +18,7 @@ public class ProjectStatus
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         if (order < 1)
         {
-            throw new ArgumentOutOfRangeException(nameof(order), order, "Порядок должен быть неотрицательным");
+            throw new DomainException("Порядок должен быть неотрицательным");
         }
 
         DisplayName = displayName;

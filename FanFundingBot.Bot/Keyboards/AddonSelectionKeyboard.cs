@@ -1,9 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Bot.Helpers;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Keyboards;
 
+[ExcludeFromCodeCoverage]
 public static class AddonSelectionKeyboard
 {
     public const int PageSize = 6;

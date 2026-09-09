@@ -83,6 +83,7 @@ public class UserRepositoryTests : RepositoryTestBase
 
         await repo.AddAsync(DomainTestFactory.NewCustomer(1));
 
+        await context.SaveChangesAsync();
         var exists = await repo.ExistsAsync(1);
         Assert.That(exists, Is.True);
     }
@@ -105,10 +106,12 @@ public class UserRepositoryTests : RepositoryTestBase
 
         var user = DomainTestFactory.NewCustomer(1);
         await repo.AddAsync(user);
+        await context.SaveChangesAsync();
 
         user.SetPhone("+79990001122");
         user.PromoteToAdmin();
         await repo.UpdateAsync(user);
+        await context.SaveChangesAsync();
 
         var updated = await context.Users.FindAsync(1L);
         Assert.Multiple(() =>
@@ -136,6 +139,7 @@ public class UserRepositoryTests : RepositoryTestBase
 
         await orderRepo.AddAsync(DomainTestFactory.NewFormed(user1, project));
         await orderRepo.AddAsync(DomainTestFactory.NewFormed(user2, project));
+        await context.SaveChangesAsync();
 
         var subscribed = await userRepo.GetSubscribedToProjectAsync(project.Id);
         Assert.That(subscribed, Has.Count.EqualTo(2));
@@ -153,6 +157,7 @@ public class ProjectRepositoryTests : RepositoryTestBase
 
         var project = NewProject(context, "Test Project");
         await repo.AddAsync(project);
+        await context.SaveChangesAsync();
 
         var saved = await repo.GetByIdAsync(project.Id);
         Assert.That(saved, Is.Not.Null);
@@ -169,6 +174,7 @@ public class ProjectRepositoryTests : RepositoryTestBase
         project.AddAddon(DomainTestFactory.NewAddon(name: "A1", price: 100));
         project.AddAddon(DomainTestFactory.NewAddon(name: "A2", price: 200));
         await repo.AddAsync(project);
+        await context.SaveChangesAsync();
 
         var projects = await repo.GetAllWithAddonsAsync();
         Assert.That(projects, Has.Count.EqualTo(1));
@@ -183,8 +189,10 @@ public class ProjectRepositoryTests : RepositoryTestBase
 
         var project = NewProject(context, "ToDelete");
         await repo.AddAsync(project);
+        await context.SaveChangesAsync();
 
         await repo.DeleteAsync(project.Id);
+        await context.SaveChangesAsync();
 
         var deleted = await repo.GetByIdAsync(project.Id);
         Assert.That(deleted, Is.Null);
@@ -198,12 +206,14 @@ public class ProjectRepositoryTests : RepositoryTestBase
 
         var project = NewProject(context, "Old");
         await repo.AddAsync(project);
+        await context.SaveChangesAsync();
 
         project.StartEdit();
         project.SetName("Updated");
         project.SetStatus(GetStatus(context, 2));
         project.FinishEdit();
         await repo.UpdateAsync(project);
+        await context.SaveChangesAsync();
 
         var updated = await repo.GetByIdAsync(project.Id);
         Assert.Multiple(() =>
@@ -227,11 +237,13 @@ public class ProjectAddonTests : RepositoryTestBase
         var addon = DomainTestFactory.NewAddon(name: "A1", price: 100);
         project.AddAddon(addon);
         await repo.AddAsync(project);
+        await context.SaveChangesAsync();
 
         project.StartEdit();
         project.RemoveAddon(addon.Id, hasOrders: false);
         project.FinishEdit();
         await repo.UpdateAsync(project);
+        await context.SaveChangesAsync();
 
         var reloaded = await repo.GetByIdWithAddonsAsync(project.Id);
         Assert.That(reloaded!.Addons, Is.Empty);
@@ -248,6 +260,7 @@ public class ProjectAddonTests : RepositoryTestBase
         var addon = DomainTestFactory.NewAddon(name: "A1", price: 100);
         project.AddAddon(addon);
         await repo.AddAsync(project);
+        await context.SaveChangesAsync();
 
         var projectId = await repo.GetProjectIdByAddonAsync(addon.Id);
         Assert.That(projectId, Is.EqualTo(project.Id));
@@ -282,6 +295,7 @@ public class OrderRepositoryTests : RepositoryTestBase
 
         var order = DomainTestFactory.NewFormed(user, project);
         await repo.AddAsync(order);
+        await context.SaveChangesAsync();
 
         var saved = await repo.GetByIdAsync(order.Id);
         Assert.That(saved, Is.Not.Null);
@@ -302,6 +316,7 @@ public class OrderRepositoryTests : RepositoryTestBase
 
         for (int i = 0; i < 3; i++)
             await repo.AddAsync(DomainTestFactory.NewFormed(user, project));
+        await context.SaveChangesAsync();
 
         var orders = await repo.GetByUserAsync(1);
         Assert.That(orders, Has.Count.EqualTo(3));
@@ -324,6 +339,7 @@ public class OrderRepositoryTests : RepositoryTestBase
 
         await repo.AddAsync(DomainTestFactory.NewFormed(user, project));
         await repo.AddAsync(DomainTestFactory.NewFormed(user, otherProject));
+        await context.SaveChangesAsync();
 
         var filtered = await repo.GetByProjectAndUserAsync(project.Id, 1);
         Assert.That(filtered, Has.Count.EqualTo(1));
@@ -351,6 +367,7 @@ public class OrderRepositoryTests : RepositoryTestBase
         draft.SetDeliveryMethod(DeliveryMethod.Pickup);
         var order = draft.Form();
         await repo.AddAsync(order);
+        await context.SaveChangesAsync();
 
         var loaded = await repo.GetByIdWithAddonsAsync(order.Id);
         Assert.That(loaded, Is.Not.Null);
@@ -385,6 +402,7 @@ public class QuestionRepositoryTests : RepositoryTestBase
 
         var question = new Question(customer, "Test question?");
         await repo.AddAsync(question);
+        await context.SaveChangesAsync();
 
         var saved = await repo.GetByIdAsync(question.Id);
         Assert.That(saved, Is.Not.Null);
@@ -407,6 +425,7 @@ public class QuestionRepositoryTests : RepositoryTestBase
         var answered = new Question(customer, "Q2");
         answered.AnswerQuestion(admin, "Answered");
         await repo.AddAsync(answered);
+        await context.SaveChangesAsync();
 
         var unanswered = await repo.GetUnansweredAsync();
         Assert.That(unanswered, Has.Count.EqualTo(1));
@@ -426,9 +445,11 @@ public class QuestionRepositoryTests : RepositoryTestBase
 
         var question = new Question(customer, "Question?");
         await repo.AddAsync(question);
+        await context.SaveChangesAsync();
 
         question.AnswerQuestion(admin, "Answer!");
         await repo.UpdateAsync(question);
+        await context.SaveChangesAsync();
 
         var updated = await repo.GetByIdAsync(question.Id);
         Assert.Multiple(() =>

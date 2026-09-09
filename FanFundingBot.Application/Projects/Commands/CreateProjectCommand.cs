@@ -1,4 +1,5 @@
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Interfaces;
@@ -49,7 +50,7 @@ public class CreateProjectCommandHandler : IRequestHandler<CreateProjectCommand,
     {
         var planned = await _statuses.GetByIdAsync(Domain.Constants.KnownProjectStatusIds.Planned);
         if (planned is null)
-            return Result.Fail<Guid>("Базовый статус проекта не найден.");
+            return Result.Fail<Guid>(ResultErrors.BaseProjectStatusNotFound());
 
         var project = new Project();
         project.StartEdit();

@@ -1,4 +1,5 @@
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Domain.Interfaces;
 using FluentResults;
 
@@ -55,7 +56,7 @@ public class AuthorizationBehavior<TRequest, TResponse> : MediatR.IPipelineBehav
     private static TResponse Denied()
     {
         var response = new TResponse();
-        response.Reasons.Add(new Error("Нет прав."));
+        response.Reasons.Add(ResultErrors.Forbidden());
         return response;
     }
 }

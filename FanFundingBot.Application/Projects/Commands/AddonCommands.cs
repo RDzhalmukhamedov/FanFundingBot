@@ -1,4 +1,5 @@
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Interfaces;
 using FluentResults;
@@ -35,7 +36,7 @@ public class CreateAddonCommandHandler : IRequestHandler<CreateAddonCommand, Res
     {
         var project = await _projects.GetByIdWithAddonsAsync(request.ProjectId);
         if (project is null)
-            return Result.Fail<Guid>("Проект не найден.");
+            return Result.Fail<Guid>(ResultErrors.ProjectNotFound());
 
         var addon = new Addon();
         addon.SetName(request.Name);
@@ -102,22 +103,15 @@ public class UpdateAddonNameCommandHandler : IRequestHandler<UpdateAddonNameComm
     {
         var projectId = await _projects.GetProjectIdByAddonAsync(request.AddonId);
         if (projectId is null)
-            return Result.Fail("Дополнение не найдено.");
+            return Result.Fail(ResultErrors.AddonNotFound());
 
         var project = await _projects.GetByIdWithAddonsAsync(projectId.Value);
         if (project is null)
-            return Result.Fail("Проект не найден.");
+            return Result.Fail(ResultErrors.ProjectNotFound());
 
-        try
-        {
-            project.StartEdit();
-            project.UpdateAddonName(request.AddonId, request.Name);
-            project.FinishEdit();
-        }
-        catch (Domain.Exceptions.DomainException ex)
-        {
-            return Result.Fail(ex.Message);
-        }
+        project.StartEdit();
+        project.UpdateAddonName(request.AddonId, request.Name);
+        project.FinishEdit();
 
         await _projects.UpdateAsync(project);
 
@@ -138,22 +132,15 @@ public class UpdateAddonDescriptionCommandHandler : IRequestHandler<UpdateAddonD
     {
         var projectId = await _projects.GetProjectIdByAddonAsync(request.AddonId);
         if (projectId is null)
-            return Result.Fail("Дополнение не найдено.");
+            return Result.Fail(ResultErrors.AddonNotFound());
 
         var project = await _projects.GetByIdWithAddonsAsync(projectId.Value);
         if (project is null)
-            return Result.Fail("Проект не найден.");
+            return Result.Fail(ResultErrors.ProjectNotFound());
 
-        try
-        {
-            project.StartEdit();
-            project.UpdateAddonDescription(request.AddonId, request.Description);
-            project.FinishEdit();
-        }
-        catch (Domain.Exceptions.DomainException ex)
-        {
-            return Result.Fail(ex.Message);
-        }
+        project.StartEdit();
+        project.UpdateAddonDescription(request.AddonId, request.Description);
+        project.FinishEdit();
 
         await _projects.UpdateAsync(project);
 
@@ -174,22 +161,15 @@ public class UpdateAddonPriceCommandHandler : IRequestHandler<UpdateAddonPriceCo
     {
         var projectId = await _projects.GetProjectIdByAddonAsync(request.AddonId);
         if (projectId is null)
-            return Result.Fail("Дополнение не найдено.");
+            return Result.Fail(ResultErrors.AddonNotFound());
 
         var project = await _projects.GetByIdWithAddonsAsync(projectId.Value);
         if (project is null)
-            return Result.Fail("Проект не найден.");
+            return Result.Fail(ResultErrors.ProjectNotFound());
 
-        try
-        {
-            project.StartEdit();
-            project.UpdateAddonPrice(request.AddonId, request.Price);
-            project.FinishEdit();
-        }
-        catch (Domain.Exceptions.DomainException ex)
-        {
-            return Result.Fail(ex.Message);
-        }
+        project.StartEdit();
+        project.UpdateAddonPrice(request.AddonId, request.Price);
+        project.FinishEdit();
 
         await _projects.UpdateAsync(project);
 
@@ -223,24 +203,17 @@ public class DeleteAddonCommandHandler : IRequestHandler<DeleteAddonCommand, Res
     {
         var projectId = await _projects.GetProjectIdByAddonAsync(request.AddonId);
         if (projectId is null)
-            return Result.Fail("Дополнение не найдено.");
+            return Result.Fail(ResultErrors.AddonNotFound());
 
         var project = await _projects.GetByIdWithAddonsAsync(projectId.Value);
         if (project is null)
-            return Result.Fail("Проект не найден.");
+            return Result.Fail(ResultErrors.ProjectNotFound());
 
         var hasOrders = await _usageReader.HasOrdersAsync(request.AddonId, cancellationToken);
 
-        try
-        {
-            project.StartEdit();
-            project.RemoveAddon(request.AddonId, hasOrders);
-            project.FinishEdit();
-        }
-        catch (Domain.Exceptions.DomainException ex)
-        {
-            return Result.Fail(ex.Message);
-        }
+        project.StartEdit();
+        project.RemoveAddon(request.AddonId, hasOrders);
+        project.FinishEdit();
 
         await _projects.UpdateAsync(project);
 

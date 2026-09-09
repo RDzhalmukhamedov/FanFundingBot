@@ -17,6 +17,15 @@ public class DraftOrder : Order
 
     public override FormedOrder Form()
     {
+        if (_orderPositions.Count == 0)
+            throw new DomainException("Заказ должен содержать хотя бы одно дополнение.");
+
+        if (Phone.IsEmpty)
+            throw new DomainException("Номер телефона не может быть пустым.");
+
+        if (DeliveryMethod == DeliveryMethod.Delivery && Address is null)
+            throw new DomainException("Некорректный адрес доставки.");
+
         var formed = new FormedOrder(User, Project);
         formed.CopyStateFrom(this);
         formed.AddDomainEvent(new OrderFormedEvent(formed.Id, formed.User.Id, formed.Project.Id));

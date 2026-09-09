@@ -1,4 +1,5 @@
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Domain.Interfaces;
 using FluentResults;
 using FluentValidation;
@@ -43,11 +44,11 @@ public class UpdateProjectStatusCommandHandler : IRequestHandler<UpdateProjectSt
     {
         var project = await _projects.GetByIdAsync(request.ProjectId);
         if (project is null)
-            return Result.Fail<ProjectStatusUpdateResult>("Проект не найден.");
+            return Result.Fail<ProjectStatusUpdateResult>(ResultErrors.ProjectNotFound());
 
         var status = await _statuses.GetByIdAsync(request.StatusId);
         if (status is null)
-            return Result.Fail<ProjectStatusUpdateResult>("Статус не найден.");
+            return Result.Fail<ProjectStatusUpdateResult>(ResultErrors.StatusNotFound());
 
         project.SetStatus(status);
         await _projects.UpdateAsync(project);

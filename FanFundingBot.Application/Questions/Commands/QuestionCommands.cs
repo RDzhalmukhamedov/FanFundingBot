@@ -1,3 +1,5 @@
+using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Interfaces;
 using FluentResults;
@@ -31,7 +33,7 @@ public class AskQuestionCommandHandler : IRequestHandler<AskQuestionCommand, Res
     {
         var user = await _users.GetByIdAsync(request.CallerUserId);
         if (user is null)
-            return Result.Fail<Guid>("Пользователь не найден.");
+            return Result.Fail<Guid>(ResultErrors.UserNotFound());
 
         var question = new Question(user, request.Text);
         await _questions.AddAsync(question);
@@ -41,7 +43,7 @@ public class AskQuestionCommandHandler : IRequestHandler<AskQuestionCommand, Res
 }
 
 public sealed record AnswerQuestionCommand(long CallerUserId, Guid QuestionId, string Answer)
-    : IRequest<Result>;
+    : IRequest<Result>, IRequireGlobalAdmin;
 
 public class AnswerQuestionCommandValidator : AbstractValidator<AnswerQuestionCommand>
 {
@@ -72,11 +74,11 @@ public class AnswerQuestionCommandHandler : IRequestHandler<AnswerQuestionComman
     {
         var question = await _questions.GetByIdAsync(request.QuestionId);
         if (question is null)
-            return Result.Fail("Вопрос не найден.");
+            return Result.Fail(ResultErrors.QuestionNotFound());
 
         var admin = await _users.GetByIdAsync(request.CallerUserId);
         if (admin is null || !admin.IsAdmin())
-            return Result.Fail("Нет прав.");
+            return Result.Fail(ResultErrors.Forbidden());
 
         question.AnswerQuestion(admin, request.Answer);
         await _questions.UpdateAsync(question);

@@ -428,7 +428,7 @@ public class AdminProjectCallbackHandlerTests
     {
         var editFormBuilder = Substitute.For<IProjectEditFormBuilder>();
         editFormBuilder.BuildAsync(Arg.Any<Guid>(), Arg.Any<string?>())
-            .Returns(Task.FromException<ProjectEditForm>(new InvalidOperationException()));
+            .Returns((ProjectEditForm?)null);
         var authorization = Substitute.For<IAuthorizationService>();
         var handler = new AdminProjectCallbackHandler(
             _stateService, _mediator, editFormBuilder, new MainMenuHelper(authorization));

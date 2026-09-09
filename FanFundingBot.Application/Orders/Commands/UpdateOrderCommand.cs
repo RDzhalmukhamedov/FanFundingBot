@@ -1,3 +1,4 @@
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Domain.Entities;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Extensions;
@@ -50,17 +51,17 @@ public class UpdateOrderCommandHandler : IRequestHandler<UpdateOrderCommand, Res
     {
         var order = await _orders.GetByIdWithAddonsAsync(request.OrderId);
         if (order is null)
-            return Result.Fail("Заказ не найден.");
+            return Result.Fail(ResultErrors.OrderNotFound());
 
         if (order.User.Id != request.CallerUserId)
-            return Result.Fail("Нет прав.");
+            return Result.Fail(ResultErrors.Forbidden());
 
         var project = await _projects.GetByIdWithAddonsAsync(order.Project.Id);
         if (project is null)
-            return Result.Fail("Проект не найден.");
+            return Result.Fail(ResultErrors.ProjectNotFound());
 
         if (!project.Status.CanEditOrders)
-            return Result.Fail("Проект недоступен для заказа.");
+            return Result.Fail(ResultErrors.ProjectUnavailable());
 
         DraftOrder draft = order is DraftOrder d ? d : order.Edit();
 
@@ -71,7 +72,7 @@ public class UpdateOrderCommandHandler : IRequestHandler<UpdateOrderCommand, Res
         foreach (var (addonId, quantity) in request.AddonQuantities)
         {
             if (!addonsById.TryGetValue(addonId, out var addon))
-                return Result.Fail($"Дополнение {addonId} не найдено.");
+                return Result.Fail(ResultErrors.AddonNotFound(addonId));
 
             draft.AddAddon(addon, quantity);
         }
