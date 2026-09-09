@@ -95,11 +95,12 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
     public async Task HandleEditAddonPriceAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        if (!decimal.TryParse(message.Text, out var price) || price < 0)
+        var priceError = InputValidation.ValidatePrice(message.Text, out var price);
+        if (priceError != null)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
-                "Некорректная цена. Введите число (например: 499.99):",
+                priceError,
                 replyMarkup: BackKeyboard.Create(),
                 cancellationToken: ct);
             return;
@@ -149,11 +150,12 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
     public async Task HandleWizardAddonPriceAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        if (!decimal.TryParse(message.Text, out var price) || price < 0)
+        var priceError = InputValidation.ValidatePrice(message.Text, out var price);
+        if (priceError != null)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
-                "Некорректная цена. Введите число (например: 499.99):",
+                priceError,
                 replyMarkup: new ReplyKeyboardRemove(),
                 cancellationToken: ct);
             return;
@@ -224,11 +226,12 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
     public async Task HandleAddAddonPriceAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        if (!decimal.TryParse(message.Text, out var price) || price < 0)
+        var priceError = InputValidation.ValidatePrice(message.Text, out var price);
+        if (priceError != null)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
-                "Некорректная цена. Введите число (например: 499.99):",
+                priceError,
                 replyMarkup: new ReplyKeyboardRemove(),
                 cancellationToken: ct);
             return;

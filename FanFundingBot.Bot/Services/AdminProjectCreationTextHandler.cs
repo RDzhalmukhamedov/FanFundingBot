@@ -1,4 +1,5 @@
 using FanFundingBot.Bot.Abstractions;
+using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Domain.Interfaces;
@@ -91,11 +92,12 @@ public class AdminProjectCreationTextHandler : IAdminProjectCreationTextHandler
     public async Task HandleCreateAddonPriceAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        if (!decimal.TryParse(message.Text, out var price) || price < 0)
+        var priceError = InputValidation.ValidatePrice(message.Text, out var price);
+        if (priceError != null)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
-                "Некорректная цена. Введите число (например: 499.99):",
+                priceError,
                 replyMarkup: new ReplyKeyboardRemove(),
                 cancellationToken: ct);
             return;

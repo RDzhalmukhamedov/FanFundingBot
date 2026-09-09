@@ -25,4 +25,20 @@ public class InputValidationTests
     {
         InputValidation.ValidateAddress(input).Should().Be(expected);
     }
+
+    [TestCase("499.99", null, 499.99)]
+    [TestCase("0", null, 0)]
+    [TestCase("499,99", null, 499.99)]
+    [TestCase("", "Некорректная цена. Введите число (например: 499.99):", 0)]
+    [TestCase(null, "Некорректная цена. Введите число (например: 499.99):", 0)]
+    [TestCase("abc", "Некорректная цена. Введите число (например: 499.99):", 0)]
+    [TestCase("-5", "Некорректная цена. Введите число (например: 499.99):", 0)]
+    public void ValidatePrice_ShouldMatchExpected(string? input, string? expectedError, decimal expectedPrice)
+    {
+        var error = InputValidation.ValidatePrice(input, out var price);
+
+        error.Should().Be(expectedError);
+        if (expectedError is null)
+            price.Should().Be(expectedPrice);
+    }
 }
