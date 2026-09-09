@@ -1,3 +1,4 @@
+using FanFundingBot.Application.Orders;
 using FanFundingBot.Application.Orders.DTOs;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Application.Projects.Queries;
@@ -38,24 +39,16 @@ public class UIRenderer : IUIRenderer
             return;
 
         var project = projectResult.Value;
-        var addonLines = new List<string>();
-        var addonKeyboardItems = new List<(Guid Id, string Name, decimal Price, int Quantity)>();
-
-        foreach (var addonId in session.SelectedAddonIds)
-        {
-            var addon = project.Addons.FirstOrDefault(a => a.Id == addonId);
-            if (addon != null)
-            {
-                var qty = session.AddonQuantities.TryGetValue(addonId, out var q) ? q : 1;
-                var total = addon.Price * qty;
-                addonLines.Add($"{addon.Name} x{qty} — {total:F2}₽");
-                addonKeyboardItems.Add((addon.Id, addon.Name, addon.Price, qty));
-            }
-        }
+        var (previewLines, totalPrice) = OrderPreview.Build(
+            project, session.SelectedAddonIds, session.AddonQuantities);
+        var addonLines = previewLines
+            .Select(l => $"{l.Name} x{l.Quantity} — {l.Total:F2}₽")
+            .ToList();
+        var addonKeyboardItems = previewLines
+            .Select(l => (l.AddonId, l.Name, l.Price, l.Quantity))
+            .ToList();
 
         var deliveryName = session.DeliveryMethod == DeliveryMethod.Pickup ? "🚶 Самовывоз" : "🚚 Доставка";
-        var totalPrice = addonKeyboardItems.Sum(a => a.Price * a.Quantity);
-
         var text = $"📋 <b>Подтверждение заказа</b>\n\n" +
                    $"<b>Проект:</b> {project.Name}\n" +
                    $"<b>Дополнения:</b>\n{string.Join("\n", addonLines.Select(a => $"  • {a}"))}\n" +
