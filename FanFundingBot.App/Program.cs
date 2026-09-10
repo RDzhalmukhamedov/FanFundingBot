@@ -1,13 +1,21 @@
 using FanFundingBot.Application;
+using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Application.Projects.Queries;
+using FanFundingBot.Application.Users.Commands;
+using FanFundingBot.App.Auth;
 using FanFundingBot.App.Services;
 using FanFundingBot.Bot;
 using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Models;
+using FanFundingBot.Domain.Interfaces;
 using FanFundingBot.Infrastructure.Persistence;
 using FanFundingBot.Infrastructure.ExternalStorage;
 using MediatR;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using Telegram.Bot;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,12 +39,58 @@ builder.Services.AddScoped<UpdateHandler>();
 
 builder.Services.AddHostedService<OutboxProcessor>();
 
+// Web-аутентификация (Telegram Login Widget -> JWT в HttpOnly-cookie).
+// HybridCurrentUserProvider — после AddBotLayer, чтобы перекрыть TelegramCurrentUserProvider.
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+builder.Services.AddSingleton<JwtTokenService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserProvider, HybridCurrentUserProvider>();
+
+var jwtSecret = builder.Configuration["Jwt:Secret"];
+if (!string.IsNullOrEmpty(jwtSecret))
+{
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(o =>
+        {
+            o.MapInboundClaims = false;
+            o.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+            };
+            o.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = ctx =>
+                {
+                    if (string.IsNullOrEmpty(ctx.Token)
+                        && ctx.Request.Cookies.TryGetValue(JwtTokenService.CookieName, out var cookie)
+                        && !string.IsNullOrEmpty(cookie))
+                    {
+                        ctx.Token = cookie;
+                    }
+
+                    return Task.CompletedTask;
+                }
+            };
+        });
+    builder.Services.AddAuthorization();
+}
+
 if (botConfig.UsePolling)
     builder.Services.AddHostedService<PollingService>();
 else
     builder.Services.AddHostedService<WebhookService>();
 
 var app = builder.Build();
+
+if (!string.IsNullOrEmpty(jwtSecret))
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+}
 
 app.MapControllers();
 app.MapControllerRoute(name: "default", pattern: "{controller=App}/{action=Index}/{id?}");
@@ -54,6 +108,44 @@ app.MapGet("/projects", async (IMediator mediator, CancellationToken ct) =>
 })
 .WithName("GetProjects")
 .WithSummary("Публичная витрина проектов");
+
+// Вход через Telegram Login Widget: проверка подписи -> GetOrCreateUser -> JWT в HttpOnly-cookie.
+app.MapPost("/api/auth/telegram", async (
+    TelegramAuthRequest request,
+    IMediator mediator,
+    JwtTokenService tokens,
+    IOptions<JwtOptions> jwtOptions,
+    BotConfiguration botConfig,
+    IUserRepository users,
+    HttpContext http,
+    CancellationToken ct) =>
+{
+    if (!TelegramAuthValidator.IsValid(request.ToFields(), botConfig.BotToken))
+        return Results.Unauthorized();
+
+    var login = await mediator.Send(new GetOrCreateUserCommand(
+        request.Id, request.FirstName, request.LastName, request.Username,
+        request.Id == botConfig.OwnerId), ct);
+    if (login.IsFailed)
+        return Results.BadRequest(login.Errors.Select(e => e.Message));
+
+    var user = await users.GetByIdAsync(request.Id);
+    if (user is null)
+        return Results.BadRequest(new[] { "Пользователь не найден." });
+
+    var token = tokens.CreateToken(user.Id, user.Role.ToString());
+    http.Response.Cookies.Append(JwtTokenService.CookieName, token, new CookieOptions
+    {
+        HttpOnly = true,
+        SameSite = SameSiteMode.Lax,
+        Secure = http.Request.IsHttps,
+        Expires = DateTimeOffset.UtcNow.AddDays(jwtOptions.Value.ExpiresDays)
+    });
+
+    return Results.Ok(new { userId = user.Id, role = user.Role.ToString() });
+})
+.WithName("TelegramLogin")
+.WithSummary("Вход через Telegram Login Widget");
 
 using (var scope = app.Services.CreateScope())
 {
