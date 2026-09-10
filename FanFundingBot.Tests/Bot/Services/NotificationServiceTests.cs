@@ -52,4 +52,25 @@ public class NotificationServiceTests
             Arg.Is<SendMessageRequest>(r => r.Text == "Hello"),
             Arg.Any<CancellationToken>());
     }
+
+    [Test]
+    public async Task NotifyOrderStatusChanged_ShouldSendStatus()
+    {
+        await _service.NotifyOrderStatusChangedAsync(
+            7, "P", Domain.Enums.OrderStatus.Confirmed, CancellationToken.None);
+
+        await _botClient.Received(1).SendRequest<Telegram.Bot.Types.Message>(
+            Arg.Is<SendMessageRequest>(r => r.Text != null && r.Text.Contains("Подтверждён")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Test]
+    public async Task SendDirectMessage_ShouldSendText()
+    {
+        await _service.SendDirectMessageAsync(7, "Hello", CancellationToken.None);
+
+        await _botClient.Received(1).SendRequest<Telegram.Bot.Types.Message>(
+            Arg.Is<SendMessageRequest>(r => r.Text == "Hello"),
+            Arg.Any<CancellationToken>());
+    }
 }
