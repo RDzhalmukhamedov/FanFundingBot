@@ -16,9 +16,10 @@ WORKDIR /src
 # Copy project files for all projects in the solution
 COPY ["FanFundingBot.App/FanFundingBot.App.csproj", "FanFundingBot.App/"]
 COPY ["FanFundingBot.Bot/FanFundingBot.Bot.csproj", "FanFundingBot.Bot/"]
-COPY ["FanFundingBot.Core/FanFundingBot.Core.csproj", "FanFundingBot.Core/"]
-COPY ["FanFundingBot.Data/FanFundingBot.Data.csproj", "FanFundingBot.Data/"]
-COPY ["FanFundingBot.ExternalStorage/FanFundingBot.ExternalStorage.csproj", "FanFundingBot.ExternalStorage/"]
+COPY ["FanFundingBot.Domain/FanFundingBot.Domain.csproj", "FanFundingBot.Domain/"]
+COPY ["FanFundingBot.Application/FanFundingBot.Application.csproj", "FanFundingBot.Application/"]
+COPY ["FanFundingBot.Infrastructure.Persistence/FanFundingBot.Infrastructure.Persistence.csproj", "FanFundingBot.Infrastructure.Persistence/"]
+COPY ["FanFundingBot.Infrastructure.ExternalStorage/FanFundingBot.Infrastructure.ExternalStorage.csproj", "FanFundingBot.Infrastructure.ExternalStorage/"]
 
 # Restore dependencies for the startup project (restores all transitive dependencies)
 RUN dotnet restore "FanFundingBot.App/FanFundingBot.App.csproj"
