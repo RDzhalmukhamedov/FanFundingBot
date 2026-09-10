@@ -43,4 +43,10 @@ public static class ResultErrors
 
     public static Error ProjectUnavailable() =>
         new ConflictError("project.unavailable", "Проект недоступен для заказа.");
+
+    public static Error ProjectHasOrders() =>
+        new ConflictError("project.has_orders", "Нельзя удалить проект, так как по нему есть заказы.");
+
+    public static Error ProjectLimitReached() =>
+        new ConflictError("project.limit", "Нельзя иметь больше одного проекта.");
 }

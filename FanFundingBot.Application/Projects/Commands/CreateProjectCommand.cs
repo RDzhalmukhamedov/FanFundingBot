@@ -48,6 +48,10 @@ public class CreateProjectCommandHandler : IRequestHandler<CreateProjectCommand,
 
     public async Task<Result<Guid>> Handle(CreateProjectCommand request, CancellationToken cancellationToken)
     {
+        var existing = await _projects.GetAllAsync();
+        if (existing.Any(p => p.IsMember(request.CallerUserId)))
+            return Result.Fail<Guid>(ResultErrors.ProjectLimitReached());
+
         var planned = await _statuses.GetByIdAsync(Domain.Constants.KnownProjectStatusIds.Planned);
         if (planned is null)
             return Result.Fail<Guid>(ResultErrors.BaseProjectStatusNotFound());

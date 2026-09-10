@@ -52,6 +52,43 @@ public class NotificationService : INotificationPort
         }
     }
 
+    public async Task NotifyOrderStatusChangedAsync(
+        long userId, string projectName, Domain.Enums.OrderStatus newStatus, CancellationToken ct)
+    {
+        try
+        {
+            var message = $"📦 <b>Статус вашего заказа обновлён</b>\n\n" +
+                          $"Проект: <b>{projectName}</b>\n" +
+                          $"Новый статус: <b>{GetOrderStatusText(newStatus)}</b>";
+
+            await _botClient.SendMessage(
+                chatId: userId,
+                text: message,
+                parseMode: ParseMode.Html,
+                cancellationToken: ct);
+        }
+        catch
+        {
+            // Ignore users who blocked the bot
+        }
+    }
+
+    public async Task SendDirectMessageAsync(long userId, string message, CancellationToken ct)
+    {
+        try
+        {
+            await _botClient.SendMessage(
+                chatId: userId,
+                text: message,
+                parseMode: ParseMode.Html,
+                cancellationToken: ct);
+        }
+        catch
+        {
+            // Ignore users who blocked the bot
+        }
+    }
+
     private async Task SendWithRateLimitAsync(
         IReadOnlyList<long> userIds, string text, ParseMode parseMode, CancellationToken ct)
     {
@@ -81,6 +118,18 @@ public class NotificationService : INotificationPort
         {
             _sendSemaphore.Release();
         }
+    }
+
+    private static string GetOrderStatusText(Domain.Enums.OrderStatus status)
+    {
+        return status switch
+        {
+            Domain.Enums.OrderStatus.New => "🆕 Новый",
+            Domain.Enums.OrderStatus.Confirmed => "✅ Подтверждён",
+            Domain.Enums.OrderStatus.Completed => "✔️ Выполнен",
+            Domain.Enums.OrderStatus.Cancelled => "❌ Отменён",
+            _ => status.ToString()
+        };
     }
 
     private static string GetStatusEmoji(string status)

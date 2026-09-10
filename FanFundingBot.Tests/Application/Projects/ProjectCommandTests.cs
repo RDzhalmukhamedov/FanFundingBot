@@ -27,6 +27,7 @@ public class CreateProjectCommandTests
 
         _statuses.GetByIdAsync(Arg.Any<int>())
             .Returns(new ProjectStatus("Planned", 1, true));
+        _projects.GetAllAsync().Returns(new List<Project>());
     }
 
     [Test]
@@ -50,6 +51,20 @@ public class CreateProjectCommandTests
     public async Task NoPlannedStatus_ShouldFail()
     {
         _statuses.GetByIdAsync(Arg.Any<int>()).Returns((ProjectStatus?)null);
+
+        var result = await _handler.Handle(
+            new CreateProjectCommand(5, "P", "D", null), CancellationToken.None);
+
+        result.IsFailed.Should().BeTrue();
+        await _projects.DidNotReceive().AddAsync(Arg.Any<Project>());
+    }
+
+    [Test]
+    public async Task AlreadyHasProject_ShouldFailWithLimit()
+    {
+        var existing = DomainTestFactory.NewProject();
+        existing.AddMember(5, ProjectRole.ProjectAdmin);
+        _projects.GetAllAsync().Returns(new List<Project> { existing });
 
         var result = await _handler.Handle(
             new CreateProjectCommand(5, "P", "D", null), CancellationToken.None);
@@ -440,5 +455,86 @@ public class ProjectQueryTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().ContainSingle().Which.DisplayName.Should().Be("Planned");
+    }
+}
+
+[TestFixture]
+public class DeleteProjectCommandTests
+{
+    private IProjectRepository _projects;
+    private IOrderRepository _orders;
+    private DeleteProjectCommandHandler _handler;
+
+    [SetUp]
+    public void Setup()
+    {
+        _projects = Substitute.For<IProjectRepository>();
+        _orders = Substitute.For<IOrderRepository>();
+        _handler = new DeleteProjectCommandHandler(_projects, _orders);
+
+        _orders.GetByProjectAsync(Arg.Any<Guid>()).Returns(new List<Order>());
+    }
+
+    [Test]
+    public async Task Happy_ShouldDelete()
+    {
+        var project = DomainTestFactory.NewProject();
+        _projects.GetByIdAsync(project.Id).Returns(project);
+
+        var result = await _handler.Handle(
+            new DeleteProjectCommand(1, project.Id), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        await _projects.Received(1).DeleteAsync(project.Id);
+    }
+
+    [Test]
+    public async Task NotFound_ShouldFail()
+    {
+        _projects.GetByIdAsync(Arg.Any<Guid>()).Returns((Project?)null);
+
+        var result = await _handler.Handle(
+            new DeleteProjectCommand(1, Guid.NewGuid()), CancellationToken.None);
+
+        result.IsFailed.Should().BeTrue();
+        await _projects.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+    }
+
+    [Test]
+    public async Task HasOrders_ShouldFailWithConflict()
+    {
+        var project = DomainTestFactory.NewProject();
+        _projects.GetByIdAsync(project.Id).Returns(project);
+        _orders.GetByProjectAsync(project.Id)
+            .Returns(new List<Order> { DomainTestFactory.NewFormed() });
+
+        var result = await _handler.Handle(
+            new DeleteProjectCommand(1, project.Id), CancellationToken.None);
+
+        result.IsFailed.Should().BeTrue();
+        await _projects.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+    }
+}
+
+[TestFixture]
+public class GetManageableProjectsQueryTests
+{
+    [Test]
+    public async Task ShouldReturnOnlyManageable()
+    {
+        var projects = Substitute.For<IProjectRepository>();
+        var auth = Substitute.For<IAuthorizationService>();
+
+        var mine = DomainTestFactory.NewProject("Mine");
+        var alien = DomainTestFactory.NewProject("Alien");
+        projects.GetAllWithAddonsAsync().Returns(new List<Project> { mine, alien });
+        auth.CanManageProjectAsync(1, mine.Id).Returns(true);
+        auth.CanManageProjectAsync(1, alien.Id).Returns(false);
+
+        var handler = new GetManageableProjectsQueryHandler(projects, auth);
+        var result = await handler.Handle(new GetManageableProjectsQuery(1), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().ContainSingle().Which.Name.Should().Be("Mine");
     }
 }

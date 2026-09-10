@@ -10,4 +10,10 @@ public interface INotificationPort
 
     Task NotifyQuestionAnsweredAsync(
         long userId, string questionText, string answer, CancellationToken ct);
+
+    Task NotifyOrderStatusChangedAsync(
+        long userId, string projectName, Domain.Enums.OrderStatus newStatus, CancellationToken ct);
+
+    Task SendDirectMessageAsync(
+        long userId, string message, CancellationToken ct);
 }
