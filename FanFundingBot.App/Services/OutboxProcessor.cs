@@ -134,6 +134,13 @@ public class OutboxProcessor : BackgroundService
                 await storage.DeleteOrderAsync(deleted.OrderId, cancellationToken);
                 break;
 
+            case OrderStatusChangedEvent statusChanged:
+                var updated = await orders.GetByIdWithAddonsAsync(statusChanged.OrderId);
+                if (updated is null)
+                    return;
+                await storage.SaveOrderAsync(updated, cancellationToken);
+                break;
+
             default:
                 break;
         }

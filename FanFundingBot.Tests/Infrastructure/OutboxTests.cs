@@ -186,4 +186,46 @@ public class OutboxProcessorTests
         var message = await verifyContext.Set<OutboxMessage>().SingleAsync();
         message.Processed.Should().BeTrue();
     }
+
+    [Test]
+    public async Task OrderStatusChanged_ShouldUpdateInStorage()
+    {
+        using var context = CreateContext();
+        var user = DomainTestFactory.NewCustomer(1);
+        var project = DomainTestFactory.NewProject();
+        var order = DomainTestFactory.NewFormed(user, project);
+        project.ClearDomainEvents();
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        order.SetStatus(Domain.Enums.OrderStatus.Confirmed);
+        context.Orders.Update(order);
+        await context.SaveChangesAsync();
+
+        var processor = CreateProcessor();
+        var count = await processor.ProcessBatchAsync(CancellationToken.None);
+
+        count.Should().Be(2);
+        await _storage.Received(2).SaveOrderAsync(
+            Arg.Is<Order>(o => o.Id == order.Id), Arg.Any<CancellationToken>());
+    }
+
+    [Test]
+    public async Task OrderStatusChanged_MissingOrder_ShouldSkip()
+    {
+        using var context = CreateContext();
+        var goneId = Guid.NewGuid();
+        context.Set<OutboxMessage>().Add(OutboxMessage.From(
+            new OrderStatusChangedEvent(goneId, Domain.Enums.OrderStatus.New, Domain.Enums.OrderStatus.Confirmed)));
+        await context.SaveChangesAsync();
+
+        var processor = CreateProcessor();
+        await processor.ProcessBatchAsync(CancellationToken.None);
+
+        await _storage.DidNotReceive().SaveOrderAsync(
+            Arg.Any<Order>(), Arg.Any<CancellationToken>());
+        using var verifyContext = CreateContext();
+        var message = await verifyContext.Set<OutboxMessage>().SingleAsync();
+        message.Processed.Should().BeTrue();
+    }
 }
