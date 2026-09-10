@@ -1,3 +1,4 @@
+using FanFundingBot.Domain.DomainEvents;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.ValueObjects;
 
@@ -64,4 +65,15 @@ public abstract class Order : AggregateRoot
     public abstract void SetPhoneNumber(string phoneNumber);
     public abstract void SetDeliveryMethod(DeliveryMethod deliveryMethod);
     public abstract void SetShippingAddress(string? shippingAddress);
+
+    public void SetStatus(OrderStatus newStatus)
+    {
+        if (Status == newStatus)
+            return;
+
+        var oldStatus = Status;
+        Status = newStatus;
+
+        AddDomainEvent(new OrderStatusChangedEvent(Id, oldStatus, newStatus));
+    }
 }

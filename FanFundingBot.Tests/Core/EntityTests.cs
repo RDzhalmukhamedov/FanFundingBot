@@ -247,6 +247,39 @@ public class EntityTests
     }
 
     [Test]
+    public void Order_SetStatus_ShouldChangeStatusAndRaiseEvent()
+    {
+        var order = DomainTestFactory.NewFormed();
+        order.ClearDomainEvents();
+
+        order.SetStatus(OrderStatus.Confirmed);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(order.Status, Is.EqualTo(OrderStatus.Confirmed));
+            var ev = order.DomainEvents.OfType<OrderStatusChangedEvent>().Single();
+            Assert.That(ev.OrderId, Is.EqualTo(order.Id));
+            Assert.That(ev.OldStatus, Is.EqualTo(OrderStatus.New));
+            Assert.That(ev.NewStatus, Is.EqualTo(OrderStatus.Confirmed));
+        });
+    }
+
+    [Test]
+    public void Order_SetStatus_SameStatus_ShouldBeNoOp()
+    {
+        var order = DomainTestFactory.NewFormed();
+        order.ClearDomainEvents();
+
+        order.SetStatus(OrderStatus.New);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(order.Status, Is.EqualTo(OrderStatus.New));
+            Assert.That(order.DomainEvents.OfType<OrderStatusChangedEvent>(), Is.Empty);
+        });
+    }
+
+    [Test]
     public void DraftOrder_Form_WithoutPhone_ShouldThrow()
     {
         var draft = new DraftOrder(DomainTestFactory.NewCustomer(), DomainTestFactory.NewProject());
