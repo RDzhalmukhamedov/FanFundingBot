@@ -1,0 +1,43 @@
+@page "/my-orders"
+
+<PageTitle>Мои заказы</PageTitle>
+
+<h1>Мои заказы</h1>
+
+@if (!Loaded)
+{
+    <p class="muted">Загрузка...</p>
+}
+else if (Orders.Count == 0)
+{
+    <p class="muted">У вас пока нет заказов.</p>
+}
+else
+{
+    <table class="orders">
+        <thead>
+            <tr>
+                <th>Проект</th>
+                <th>Позиции</th>
+                <th>Сумма</th>
+                <th>Статус</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var order in Orders)
+            {
+                <tr>
+                    <td>@order.ProjectName</td>
+                    <td>
+                        @foreach (var p in order.Positions)
+                        {
+                            <div>@p.AddonName × @p.Quantity</div>
+                        }
+                    </td>
+                    <td>@order.Total</td>
+                    <td><StatusBadge Status="order.Status" /></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

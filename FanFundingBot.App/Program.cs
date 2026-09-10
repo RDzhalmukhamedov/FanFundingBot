@@ -3,6 +3,7 @@ using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Application.Projects.Queries;
 using FanFundingBot.Application.Users.Commands;
 using FanFundingBot.App.Auth;
+using FanFundingBot.App.Components;
 using FanFundingBot.App.Endpoints;
 using FanFundingBot.App.Services;
 using FanFundingBot.Bot;
@@ -13,6 +14,7 @@ using FanFundingBot.Infrastructure.Persistence;
 using FanFundingBot.Infrastructure.ExternalStorage;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -46,6 +48,14 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserProvider, HybridCurrentUserProvider>();
+
+// Blazor Server: состояние аутентификации из JWT-cookie + HTTP-клиент к своему API.
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthenticationStateProvider, CookieAuthenticationStateProvider>();
+builder.Services.AddScoped<WebApiTokenAccessor>();
+builder.Services.AddTransient<AuthHeaderHandler>();
+builder.Services.AddHttpClient("webapi").AddHttpMessageHandler<AuthHeaderHandler>();
 
 var jwtSecret = builder.Configuration["Jwt:Secret"];
 if (!string.IsNullOrEmpty(jwtSecret))
@@ -149,6 +159,9 @@ app.MapPost("/api/auth/telegram", async (
 .WithSummary("Вход через Telegram Login Widget");
 
 app.MapWebApi();
+
+app.UseAntiforgery();
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 using (var scope = app.Services.CreateScope())
 {

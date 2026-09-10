@@ -21,6 +21,8 @@ public sealed record BroadcastRequest(string Message);
 public sealed record UpdateOrderStatusRequest(string Status);
 public sealed record DirectMessageRequest(string Text);
 public sealed record AnswerQuestionRequest(string Answer);
+public sealed record CreateAddonRequest(string Name, string? Description, decimal Price);
+public sealed record UpdateAddonRequest(string? Name, string? Description, decimal? Price);
 
 public static class WebApiEndpoints
 {
@@ -131,6 +133,46 @@ public static class WebApiEndpoints
         {
             var result = await mediator.Send(new GetProjectStatusesQuery(), ct);
             return ToResult(result);
+        });
+
+        api.MapPost("/projects/{id:guid}/addons", async (Guid id, CreateAddonRequest request, IMediator mediator, ICurrentUserProvider me, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new CreateAddonCommand(
+                me.GetCurrentUserId(), id, request.Name, request.Description ?? string.Empty, request.Price), ct);
+            return ToResult(result, addonId => Results.Created($"/api/addons/{addonId}", new { id = addonId }));
+        });
+
+        api.MapPut("/addons/{id:guid}", async (Guid id, UpdateAddonRequest request, IMediator mediator, ICurrentUserProvider me, CancellationToken ct) =>
+        {
+            var uid = me.GetCurrentUserId();
+            if (request.Name is not null)
+            {
+                var renamed = await mediator.Send(new UpdateAddonNameCommand(uid, id, request.Name), ct);
+                if (renamed.IsFailed)
+                    return Failed(renamed);
+            }
+
+            if (request.Description is not null)
+            {
+                var described = await mediator.Send(new UpdateAddonDescriptionCommand(uid, id, request.Description), ct);
+                if (described.IsFailed)
+                    return Failed(described);
+            }
+
+            if (request.Price.HasValue)
+            {
+                var priced = await mediator.Send(new UpdateAddonPriceCommand(uid, id, request.Price.Value), ct);
+                if (priced.IsFailed)
+                    return Failed(priced);
+            }
+
+            return Results.Ok();
+        });
+
+        api.MapDelete("/addons/{id:guid}", async (Guid id, IMediator mediator, ICurrentUserProvider me, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new DeleteAddonCommand(me.GetCurrentUserId(), id), ct);
+            return ToResult(result, () => Results.NoContent());
         });
 
         return app;

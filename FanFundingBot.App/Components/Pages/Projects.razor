@@ -1,0 +1,75 @@
+@page "/projects"
+
+<PageTitle>Проекты</PageTitle>
+
+<h1>Проекты</h1>
+
+@if (!Loaded)
+{
+    <p class="muted">Загрузка...</p>
+}
+else if (!string.IsNullOrEmpty(Error))
+{
+    <p class="error">@Error</p>
+}
+else if (IsAdmin)
+{
+    <div>
+        @if (CanCreate)
+        {
+            <button class="btn btn-primary" @onclick="Create">Создать проект</button>
+        }
+        else
+        {
+            <span class="tooltip">
+                <button class="btn btn-primary" disabled>Создать проект</button>
+                <span class="tooltiptext">Нельзя иметь больше одного проекта</span>
+            </span>
+        }
+    </div>
+
+    @if (Manageable.Count == 0)
+    {
+        <p class="muted">У вас пока нет проектов. Создайте первый.</p>
+    }
+    else
+    {
+        @foreach (var project in Manageable)
+        {
+            <div class="card">
+                <h3><a href="/projects/@project.Id">@project.Name</a></h3>
+                <p>@project.Description</p>
+                <p class="muted">Статус: @project.StatusName · Дополнений: @project.Addons.Count</p>
+                <button class="btn btn-secondary" @onclick="() => Open(project.Id)">Открыть</button>
+                <button class="btn btn-secondary" @onclick="() => Edit(project.Id)">Редактировать</button>
+                <button class="btn btn-danger" @onclick="() => AskDelete(project.Id)">Удалить</button>
+            </div>
+        }
+    }
+}
+else
+{
+    <p><a href="/my-orders">Мои заказы</a></p>
+    @if (Catalog.Count == 0)
+    {
+        <p class="muted">Пока нет доступных проектов.</p>
+    }
+    else
+    {
+        @foreach (var project in Catalog)
+        {
+            <div class="card">
+                <h3>@project.Name</h3>
+                <p>@project.Description</p>
+                <p class="muted">Статус: @project.StatusName</p>
+            </div>
+        }
+    }
+}
+
+<ConfirmModal Visible="DeleteTarget.HasValue"
+              Title="Удаление проекта"
+              Text="Удалить проект? Действие необратимо."
+              Error="@DeleteError"
+              OnConfirm="DeleteAsync"
+              OnCancel="CancelDelete" />

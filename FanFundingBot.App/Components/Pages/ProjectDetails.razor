@@ -1,0 +1,134 @@
+@page "/projects/{id:guid}"
+
+<PageTitle>Проект</PageTitle>
+
+@if (Project is null)
+{
+    <p class="muted">Загрузка...</p>
+}
+else
+{
+    <h1>@Project.Name</h1>
+
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <p class="error">@Error</p>
+    }
+
+    <div class="card">
+        <p>@Project.Description</p>
+        <p class="muted">Статус: @Project.StatusName</p>
+        <select @bind="NewStatusId">
+            @foreach (var s in Statuses)
+            {
+                <option value="@s.Id">@s.DisplayName</option>
+            }
+        </select>
+        <button class="btn btn-secondary" @onclick="AskProjectStatus">Сменить статус</button>
+        <button class="btn btn-secondary" @onclick="EditProject">Редактировать</button>
+    </div>
+
+    <div class="card">
+        <h3>Дополнения</h3>
+        @if (Project.Addons.Count == 0)
+        {
+            <p class="muted">Дополнений пока нет.</p>
+        }
+        else
+        {
+            @foreach (var addon in Project.Addons)
+            {
+                <div>@addon.Name — @addon.Price</div>
+            }
+        }
+    </div>
+
+    <div class="card">
+        <h3>Заказы</h3>
+        @if (Orders.Count == 0)
+        {
+            <p class="muted">Заказов пока нет.</p>
+        }
+        else
+        {
+            <OrdersTable Orders="Orders" OnStatusChange="AskOrderStatus" OnMessage="AskMessage" />
+        }
+    </div>
+
+    <div class="card">
+        <h3>Рассылка</h3>
+        <button class="btn btn-secondary" @onclick="AskBroadcast">Сделать рассылку</button>
+    </div>
+
+    <div class="card">
+        <h3>Таблица заказов</h3>
+        @if (SheetUrl is null)
+        {
+            <p class="muted">Загрузка ссылки...</p>
+        }
+        else
+        {
+            <a href="@SheetUrl" target="_blank" rel="noopener">Открыть Google-таблицу</a>
+        }
+    </div>
+
+    <div class="card">
+        <h3>Вопросы пользователей</h3>
+        @if (Questions.Count == 0)
+        {
+            <p class="muted">Вопросов пока нет.</p>
+        }
+        else
+        {
+            @foreach (var q in Questions)
+            {
+                <div class="card">
+                    <p>@q.Text</p>
+                    <p class="muted">От: @(q.Username is not null ? "@" + q.Username : q.UserId.ToString())</p>
+                    <textarea rows="3" @bind="Answers[q.Id]" placeholder="Ваш ответ..." />
+                    <button class="btn btn-secondary" @onclick="() => AnswerAsync(q.Id)">Ответить</button>
+                </div>
+            }
+        }
+    </div>
+}
+
+<ConfirmModal Visible="ProjectStatusConfirm"
+              Title="Смена статуса проекта"
+              Text="@($"Установить статус «{NewStatusName}»? Подписанным пользователям придёт оповещение.")"
+              Error="@ModalError"
+              OnConfirm="ChangeProjectStatusAsync"
+              OnCancel="() => ProjectStatusConfirm = false" />
+
+@if (OrderStatusTarget is not null)
+{
+    <div class="modal-backdrop">
+        <div class="modal">
+            <h3>Смена статуса заказа</h3>
+            <select @bind="OrderStatusValue">
+                @foreach (var s in Enum.GetValues<OrderStatus>())
+                {
+                    <option value="@s">@OrderStatusText(s)</option>
+                }
+            </select>
+            @if (!string.IsNullOrEmpty(ModalError))
+            {
+                <p class="error">@ModalError</p>
+            }
+            <button class="btn btn-primary" @onclick="ChangeOrderStatusAsync">Подтвердить</button>
+            <button class="btn btn-secondary" @onclick="() => OrderStatusTarget = null">Отмена</button>
+        </div>
+    </div>
+}
+
+<MessageModal Visible="MessageTarget is not null"
+              Title="Сообщение пользователю"
+              Error="@ModalError"
+              OnConfirm="SendMessageAsync"
+              OnCancel="() => MessageTarget = null" />
+
+<MessageModal Visible="BroadcastOpen"
+              Title="Рассылка подписанным пользователям"
+              Error="@ModalError"
+              OnConfirm="BroadcastAsync"
+              OnCancel="() => BroadcastOpen = false" />

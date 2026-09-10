@@ -1,0 +1,15 @@
+@inherits LayoutComponentBase
+
+<header class="nav">
+    <a href="/">Главная</a>
+    <a href="/projects">Проекты</a>
+    <AuthorizeView>
+        <Authorized>
+            <a href="/my-orders">Мои заказы</a>
+        </Authorized>
+    </AuthorizeView>
+</header>
+
+<div class="page">
+    @Body
+</div>

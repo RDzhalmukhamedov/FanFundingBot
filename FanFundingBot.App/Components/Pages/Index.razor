@@ -1,0 +1,70 @@
+@page "/"
+
+<PageTitle>FanFundingBot</PageTitle>
+
+<h1>FanFundingBot — совместные закупки</h1>
+
+<AuthorizeView>
+    <Authorized>
+        <p>Вы вошли. <a href="/projects">Перейти к проектам</a></p>
+    </Authorized>
+    <NotAuthorized>
+        <div class="card">
+            <p>Войдите через Telegram, чтобы просматривать проекты и заказы.</p>
+            @if (!string.IsNullOrEmpty(BotUsername))
+            {
+                <script async src="https://telegram.org/js/telegram-widget.js?22"
+                        data-telegram-login="@BotUsername"
+                        data-size="large"
+                        data-onauth="onTelegramAuth(user)"
+                        data-request-access="write"></script>
+                <script>
+                    async function onTelegramAuth(user) {
+                        const res = await fetch('/api/auth/telegram', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                id: user.id,
+                                firstName: user.first_name,
+                                lastName: user.last_name,
+                                username: user.username,
+                                photoUrl: user.photo_url,
+                                authDate: user.auth_date,
+                                hash: user.hash
+                            })
+                        });
+                        if (res.ok) window.location.href = '/projects';
+                        else alert('Не удалось войти. Попробуйте позже.');
+                    }
+                </script>
+            }
+            else
+            {
+                <p class="muted">Вход временно недоступен (не настроен TelegramLogin:BotUsername).</p>
+            }
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+<div class="card">
+    <h2>Проекты</h2>
+    @if (Catalog is null)
+    {
+        <p class="muted">Загрузка...</p>
+    }
+    else if (Catalog.Count == 0)
+    {
+        <p class="muted">Пока нет доступных проектов.</p>
+    }
+    else
+    {
+        @foreach (var project in Catalog)
+        {
+            <div class="card">
+                <h3>@project.Name</h3>
+                <p>@project.Description</p>
+                <p class="muted">Статус: @project.StatusName</p>
+            </div>
+        }
+    }
+</div>
