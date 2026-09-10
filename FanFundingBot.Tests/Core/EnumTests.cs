@@ -1,4 +1,4 @@
-using FanFundingBot.Core.Enums;
+using FanFundingBot.Domain.Enums;
 
 namespace FanFundingBot.Tests.Core;
 
@@ -12,23 +12,6 @@ public class EnumTests
         {
             Assert.That((int)UserRole.Regular, Is.EqualTo(0));
             Assert.That((int)UserRole.Admin, Is.EqualTo(1));
-        });
-    }
-
-    [Test]
-    public void ProjectStatus_ShouldHaveExpectedValues()
-    {
-        Assert.Multiple(() =>
-        {
-            Assert.That((int)ProjectStatus.Planned, Is.EqualTo(0));
-            Assert.That((int)ProjectStatus.Translation, Is.EqualTo(1));
-            Assert.That((int)ProjectStatus.Proofreading, Is.EqualTo(2));
-            Assert.That((int)ProjectStatus.LayoutPrep, Is.EqualTo(3));
-            Assert.That((int)ProjectStatus.Printing, Is.EqualTo(4));
-            Assert.That((int)ProjectStatus.Sorting, Is.EqualTo(5));
-            Assert.That((int)ProjectStatus.Shipping, Is.EqualTo(6));
-            Assert.That((int)ProjectStatus.Completed, Is.EqualTo(7));
-            Assert.That((int)ProjectStatus.OnHold, Is.EqualTo(8));
         });
     }
 
@@ -72,14 +55,5 @@ public class EnumTests
     public void UserRole_Admin_ShouldBeDefined()
     {
         Assert.That(Enum.IsDefined(typeof(UserRole), "Admin"), Is.True);
-    }
-
-    [Test]
-    public void ProjectStatus_AllValues_ShouldBeDefined()
-    {
-        foreach (var status in new[] { "Planned", "Translation", "Proofreading", "LayoutPrep", "Printing", "Sorting", "Shipping", "Completed", "OnHold" })
-        {
-            Assert.That(Enum.IsDefined(typeof(ProjectStatus), status), Is.True, $"{status} is not defined");
-        }
     }
 }

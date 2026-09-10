@@ -1,13 +1,21 @@
 using System.Reflection;
+using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Users.Commands;
+using FanFundingBot.Application.Projects.Commands;
+using FanFundingBot.Application.Projects.Queries;
+using FanFundingBot.Application.Questions.Commands;
+using FanFundingBot.Application.Users.Commands;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Interfaces;
+using MediatR;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
-using Moq;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
@@ -81,114 +89,65 @@ public class UpdateHandlerTests
     [Test]
     public async Task HandleUpdateAsync_ShouldRouteToCommandHandler()
     {
-        var commandHandlerMock = CreateCommandHandlerMock();
-        var callbackHandlerMock = CreateCallbackHandlerMock();
-        var contactHandlerMock = new Mock<IContactHandler>();
+        var commandHandler = Substitute.For<ICommandHandler>();
+        var callbackHandler = Substitute.For<ICallbackQueryHandler>();
+        var contactHandler = Substitute.For<IContactHandler>();
 
-        var updateHandler = new UpdateHandler(
-            commandHandlerMock.Object,
-            callbackHandlerMock.Object,
-            contactHandlerMock.Object);
-
-        var botClientMock = new Mock<ITelegramBotClient>();
-
-        commandHandlerMock
-            .Setup(h => h.HandleCommandAsync(
-                It.IsAny<ITelegramBotClient>(),
-                It.IsAny<Message>(),
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        var updateHandler = new UpdateHandler(commandHandler, callbackHandler, contactHandler, NullLogger<UpdateHandler>.Instance);
+        var botClient = Substitute.For<ITelegramBotClient>();
 
         var update = TelegramFactory.CreateUpdate(
             message: TelegramFactory.CreateMessage(text: "/start"));
 
-        await updateHandler.HandleUpdateAsync(botClientMock.Object, update, CancellationToken.None);
+        await updateHandler.HandleUpdateAsync(botClient, update, CancellationToken.None);
 
-        commandHandlerMock.Verify(
-            h => h.HandleCommandAsync(
-                It.IsAny<ITelegramBotClient>(),
-                It.IsAny<Message>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
+        await commandHandler.Received(1).HandleCommandAsync(
+            Arg.Any<ITelegramBotClient>(),
+            Arg.Any<Message>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task HandleUpdateAsync_CallbackQuery_ShouldRouteToCallbackHandler()
     {
-        var commandHandlerMock = CreateCommandHandlerMock();
-        var callbackHandlerMock = CreateCallbackHandlerMock();
-        var contactHandlerMock = new Mock<IContactHandler>();
+        var commandHandler = Substitute.For<ICommandHandler>();
+        var callbackHandler = Substitute.For<ICallbackQueryHandler>();
+        var contactHandler = Substitute.For<IContactHandler>();
 
-        var updateHandler = new UpdateHandler(
-            commandHandlerMock.Object,
-            callbackHandlerMock.Object,
-            contactHandlerMock.Object);
-
-        var botClientMock = new Mock<ITelegramBotClient>();
-
-        callbackHandlerMock
-            .Setup(h => h.HandleCallbackQueryAsync(
-                It.IsAny<ITelegramBotClient>(),
-                It.IsAny<CallbackQuery>(),
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        var updateHandler = new UpdateHandler(commandHandler, callbackHandler, contactHandler, NullLogger<UpdateHandler>.Instance);
+        var botClient = Substitute.For<ITelegramBotClient>();
 
         var cq = TelegramFactory.CreateCallbackQuery("1", "test_data", 1,
             TelegramFactory.CreateMessage());
         var update = TelegramFactory.CreateUpdate(callbackQuery: cq);
 
-        await updateHandler.HandleUpdateAsync(botClientMock.Object, update, CancellationToken.None);
+        await updateHandler.HandleUpdateAsync(botClient, update, CancellationToken.None);
 
-        callbackHandlerMock.Verify(
-            h => h.HandleCallbackQueryAsync(
-                It.IsAny<ITelegramBotClient>(),
-                It.IsAny<CallbackQuery>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
+        await callbackHandler.Received(1).HandleCallbackQueryAsync(
+            Arg.Any<ITelegramBotClient>(),
+            Arg.Any<CallbackQuery>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task HandleUpdateAsync_Contact_ShouldRouteToContactHandler()
     {
-        var commandHandlerMock = CreateCommandHandlerMock();
-        var callbackHandlerMock = CreateCallbackHandlerMock();
-        var contactHandlerMock = new Mock<IContactHandler>();
+        var commandHandler = Substitute.For<ICommandHandler>();
+        var callbackHandler = Substitute.For<ICallbackQueryHandler>();
+        var contactHandler = Substitute.For<IContactHandler>();
 
-        var updateHandler = new UpdateHandler(
-            commandHandlerMock.Object,
-            callbackHandlerMock.Object,
-            contactHandlerMock.Object);
-
-        var botClientMock = new Mock<ITelegramBotClient>();
-
-        contactHandlerMock
-            .Setup(h => h.HandleContactAsync(
-                It.IsAny<ITelegramBotClient>(),
-                It.IsAny<Message>(),
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        var updateHandler = new UpdateHandler(commandHandler, callbackHandler, contactHandler, NullLogger<UpdateHandler>.Instance);
+        var botClient = Substitute.For<ITelegramBotClient>();
 
         var update = TelegramFactory.CreateUpdate(
             message: TelegramFactory.CreateMessage(contactPhone: "+71234567890"));
 
-        await updateHandler.HandleUpdateAsync(botClientMock.Object, update, CancellationToken.None);
+        await updateHandler.HandleUpdateAsync(botClient, update, CancellationToken.None);
 
-        contactHandlerMock.Verify(
-            h => h.HandleContactAsync(
-                It.IsAny<ITelegramBotClient>(),
-                It.IsAny<Message>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    private static Mock<ICommandHandler> CreateCommandHandlerMock()
-    {
-        return new Mock<ICommandHandler>();
-    }
-
-    private static Mock<ICallbackQueryHandler> CreateCallbackHandlerMock()
-    {
-        return new Mock<ICallbackQueryHandler>();
+        await contactHandler.Received(1).HandleContactAsync(
+            Arg.Any<ITelegramBotClient>(),
+            Arg.Any<Message>(),
+            Arg.Any<CancellationToken>());
     }
 }
 
@@ -198,37 +157,25 @@ public class ContactHandlerTests
     [Test]
     public async Task HandleContactAsync_ShouldAddPlusPrefix()
     {
-        var commandHandlerMock = new Mock<ICommandHandler>();
+        var commandHandler = Substitute.For<ICommandHandler>();
 
-        var handler = new ContactHandler(commandHandlerMock.Object);
-        var botClientMock = new Mock<ITelegramBotClient>();
-
-        commandHandlerMock
-            .Setup(h => h.HandlePhoneContactAsync(
-                It.IsAny<ITelegramBotClient>(),
-                It.IsAny<Message>(),
-                It.Is<string>(p => p == "+71234567890"),
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        var handler = new ContactHandler(commandHandler);
+        var botClient = Substitute.For<ITelegramBotClient>();
 
         var msg = TelegramFactory.CreateMessage(contactPhone: "71234567890");
 
-        await handler.HandleContactAsync(botClientMock.Object, msg, CancellationToken.None);
+        await handler.HandleContactAsync(botClient, msg, CancellationToken.None);
 
-        commandHandlerMock.Verify(
-            h => h.HandleCommandAsync(
-                It.IsAny<ITelegramBotClient>(),
-                It.IsAny<Message>(),
-                It.IsAny<CancellationToken>()),
-            Times.Never);
+        await commandHandler.DidNotReceive().HandleCommandAsync(
+            Arg.Any<ITelegramBotClient>(),
+            Arg.Any<Message>(),
+            Arg.Any<CancellationToken>());
 
-        commandHandlerMock.Verify(
-            h => h.HandlePhoneContactAsync(
-                It.IsAny<ITelegramBotClient>(),
-                It.IsAny<Message>(),
-                "+71234567890",
-                It.IsAny<CancellationToken>()),
-            Times.Once);
+        await commandHandler.Received(1).HandlePhoneContactAsync(
+            Arg.Any<ITelegramBotClient>(),
+            Arg.Any<Message>(),
+            "+71234567890",
+            Arg.Any<CancellationToken>());
     }
 }
 
@@ -238,45 +185,40 @@ public class CommandHandlerBroadcastTests
     [Test]
     public async Task BroadcastMessage_SetsTempBroadcastTextAndShowsConfirmation()
     {
-        var userRepoMock = new Mock<IUserRepository>();
-        var projectRepoMock = new Mock<IProjectRepository>();
         var stateService = new UserStateService(new MemoryCache(new MemoryCacheOptions()));
-        var adminServiceMock = new Mock<IAdminService>();
-        var orderFlowServiceMock = new Mock<IOrderFlowService>();
+        var authorization = Substitute.For<IAuthorizationService>();
+        var mediator = Substitute.For<IMediator>();
+        var userContext = new TelegramUserContext();
         var config = new BotConfiguration { OwnerId = 1 };
-        var uiRendererMock = new Mock<IUIRenderer>();
-        var questionRepoMock = new Mock<IQuestionRepository>();
-        var addonRepoMock = new Mock<IAddonRepository>();
-        var loggerMock = new Mock<ILogger<BroadcastTextHandler>>();
+        var uiRenderer = Substitute.For<IUIRenderer>();
 
-        var questionHandler = new QuestionTextHandler(stateService, questionRepoMock.Object, adminServiceMock.Object);
+        mediator.Send(Arg.Any<GetOrCreateUserCommand>(), Arg.Any<CancellationToken>())
+            .Returns(FluentResults.Result.Ok());
+
+        var menuHelper = new MainMenuHelper(authorization);
+        var questionHandler = new QuestionTextHandler(stateService, mediator, menuHelper);
         var broadcastHandler = new BroadcastTextHandler(stateService);
-        var orderHandler = new OrderTextHandler(stateService, orderFlowServiceMock.Object, uiRendererMock.Object);
-        var creationHandler = new AdminProjectCreationTextHandler(stateService, orderFlowServiceMock.Object);
-        var editingHandler = new AdminProjectEditingTextHandler(stateService, adminServiceMock.Object, addonRepoMock.Object,
-            new ProjectEditFormBuilder(adminServiceMock.Object, addonRepoMock.Object));
+        var orderHandler = new OrderTextHandler(stateService, uiRenderer);
+        var creationHandler = new AdminProjectCreationTextHandler(stateService);
+        var editingHandler = new AdminProjectEditingTextHandler(stateService, mediator,
+            new ProjectEditFormBuilder(mediator));
 
         var textInputHandler = new TextInputHandler(
-            stateService, adminServiceMock.Object,
+            stateService, authorization,
             questionHandler, broadcastHandler, orderHandler, creationHandler, editingHandler);
 
-        adminServiceMock.Setup(s => s.IsAdminAsync(1)).ReturnsAsync(true);
-        userRepoMock.Setup(r => r.ExistsAsync(It.IsAny<long>())).ReturnsAsync(true);
-
-        var menuHelper = new MainMenuHelper(adminServiceMock.Object);
-        var adminCommandHandler = new AdminCommandHandler(stateService, adminServiceMock.Object, projectRepoMock.Object, questionRepoMock.Object, menuHelper);
+        var adminCommandHandler = new AdminCommandHandler(stateService, mediator, menuHelper);
         var handler = new CommandHandler(
-            userRepoMock.Object, projectRepoMock.Object, stateService,
-            adminServiceMock.Object, orderFlowServiceMock.Object,
-            config, uiRendererMock.Object, textInputHandler, menuHelper, adminCommandHandler);
+            stateService, authorization, mediator, userContext,
+            config, uiRenderer, textInputHandler, menuHelper, adminCommandHandler);
 
-        var botClientMock = new Mock<ITelegramBotClient>();
+        var botClient = Substitute.For<ITelegramBotClient>();
         var msg = TelegramFactory.CreateMessage(text: "📢 Рассылка");
 
-        await handler.HandleCommandAsync(botClientMock.Object, msg, CancellationToken.None);
+        await handler.HandleCommandAsync(botClient, msg, CancellationToken.None);
 
         var msg2 = TelegramFactory.CreateMessage(text: "Hello everyone!");
-        await handler.HandleCommandAsync(botClientMock.Object, msg2, CancellationToken.None);
+        await handler.HandleCommandAsync(botClient, msg2, CancellationToken.None);
 
         var session = stateService.Get(1);
         Assert.That(session, Is.Not.Null);

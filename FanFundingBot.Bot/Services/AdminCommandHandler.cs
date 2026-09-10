@@ -1,8 +1,10 @@
+using FanFundingBot.Application.Projects.Queries;
+using FanFundingBot.Application.Questions.Queries;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Core.Interfaces;
+using MediatR;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -13,29 +15,26 @@ namespace FanFundingBot.Bot.Services;
 public class AdminCommandHandler : IAdminCommandHandler
 {
     private readonly IUserStateService _stateService;
-    private readonly IAdminService _adminService;
-    private readonly IProjectRepository _projectRepository;
-    private readonly IQuestionRepository _questionRepository;
+    private readonly IMediator _mediator;
     private readonly MainMenuHelper _menuHelper;
 
     public AdminCommandHandler(
         IUserStateService stateService,
-        IAdminService adminService,
-        IProjectRepository projectRepository,
-        IQuestionRepository questionRepository,
+        IMediator mediator,
         MainMenuHelper menuHelper)
     {
         _stateService = stateService;
-        _adminService = adminService;
-        _projectRepository = projectRepository;
-        _questionRepository = questionRepository;
+        _mediator = mediator;
         _menuHelper = menuHelper;
     }
 
     public async Task HandleAdminUpdateStatusAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        var projects = await _projectRepository.GetAllAsync();
+        var projectsResult = await _mediator.Send(new GetProjectsQuery(), ct);
+        var projects = projectsResult.IsSuccess
+            ? projectsResult.Value
+            : new List<Application.Projects.DTOs.ProjectDto>();
         if (projects.Count == 0)
         {
             await botClient.SendMessage(
@@ -47,7 +46,10 @@ public class AdminCommandHandler : IAdminCommandHandler
         }
 
         var project = projects.First();
-        var statuses = await _adminService.GetAllStatusesAsync();
+        var statusesResult = await _mediator.Send(new GetProjectStatusesQuery(), ct);
+        var statuses = statusesResult.IsSuccess
+            ? statusesResult.Value
+            : new List<Application.Projects.DTOs.ProjectStatusDto>();
         var (keyboard, _) = StatusSelectionKeyboard.Create(statuses, project.Id, 1);
 
         await botClient.SendMessage(
@@ -74,7 +76,10 @@ public class AdminCommandHandler : IAdminCommandHandler
     public async Task HandleAdminAnswerQuestionAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        var questions = await _adminService.GetUnansweredQuestionsAsync();
+        var questionsResult = await _mediator.Send(new GetUnansweredQuestionsQuery(userId), ct);
+        var questions = questionsResult.IsSuccess
+            ? questionsResult.Value
+            : new List<Application.Questions.DTOs.QuestionDto>();
 
         if (questions.Count == 0)
         {
@@ -89,7 +94,7 @@ public class AdminCommandHandler : IAdminCommandHandler
         var keyboard = new List<InlineKeyboardButton[]>();
         foreach (var q in questions)
         {
-            var username = q.User.Username != null ? $"@{q.User.Username}" : $"ID {q.UserId}";
+            var username = q.Username != null ? $"@{q.Username}" : $"ID {q.UserId}";
             keyboard.Add(new[]
             {
                 InlineKeyboardButton.WithCallbackData(
@@ -125,7 +130,10 @@ public class AdminCommandHandler : IAdminCommandHandler
     public async Task HandleAdminEditProjectListAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        var projects = await _projectRepository.GetAllAsync();
+        var projectsResult = await _mediator.Send(new GetProjectsQuery(), ct);
+        var projects = projectsResult.IsSuccess
+            ? projectsResult.Value
+            : new List<Application.Projects.DTOs.ProjectDto>();
 
         if (projects.Count == 0)
         {
@@ -137,6 +145,12 @@ public class AdminCommandHandler : IAdminCommandHandler
             return;
         }
 
+        await botClient.SendMessage(
+            message.Chat.Id,
+            "✏️ Режим редактирования проекта.",
+            replyMarkup: new ReplyKeyboardRemove(),
+            cancellationToken: ct);
+
         var keyboard = new List<InlineKeyboardButton[]>();
         foreach (var project in projects)
         {
@@ -147,6 +161,11 @@ public class AdminCommandHandler : IAdminCommandHandler
                     CallbackData.Build("admin_edit_project", project.Id))
             });
         }
+
+        keyboard.Add(new[]
+        {
+            InlineKeyboardButton.WithCallbackData("❌ Отмена", "admin_cancel")
+        });
 
         await botClient.SendMessage(
             message.Chat.Id,

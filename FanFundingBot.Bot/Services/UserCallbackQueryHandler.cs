@@ -1,9 +1,13 @@
+using FanFundingBot.Application.Orders.Commands;
+using FanFundingBot.Application.Orders.Queries;
+using FanFundingBot.Application.Projects.DTOs;
+using FanFundingBot.Application.Projects.Queries;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Bot.Models;
+using FanFundingBot.Domain.Enums;
+using MediatR;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -14,35 +18,20 @@ namespace FanFundingBot.Bot.Services;
 public class UserCallbackQueryHandler : IUserCallbackQueryHandler
 {
     private readonly IUserStateService _stateService;
-    private readonly IOrderFlowService _orderFlowService;
-    private readonly IProjectRepository _projectRepository;
-    private readonly IOrderRepository _orderRepository;
+    private readonly IMediator _mediator;
     private readonly IUIRenderer _uiRenderer;
-    private readonly IAdminService _adminService;
-    private readonly IOrderProcessingQueue _processingQueue;
     private readonly MainMenuHelper _menuHelper;
-    private readonly ProjectAccessHelper _projectAccess;
 
     public UserCallbackQueryHandler(
         IUserStateService stateService,
-        IOrderFlowService orderFlowService,
-        IProjectRepository projectRepository,
-        IOrderRepository orderRepository,
+        IMediator mediator,
         IUIRenderer uiRenderer,
-        IAdminService adminService,
-        IOrderProcessingQueue processingQueue,
-        MainMenuHelper menuHelper,
-        ProjectAccessHelper projectAccess)
+        MainMenuHelper menuHelper)
     {
         _stateService = stateService;
-        _orderFlowService = orderFlowService;
-        _projectRepository = projectRepository;
-        _orderRepository = orderRepository;
+        _mediator = mediator;
         _uiRenderer = uiRenderer;
-        _adminService = adminService;
-        _processingQueue = processingQueue;
         _menuHelper = menuHelper;
-        _projectAccess = projectAccess;
     }
 
     public async Task HandleAddonToggleAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
@@ -62,7 +51,7 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
         }
         _stateService.Update(userId, session);
 
-        var project = await _projectRepository.GetByIdWithAddonsAsync(session.SelectedProjectId.Value);
+        var project = await GetProjectAsync(session.SelectedProjectId.Value, ct);
         if (project == null) return;
 
         await _uiRenderer.SendAddonSelectionAsync(
@@ -80,7 +69,7 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
         session.AddonPage = int.Parse(pageStr);
         _stateService.Update(userId, session);
 
-        var project = await _projectRepository.GetByIdWithAddonsAsync(session.SelectedProjectId.Value);
+        var project = await GetProjectAsync(session.SelectedProjectId.Value, ct);
         if (project == null) return;
 
         await _uiRenderer.SendAddonSelectionAsync(
@@ -151,47 +140,59 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
             session.Phone == null || session.DeliveryMethod == null) return;
 
         var chatId = query.Message!.Chat.Id;
-        var messageId = query.Message.MessageId;
         var isEditing = session.EditingOrderId.HasValue;
-        var editingOrderId = session.EditingOrderId;
 
-        var capturedProjectId = session.SelectedProjectId.Value;
-        var capturedAddonIds = new HashSet<Guid>(session.SelectedAddonIds);
-        var capturedQuantities = new Dictionary<Guid, int>(session.AddonQuantities);
-        var capturedPhone = session.Phone;
-        var capturedDelivery = session.DeliveryMethod.Value;
-        var capturedAddress = session.Address;
-        var capturedUserId = userId;
+        if (isEditing)
+        {
+            var updateResult = await _mediator.Send(new UpdateOrderCommand(
+                session.EditingOrderId!.Value, userId,
+                new Dictionary<Guid, int>(session.AddonQuantities),
+                session.Phone, session.DeliveryMethod.Value, session.Address), ct);
+
+            if (updateResult.IsFailed)
+            {
+                await botClient.SendMessage(
+                    chatId,
+                    $"❌ Не удалось обновить заказ: {updateResult.Errors[0].Message}\n\nПопробуйте позже.",
+                    cancellationToken: ct);
+                return;
+            }
+
+            _stateService.Remove(userId);
+
+            await botClient.SendMessage(
+                chatId,
+                "✅ <b>Заказ обновлён!</b>\n\nВаш заказ успешно изменён.",
+                parseMode: ParseMode.Html,
+                cancellationToken: ct);
+
+            await _menuHelper.SendReturnToMenuAsync(botClient, chatId, userId, ct);
+            return;
+        }
+
+        var createResult = await _mediator.Send(new CreateOrderCommand(
+            userId, session.SelectedProjectId.Value,
+            new Dictionary<Guid, int>(session.AddonQuantities),
+            session.Phone, session.DeliveryMethod.Value, session.Address), ct);
+
+        if (createResult.IsFailed)
+        {
+            await botClient.SendMessage(
+                chatId,
+                $"❌ Не удалось оформить заказ: {createResult.Errors[0].Message}\n\nПопробуйте позже.",
+                cancellationToken: ct);
+            return;
+        }
 
         _stateService.Remove(userId);
 
-        await botClient.EditMessageText(
+        await botClient.SendMessage(
             chatId,
-            messageId,
-            isEditing
-                ? "⏳ <b>Заказ обновляется...</b>\n\nВаш заказ в обработке. Мы сообщим вам о результате."
-                : "⏳ <b>Заказ оформляется...</b>\n\nВаш заказ принят в обработку! Мы сообщим вам о результате.",
-            parseMode: Telegram.Bot.Types.Enums.ParseMode.Html,
-            replyMarkup: null,
+            $"✅ <b>Заказ успешно оформлен!</b>\n\nНомер заказа: <code>{createResult.Value:N}</code>\n\nМы свяжемся с вами в ближайшее время.",
+            parseMode: ParseMode.Html,
             cancellationToken: ct);
 
         await _menuHelper.SendReturnToMenuAsync(botClient, chatId, userId, ct);
-
-        var request = new OrderSaveRequest(
-            UserId: capturedUserId,
-            ChatId: chatId,
-            MessageId: messageId,
-            IsEditing: isEditing,
-            EditingOrderId: editingOrderId,
-            ProjectId: capturedProjectId,
-            AddonIds: capturedAddonIds,
-            AddonQuantities: capturedQuantities,
-            Phone: capturedPhone,
-            DeliveryMethod: capturedDelivery,
-            Address: capturedAddress
-        );
-
-        await _processingQueue.EnqueueAsync(request, ct);
     }
 
     public async Task HandleOrderEditAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, CancellationToken ct)
@@ -202,7 +203,7 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
         session.State = OrderFlowState.SelectingAddons;
         _stateService.Update(userId, session);
 
-        var project = await _projectRepository.GetByIdWithAddonsAsync(session.SelectedProjectId.Value);
+        var project = await GetProjectAsync(session.SelectedProjectId.Value, ct);
         if (project == null) return;
 
         await _uiRenderer.SendAddonSelectionAsync(
@@ -237,7 +238,7 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
 
                 if (session.SelectedProjectId != null)
                 {
-                    var project = await _projectRepository.GetByIdWithAddonsAsync(session.SelectedProjectId.Value);
+                    var project = await GetProjectAsync(session.SelectedProjectId.Value, ct);
                     if (project != null)
                     {
                         await _uiRenderer.SendAddonSelectionAsync(
@@ -263,8 +264,6 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
         }
     }
 
-    // --- Addon quantity inc/dec on confirmation screen ---
-
     public async Task HandleAddonQtyIncAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
         var addonId = CallbackData.GuidArg(data);
@@ -287,41 +286,49 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
         var session = _stateService.Get(userId);
         if (session == null) return;
 
-        if (session.AddonQuantities.TryGetValue(addonId, out var qty) && qty > 1)
+        if (!session.AddonQuantities.TryGetValue(addonId, out var qty) || qty <= 1)
         {
-            session.AddonQuantities[addonId] = qty - 1;
-            _stateService.Update(userId, session);
+            await botClient.AnswerCallbackQuery(
+                query.Id,
+                "Количество не может быть меньше 1. Для удаления уберите дополнение.",
+                showAlert: true,
+                cancellationToken: ct);
+            return;
         }
+
+        session.AddonQuantities[addonId] = qty - 1;
+        _stateService.Update(userId, session);
 
         await _uiRenderer.ShowConfirmationAsync(
             botClient, query.Message!.Chat.Id, userId, ct);
     }
 
-    // --- Edit existing order from My Order ---
-
     public async Task HandleOrderEditMyAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
         var orderId = CallbackData.GuidArg(data);
-        var order = await _orderRepository.GetByIdWithAddonsAsync(orderId);
-        if (order == null)
+        var orderResult = await _mediator.Send(new GetOrderByIdQuery(orderId, userId), ct);
+        if (orderResult.IsFailed)
         {
-            await botClient.AnswerCallbackQuery(query.Id, "Заказ не найден.", showAlert: true, cancellationToken: ct);
+            await botClient.AnswerCallbackQuery(query.Id, orderResult.Errors[0].Message, showAlert: true, cancellationToken: ct);
             return;
         }
 
-        var (allowed, error) = await _projectAccess.CanEditOrdersAsync(order.ProjectId);
-        if (!allowed)
+        var order = orderResult.Value;
+        var project = await GetProjectAsync(order.ProjectId, ct);
+        if (project == null || !project.CanEditOrders)
         {
-            await botClient.AnswerCallbackQuery(query.Id, error, showAlert: true, cancellationToken: ct);
+            await botClient.AnswerCallbackQuery(
+                query.Id,
+                project == null ? "Проект не найден." : "Редактирование заказа недоступно для текущего статуса проекта.",
+                showAlert: true, cancellationToken: ct);
             return;
         }
 
-        var project = await _projectRepository.GetByIdAsync(order.ProjectId);
         var session = _stateService.GetOrCreate(userId);
         session.EditingOrderId = order.Id;
         session.SelectedProjectId = order.ProjectId;
-        session.SelectedAddonIds = order.OrderAddons.Select(oa => oa.AddonId).ToHashSet();
-        session.AddonQuantities = order.OrderAddons.ToDictionary(oa => oa.AddonId, oa => oa.Quantity);
+        session.SelectedAddonIds = order.Positions.Select(p => p.AddonId).ToHashSet();
+        session.AddonQuantities = order.Positions.ToDictionary(p => p.AddonId, p => p.Quantity);
         session.Phone = order.Phone;
         session.DeliveryMethod = order.DeliveryMethod;
         session.Address = order.Address;
@@ -347,25 +354,19 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
             botClient, query.Message.Chat.Id, userId, project, ct);
     }
 
-    // --- Delete order from My Order ---
-
     public async Task HandleOrderDeleteMyAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
         var orderId = CallbackData.GuidArg(data);
 
-        var order = await _orderRepository.GetByIdWithAddonsAsync(orderId);
-        if (order == null)
+        var orderResult = await _mediator.Send(new GetOrderByIdQuery(orderId, userId), ct);
+        if (orderResult.IsFailed)
         {
-            await botClient.AnswerCallbackQuery(query.Id, "Заказ не найден.", showAlert: true, cancellationToken: ct);
+            await botClient.AnswerCallbackQuery(query.Id, orderResult.Errors[0].Message, showAlert: true, cancellationToken: ct);
             return;
         }
 
-        var (allowed, error) = await _projectAccess.CanEditOrdersAsync(order.ProjectId);
-        if (!allowed)
-        {
-            await botClient.AnswerCallbackQuery(query.Id, error, showAlert: true, cancellationToken: ct);
+        if (!await CanEditOrderAsync(botClient, query, orderResult.Value.ProjectId, ct))
             return;
-        }
 
         var keyboard = DeleteConfirmationKeyboard.Create(orderId);
 
@@ -382,21 +383,22 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
     {
         var orderId = CallbackData.GuidArg(data);
 
-        var order = await _orderRepository.GetByIdWithAddonsAsync(orderId);
-        if (order == null)
+        var orderResult = await _mediator.Send(new GetOrderByIdQuery(orderId, userId), ct);
+        if (orderResult.IsFailed)
         {
-            await botClient.AnswerCallbackQuery(query.Id, "Заказ не найден.", showAlert: true, cancellationToken: ct);
+            await botClient.AnswerCallbackQuery(query.Id, orderResult.Errors[0].Message, showAlert: true, cancellationToken: ct);
             return;
         }
 
-        var (allowed, error) = await _projectAccess.CanEditOrdersAsync(order.ProjectId);
-        if (!allowed)
+        if (!await CanEditOrderAsync(botClient, query, orderResult.Value.ProjectId, ct))
+            return;
+
+        var result = await _mediator.Send(new DeleteOrderCommand(orderId, userId), ct);
+        if (result.IsFailed)
         {
-            await botClient.AnswerCallbackQuery(query.Id, error, showAlert: true, cancellationToken: ct);
+            await botClient.AnswerCallbackQuery(query.Id, result.Errors[0].Message, showAlert: true, cancellationToken: ct);
             return;
         }
-
-        await _orderFlowService.DeleteOrderAsync(orderId);
 
         await botClient.EditMessageText(
             query.Message!.Chat.Id,
@@ -419,11 +421,32 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
             replyMarkup: null,
             cancellationToken: ct);
 
-        // Re-send order info
-        var order = await _orderRepository.GetByIdWithAddonsAsync(orderId);
-        if (order != null)
+        var orderResult = await _mediator.Send(new GetOrderByIdQuery(orderId, userId), ct);
+        if (orderResult.IsSuccess)
         {
-            await _uiRenderer.HandleMyOrderByOrderAsync(botClient, query.Message.Chat.Id, order, ct);
+            await _uiRenderer.HandleMyOrderByOrderAsync(botClient, query.Message.Chat.Id, orderResult.Value, ct);
         }
+    }
+
+    private async Task<ProjectDto?> GetProjectAsync(Guid projectId, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new GetProjectByIdQuery(projectId), ct);
+        return result.IsSuccess ? result.Value : null;
+    }
+
+    private async Task<bool> CanEditOrderAsync(
+        ITelegramBotClient botClient, CallbackQuery query, Guid projectId, CancellationToken ct)
+    {
+        var project = await GetProjectAsync(projectId, ct);
+        if (project == null || !project.CanEditOrders)
+        {
+            await botClient.AnswerCallbackQuery(
+                query.Id,
+                project == null ? "Проект не найден." : "Редактирование заказа недоступно для текущего статуса проекта.",
+                showAlert: true, cancellationToken: ct);
+            return false;
+        }
+
+        return true;
     }
 }

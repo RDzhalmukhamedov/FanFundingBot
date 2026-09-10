@@ -18,10 +18,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FanFundingBot.Core\FanFundingBot.Core.csproj" />
-    <ProjectReference Include="..\FanFundingBot.Data\FanFundingBot.Data.csproj" />
+    <ProjectReference Include="..\FanFundingBot.Domain\FanFundingBot.Domain.csproj" />
+    <ProjectReference Include="..\FanFundingBot.Application\FanFundingBot.Application.csproj" />
+    <ProjectReference Include="..\FanFundingBot.Infrastructure.Persistence\FanFundingBot.Infrastructure.Persistence.csproj" />
     <ProjectReference Include="..\FanFundingBot.Bot\FanFundingBot.Bot.csproj" />
-    <ProjectReference Include="..\FanFundingBot.ExternalStorage\FanFundingBot.ExternalStorage.csproj" />
+    <ProjectReference Include="..\FanFundingBot.Infrastructure.ExternalStorage\FanFundingBot.Infrastructure.ExternalStorage.csproj" />
   </ItemGroup>
 
 </Project>

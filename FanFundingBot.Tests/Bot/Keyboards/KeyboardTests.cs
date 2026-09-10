@@ -1,6 +1,7 @@
+using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Bot.Keyboards;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Tests.Bot.Keyboards;
@@ -128,10 +129,10 @@ public class KeyboardTests
     [Test]
     public void AddonSelectionKeyboard_ShouldShowAddonsWithCheckmarks()
     {
-        var addons = new List<Addon>
+        var addons = new List<AddonDto>
         {
-            new() { Id = Guid.NewGuid(), Name = "Addon1", Price = 100 },
-            new() { Id = Guid.NewGuid(), Name = "Addon2", Price = 200 }
+            new(Guid.NewGuid(), "Addon1", null, 100m),
+            new(Guid.NewGuid(), "Addon2", null, 200m)
         };
         var selectedIds = new HashSet<Guid> { addons[0].Id };
 
@@ -149,12 +150,11 @@ public class KeyboardTests
     [Test]
     public void AddonSelectionKeyboard_WithManyAddons_ShouldShowPagination()
     {
-        var addons = Enumerable.Range(0, 6).Select(i => new Addon
-        {
-            Id = Guid.NewGuid(),
-            Name = $"Addon{i}",
-            Price = i * 10
-        }).ToList();
+        var addons = Enumerable.Range(0, 6).Select(i => new AddonDto(
+            Guid.NewGuid(),
+            $"Addon{i}",
+            null,
+            i * 10)).ToList();
 
         var (_, totalPages) = AddonSelectionKeyboard.Create(addons, new HashSet<Guid>(), 1, 12);
 
@@ -196,9 +196,9 @@ public class KeyboardTests
     [Test]
     public void AddonSelectionKeyboard_ShouldHaveConfirmAndCancel()
     {
-        var addons = new List<Addon>
+        var addons = new List<AddonDto>
         {
-            new() { Id = Guid.NewGuid(), Name = "A1", Price = 50 }
+            new(Guid.NewGuid(), "A1", null, 50m)
         };
 
         var (keyboard, _) = AddonSelectionKeyboard.Create(addons, new HashSet<Guid>(), 1, 1);

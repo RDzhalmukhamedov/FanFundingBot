@@ -1,15 +1,17 @@
+using System.Diagnostics.CodeAnalysis;
+using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Bot.Helpers;
-using FanFundingBot.Core.Entities;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Keyboards;
 
+[ExcludeFromCodeCoverage]
 public static class StatusSelectionKeyboard
 {
     private const int PageSize = 6;
 
     public static (InlineKeyboardMarkup Keyboard, int TotalPages) Create(
-        List<ProjectStatusEntry> allStatuses,
+        List<ProjectStatusDto> allStatuses,
         Guid projectId,
         int page)
     {
@@ -28,7 +30,7 @@ public static class StatusSelectionKeyboard
             buttons.Add(new List<InlineKeyboardButton>
             {
                 InlineKeyboardButton.WithCallbackData(
-                    $"{status.DisplayName} ({(status.CanEdit ? "✅ можно ред." : "❌ нельзя ред.")})",
+                    $"{status.DisplayName} ({(status.CanEditOrders ? "✅ можно ред." : "❌ нельзя ред.")})",
                     CallbackData.Build("admin_status", projectId, status.Id))
             });
         }

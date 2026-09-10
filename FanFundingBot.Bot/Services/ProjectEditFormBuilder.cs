@@ -1,32 +1,39 @@
+using FanFundingBot.Application.Projects.Commands;
+using FanFundingBot.Application.Projects.DTOs;
+using FanFundingBot.Application.Projects.Queries;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
-using FanFundingBot.Core.Interfaces;
+using MediatR;
+using Telegram.Bot;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Services;
 
 public class ProjectEditFormBuilder : IProjectEditFormBuilder
 {
-    private readonly IAdminService _adminService;
-    private readonly IAddonRepository _addonRepository;
+    private readonly IMediator _mediator;
 
-    public ProjectEditFormBuilder(IAdminService adminService, IAddonRepository addonRepository)
+    public ProjectEditFormBuilder(IMediator mediator)
     {
-        _adminService = adminService;
-        _addonRepository = addonRepository;
+        _mediator = mediator;
     }
 
-    public async Task<ProjectEditForm> BuildAsync(Guid projectId, string? prependText = null)
+    public async Task<ProjectEditForm?> BuildAsync(Guid projectId, string? prependText = null)
     {
-        var project = await _adminService.GetProjectAsync(projectId)
-            ?? throw new InvalidOperationException("Project not found");
+        var projectResult = await _mediator.Send(new GetProjectByIdQuery(projectId));
+        if (projectResult.IsFailed)
+            return null;
 
-        var addons = await _addonRepository.GetByProjectIdAsync(projectId);
-        var addonSummary = addons.Count == 0
+        var project = projectResult.Value;
+
+        var statusesResult = await _mediator.Send(new GetProjectStatusesQuery());
+        var statuses = statusesResult.IsSuccess ? statusesResult.Value : new List<ProjectStatusDto>();
+
+        var addonSummary = project.Addons.Count == 0
             ? "Нет дополнений"
-            : string.Join("\n", addons.Select(a => $"  • {a.Name} — {a.Price:F2}₽"));
+            : string.Join("\n", project.Addons.Select(a => $"  • {a.Name} — {a.Price:F2}₽" + (a.HasOrders ? " 🔒 используется" : "")));
 
-        var statusName = (await _adminService.GetAllStatusesAsync())
+        var statusName = statuses
             .FirstOrDefault(s => s.Id == project.StatusId)?.DisplayName ?? "—";
 
         var text = $"✏️ <b>Редактирование: {project.Name}</b>\n\n" +
@@ -44,13 +51,23 @@ public class ProjectEditFormBuilder : IProjectEditFormBuilder
             new[] { InlineKeyboardButton.WithCallbackData("➕ Добавить дополнение", CallbackData.Build("admin_edit_add_addon", projectId)) }
         };
 
-        foreach (var addon in addons)
+        foreach (var addon in project.Addons)
         {
-            editButtons.Add(new[]
+            if (addon.HasOrders)
             {
-                InlineKeyboardButton.WithCallbackData($"✏️ {addon.Name}", CallbackData.Build("admin_edit_addon", addon.Id)),
-                InlineKeyboardButton.WithCallbackData($"❌ {addon.Name} (удалить)", CallbackData.Build("admin_del_addon", addon.Id))
-            });
+                editButtons.Add(new[]
+                {
+                    InlineKeyboardButton.WithCallbackData($"✏️ {addon.Name}", CallbackData.Build("admin_edit_addon", addon.Id))
+                });
+            }
+            else
+            {
+                editButtons.Add(new[]
+                {
+                    InlineKeyboardButton.WithCallbackData($"✏️ {addon.Name}", CallbackData.Build("admin_edit_addon", addon.Id)),
+                    InlineKeyboardButton.WithCallbackData($"❌ {addon.Name} (удалить)", CallbackData.Build("admin_del_addon", addon.Id))
+                });
+            }
         }
 
         editButtons.Add(new[] { InlineKeyboardButton.WithCallbackData("❌ Закрыть", "admin_cancel") });

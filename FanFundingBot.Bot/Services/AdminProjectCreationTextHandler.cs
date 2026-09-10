@@ -1,7 +1,8 @@
 using FanFundingBot.Bot.Abstractions;
+using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -12,14 +13,10 @@ namespace FanFundingBot.Bot.Services;
 public class AdminProjectCreationTextHandler : IAdminProjectCreationTextHandler
 {
     private readonly IUserStateService _stateService;
-    private readonly IOrderFlowService _orderFlowService;
 
-    public AdminProjectCreationTextHandler(
-        IUserStateService stateService,
-        IOrderFlowService orderFlowService)
+    public AdminProjectCreationTextHandler(IUserStateService stateService)
     {
         _stateService = stateService;
-        _orderFlowService = orderFlowService;
     }
 
     public async Task HandleCreateProjectNameAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
@@ -95,11 +92,12 @@ public class AdminProjectCreationTextHandler : IAdminProjectCreationTextHandler
     public async Task HandleCreateAddonPriceAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        if (!decimal.TryParse(message.Text, out var price) || price < 0)
+        var priceError = InputValidation.ValidatePrice(message.Text, out var price);
+        if (priceError != null)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
-                "Некорректная цена. Введите число (например: 499.99):",
+                priceError,
                 replyMarkup: new ReplyKeyboardRemove(),
                 cancellationToken: ct);
             return;

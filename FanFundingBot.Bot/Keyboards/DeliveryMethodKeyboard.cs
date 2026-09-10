@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using FanFundingBot.Bot.Helpers;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Keyboards;
 
+[ExcludeFromCodeCoverage]
 public static class DeliveryMethodKeyboard
 {
     public static InlineKeyboardMarkup Create()

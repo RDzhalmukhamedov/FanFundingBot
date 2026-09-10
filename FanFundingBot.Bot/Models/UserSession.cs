@@ -1,4 +1,4 @@
-using FanFundingBot.Core.Enums;
+using FanFundingBot.Domain.Enums;
 
 namespace FanFundingBot.Bot.Models;
 

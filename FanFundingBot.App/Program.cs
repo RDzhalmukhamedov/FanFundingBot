@@ -1,9 +1,12 @@
+using FanFundingBot.Application;
+using FanFundingBot.Application.Projects.Queries;
 using FanFundingBot.App.Services;
 using FanFundingBot.Bot;
 using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Data;
-using FanFundingBot.ExternalStorage;
+using FanFundingBot.Infrastructure.Persistence;
+using FanFundingBot.Infrastructure.ExternalStorage;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Telegram.Bot;
 
@@ -11,6 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
+builder.Services.AddApplication();
 builder.Services.AddDataLayer(builder.Configuration);
 builder.Services.AddBotLayer(builder.Configuration);
 builder.Services.AddExternalStorage(builder.Configuration);
@@ -25,7 +29,7 @@ builder.Services.AddHttpClient("telegram_bot")
 
 builder.Services.AddScoped<UpdateHandler>();
 
-builder.Services.AddHostedService<BackgroundOrderProcessor>();
+builder.Services.AddHostedService<OutboxProcessor>();
 
 if (botConfig.UsePolling)
     builder.Services.AddHostedService<PollingService>();
@@ -36,6 +40,20 @@ var app = builder.Build();
 
 app.MapControllers();
 app.MapControllerRoute(name: "default", pattern: "{controller=App}/{action=Index}/{id?}");
+
+// Публичная витрина (экс-FanFundingBot.Web, поглощен: отдельный хост ради двух ручек не окупал дубль DI).
+app.MapGet("/health", () => Results.Ok("ok"));
+
+app.MapGet("/projects", async (IMediator mediator, CancellationToken ct) =>
+{
+    var result = await mediator.Send(new GetProjectsQuery(), ct);
+    if (result.IsFailed)
+        return Results.BadRequest(result.Errors.Select(e => e.Message));
+
+    return Results.Ok(result.Value);
+})
+.WithName("GetProjects")
+.WithSummary("Публичная витрина проектов");
 
 using (var scope = app.Services.CreateScope())
 {
