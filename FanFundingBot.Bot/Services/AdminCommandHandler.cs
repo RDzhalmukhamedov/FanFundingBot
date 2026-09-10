@@ -145,6 +145,12 @@ public class AdminCommandHandler : IAdminCommandHandler
             return;
         }
 
+        await botClient.SendMessage(
+            message.Chat.Id,
+            "✏️ Режим редактирования проекта.",
+            replyMarkup: new ReplyKeyboardRemove(),
+            cancellationToken: ct);
+
         var keyboard = new List<InlineKeyboardButton[]>();
         foreach (var project in projects)
         {
@@ -155,6 +161,11 @@ public class AdminCommandHandler : IAdminCommandHandler
                     CallbackData.Build("admin_edit_project", project.Id))
             });
         }
+
+        keyboard.Add(new[]
+        {
+            InlineKeyboardButton.WithCallbackData("❌ Отмена", "admin_cancel")
+        });
 
         await botClient.SendMessage(
             message.Chat.Id,
