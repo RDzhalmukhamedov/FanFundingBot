@@ -5,26 +5,41 @@
 <FluentTooltipProvider />
 <FluentMessageBarProvider />
 
-<header class="nav">
-    <a href="/">Главная</a>
-    <AuthorizeView>
-        <Authorized>
-            <a href="/projects">Проекты</a>
-            <a href="/my-orders">Мои заказы</a>
-            <form method="post" action="/api/auth/logout" style="display:inline">
-                <button type="submit" class="btn btn-secondary">Выйти</button>
-            </form>
-        </Authorized>
-    </AuthorizeView>
-</header>
+<FluentLayout>
+    <FluentHeader>
+        FanFundingBot
+        <FluentSpacer />
+        <AuthorizeView>
+            <Authorized>
+                <form method="post" action="/api/auth/logout">
+                    <FluentButton Type="ButtonType.Submit" Appearance="Appearance.Stealth">Выйти</FluentButton>
+                </form>
+            </Authorized>
+        </AuthorizeView>
+    </FluentHeader>
 
-<div class="page">
-    <ErrorBoundary>
-        <ChildContent>
-            @Body
-        </ChildContent>
-        <ErrorContent>
-            <p class="error">Что-то пошло не так. <a href="/">На главную</a></p>
-        </ErrorContent>
-    </ErrorBoundary>
-</div>
+    <FluentStack Orientation="Orientation.Horizontal" Width="100%">
+        <FluentNavMenu>
+            <FluentNavLink Href="/" Match="NavLinkMatch.All">Главная</FluentNavLink>
+            <AuthorizeView>
+                <Authorized>
+                    <FluentNavLink Href="/projects">Проекты</FluentNavLink>
+                    <FluentNavLink Href="/my-orders">Мои заказы</FluentNavLink>
+                </Authorized>
+            </AuthorizeView>
+        </FluentNavMenu>
+
+        <FluentBodyContent>
+            <div class="page">
+                <ErrorBoundary>
+                    <ChildContent>
+                        @Body
+                    </ChildContent>
+                    <ErrorContent>
+                        <p class="error">Что-то пошло не так. <a href="/">На главную</a></p>
+                    </ErrorContent>
+                </ErrorBoundary>
+            </div>
+        </FluentBodyContent>
+    </FluentStack>
+</FluentLayout>
