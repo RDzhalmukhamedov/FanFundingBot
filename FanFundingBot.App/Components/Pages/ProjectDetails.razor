@@ -7,7 +7,7 @@
 
 @if (Project is null)
 {
-    <p class="muted">Загрузка...</p>
+    <FluentProgressRing />
 }
 else
 {
@@ -15,7 +15,7 @@ else
 
     @if (!string.IsNullOrEmpty(Error))
     {
-        <p class="error">@Error</p>
+        <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>
     }
 
     <div class="card">
@@ -27,15 +27,15 @@ else
                 <option value="@s.Id">@s.DisplayName @(s.CanEditOrders ? "(✅ можно ред.)" : "(❌ нельзя ред.)")</option>
             }
         </select>
-        <button type="button" class="btn btn-secondary" @onclick="AskProjectStatus">Сменить статус</button>
-        <button type="button" class="btn btn-secondary" @onclick="EditProject">Редактировать</button>
-        <button type="button" class="btn btn-secondary" @onclick="AskBroadcast">Сделать рассылку</button>
+        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskProjectStatus">Сменить статус</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="EditProject">Редактировать</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskBroadcast">Сделать рассылку</FluentButton>
     </div>
 
     <div class="tabs">
-        <button type="button" class="btn @(ActiveTab == "overview" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "overview"'>Обзор</button>
-        <button type="button" class="btn @(ActiveTab == "orders" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "orders"'>Заказы (@OrdersTotalCount)</button>
-        <button type="button" class="btn @(ActiveTab == "questions" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "questions"'>Вопросы (@QuestionsTotalCount)</button>
+        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "overview" ? Appearance.Accent : Appearance.Neutral)' OnClick='() => ActiveTab = "overview"'>Обзор</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "orders" ? Appearance.Accent : Appearance.Neutral)' OnClick='() => ActiveTab = "orders"'>Заказы (@OrdersTotalCount)</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "questions" ? Appearance.Accent : Appearance.Neutral)' OnClick='() => ActiveTab = "questions"'>Вопросы (@QuestionsTotalCount)</FluentButton>
     </div>
 
     @if (ActiveTab == "overview")
@@ -102,9 +102,9 @@ else
             {
                 <OrdersTable Orders="Orders" OnStatusChange="AskOrderStatus" OnMessage="AskMessage" />
                 <div class="pagination">
-                    <button type="button" class="btn btn-secondary" @onclick="OrdersPrevAsync" disabled="@(OrdersPage <= 1)">◀ Назад</button>
+                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(OrdersPage <= 1)" OnClick="OrdersPrevAsync">◀ Назад</FluentButton>
                     <span class="muted">Страница @OrdersPage из @OrdersTotalPages</span>
-                    <button type="button" class="btn btn-secondary" @onclick="OrdersNextAsync" disabled="@(OrdersPage >= OrdersTotalPages)">Вперёд ▶</button>
+                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(OrdersPage >= OrdersTotalPages)" OnClick="OrdersNextAsync">Вперёд ▶</FluentButton>
                 </div>
             }
         </div>
@@ -121,9 +121,9 @@ else
             {
                 <QuestionsTable Questions="Questions" OnAnswer="AskAnswer" />
                 <div class="pagination">
-                    <button type="button" class="btn btn-secondary" @onclick="QuestionsPrevAsync" disabled="@(QuestionsPage <= 1)">◀ Назад</button>
+                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(QuestionsPage <= 1)" OnClick="QuestionsPrevAsync">◀ Назад</FluentButton>
                     <span class="muted">Страница @QuestionsPage из @QuestionsTotalPages</span>
-                    <button type="button" class="btn btn-secondary" @onclick="QuestionsNextAsync" disabled="@(QuestionsPage >= QuestionsTotalPages)">Вперёд ▶</button>
+                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(QuestionsPage >= QuestionsTotalPages)" OnClick="QuestionsNextAsync">Вперёд ▶</FluentButton>
                 </div>
             }
         </div>
@@ -150,10 +150,10 @@ else
             </select>
             @if (!string.IsNullOrEmpty(ModalError))
             {
-                <p class="error">@ModalError</p>
+                <FluentMessageBar Intent="MessageIntent.Error">@ModalError</FluentMessageBar>
             }
-            <button type="button" class="btn btn-primary" @onclick="ChangeOrderStatusAsync">Подтвердить</button>
-            <button type="button" class="btn btn-secondary" @onclick="() => OrderStatusTarget = null">Отмена</button>
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" OnClick="ChangeOrderStatusAsync">Подтвердить</FluentButton>
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => OrderStatusTarget = null">Отмена</FluentButton>
         </div>
     </div>
 }

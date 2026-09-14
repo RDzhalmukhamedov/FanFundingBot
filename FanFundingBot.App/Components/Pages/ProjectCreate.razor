@@ -35,17 +35,17 @@
                 <div class="addon-actions">
                     <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>
                     <div class="addon-actions-btn">
-                        <button type="button" class="btn btn-secondary" @onclick="() => RemoveAddon(index)">Убрать</button>
+                        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => RemoveAddon(index)">Убрать</FluentButton>
                     </div>
                 </div>
             </div>
         </div>
     }
-    <button type="button" class="btn btn-secondary" @onclick="AddAddon">Добавить дополнение</button>
+    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AddAddon">Добавить дополнение</FluentButton>
 
     @if (!string.IsNullOrEmpty(Error))
     {
-        <p class="error">@Error</p>
+        <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>
     }
-    <button type="button" class="btn btn-primary" disabled="@IsSaving" @onclick="SaveAsync">Создать</button>
+    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" Loading="@IsSaving" OnClick="SaveAsync">Создать</FluentButton>
 </div>

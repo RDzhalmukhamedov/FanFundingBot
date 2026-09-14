@@ -8,11 +8,11 @@
 <h1>Мои заказы</h1>
 @if (!string.IsNullOrEmpty(Error))
 {
-    <p class="error">@Error</p>
+    <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>
 }
 @if (!Loaded)
 {
-    <p class="muted">Загрузка...</p>
+    <FluentProgressRing />
 }
 else if (Orders.Count == 0)
 {

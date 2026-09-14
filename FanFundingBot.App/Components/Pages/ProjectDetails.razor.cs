@@ -10,6 +10,7 @@ using FanFundingBot.Application.Questions.Queries;
 using FanFundingBot.App.Services;
 using FanFundingBot.Domain.Enums;
 using Microsoft.AspNetCore.Components;
+using Microsoft.FluentUI.AspNetCore.Components;
 
 namespace FanFundingBot.App.Components.Pages;
 
@@ -19,6 +20,7 @@ public partial class ProjectDetails : AuthComponentBase
 
     [Parameter] public Guid Id { get; set; }
     [Inject] private ProjectSheetLinkService SheetLinks { get; set; } = null!;
+    [Inject] private IToastService Toasts { get; set; } = null!;
 
     private ProjectDto? Project { get; set; }
     private List<OrderDto> Orders { get; set; } = [];
@@ -187,6 +189,7 @@ public partial class ProjectDetails : AuthComponentBase
         if (result.IsSuccess)
         {
             ProjectStatusConfirm = false;
+            Toasts.ShowSuccess("Статус проекта изменён.");
             await ReloadAsync();
         }
         else
@@ -212,6 +215,7 @@ public partial class ProjectDetails : AuthComponentBase
         if (result.IsSuccess)
         {
             OrderStatusTarget = null;
+            Toasts.ShowSuccess("Статус заказа изменён.");
             await LoadOrdersAsync();
         }
         else
@@ -232,6 +236,7 @@ public partial class ProjectDetails : AuthComponentBase
         if (result.IsSuccess)
         {
             MessageTarget = null;
+            Toasts.ShowSuccess("Сообщение отправлено.");
         }
         else
         {
@@ -247,6 +252,7 @@ public partial class ProjectDetails : AuthComponentBase
         if (result.IsSuccess)
         {
             BroadcastOpen = false;
+            Toasts.ShowSuccess("Рассылка отправлена.");
         }
         else
         {
@@ -266,6 +272,7 @@ public partial class ProjectDetails : AuthComponentBase
         if (result.IsSuccess)
         {
             AnswerTarget = null;
+            Toasts.ShowSuccess("Ответ отправлен.");
             await LoadQuestionsAsync();
         }
         else

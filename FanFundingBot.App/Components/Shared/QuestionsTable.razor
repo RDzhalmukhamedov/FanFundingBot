@@ -22,7 +22,7 @@
                     <td>@q.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
                     <td>@(q.Answer ?? string.Empty)</td>
                     <td>
-                        <button type="button" class="btn btn-secondary" @onclick="() => Answer(q)">Ответить</button>
+                        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => Answer(q)">Ответить</FluentButton>
                     </td>
                 </tr>
             }

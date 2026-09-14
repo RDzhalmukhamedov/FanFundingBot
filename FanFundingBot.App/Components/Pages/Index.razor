@@ -13,7 +13,7 @@
             <h2>Проекты</h2>
             @if (Catalog is null)
             {
-                <p class="muted">Загрузка...</p>
+                <FluentProgressRing />
             }
             else if (Catalog.Count == 0)
             {

@@ -6,10 +6,10 @@
             <p>@Text</p>
             @if (!string.IsNullOrEmpty(Error))
             {
-                <p class="error">@Error</p>
+                <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>
             }
-            <button type="button" class="btn btn-primary" @onclick="ConfirmAsync">Подтвердить</button>
-            <button type="button" class="btn btn-secondary" @onclick="Cancel">Отмена</button>
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" OnClick="ConfirmAsync">Подтвердить</FluentButton>
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="Cancel">Отмена</FluentButton>
         </div>
     </div>
 }

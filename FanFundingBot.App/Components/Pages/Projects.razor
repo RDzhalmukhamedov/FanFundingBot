@@ -9,25 +9,23 @@
 
 @if (!Loaded)
 {
-    <p class="muted">Загрузка...</p>
+    <FluentProgressRing />
 }
 else if (!string.IsNullOrEmpty(Error))
 {
-    <p class="error">@Error</p>
+    <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>
 }
 else if (IsAdmin)
 {
     <div>
         @if (CanCreate)
         {
-            <button type="button" class="btn btn-primary" @onclick="Create">Создать проект</button>
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" OnClick="Create">Создать проект</FluentButton>
         }
         else
         {
-            <span class="tooltip">
-                <button type="button" class="btn btn-primary" disabled>Создать проект</button>
-                <span class="tooltiptext">Нельзя иметь больше одного проекта</span>
-            </span>
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" Disabled="true" Id="create-project-btn">Создать проект</FluentButton>
+            <FluentTooltip Anchor="create-project-btn">Нельзя иметь больше одного проекта</FluentTooltip>
         }
     </div>
 
@@ -43,9 +41,9 @@ else if (IsAdmin)
                 <h3><a href="/projects/@project.Id">@project.Name</a></h3>
                 <p>@project.Description</p>
                 <p class="muted">Статус: @project.StatusName · Дополнений: @project.Addons.Count</p>
-                <button type="button" class="btn btn-secondary" @onclick="() => Open(project.Id)">Открыть</button>
-                <button type="button" class="btn btn-secondary" @onclick="() => Edit(project.Id)">Редактировать</button>
-                <button type="button" class="btn btn-danger" @onclick="() => AskDelete(project.Id)">Удалить</button>
+                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => Open(project.Id)">Открыть</FluentButton>
+                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => Edit(project.Id)">Редактировать</FluentButton>
+                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" OnClick="() => AskDelete(project.Id)">Удалить</FluentButton>
             </div>
         }
     }

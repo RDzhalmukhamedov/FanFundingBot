@@ -9,13 +9,13 @@
 
 @if (Project is null)
 {
-    <p class="muted">Загрузка...</p>
+    <FluentProgressRing />
 }
 else
 {
     @if (!string.IsNullOrEmpty(Error))
     {
-        <p class="error">@Error</p>
+        <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>
     }
     <div class="form card">
         <label>Название</label>
@@ -54,11 +54,11 @@ else
                         <div class="addon-actions-btn">
                             @if (Addons[index].HasOrders)
                             {
-                                <button type="button" class="btn btn-danger" disabled title="Это дополнение есть в одном или нескольких заказах.">Удалить</button>
+                                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" Disabled="true" Title="Это дополнение есть в одном или нескольких заказах.">Удалить</FluentButton>
                             }
                             else
                             {
-                                <button type="button" class="btn btn-danger" @onclick="() => AskDeleteAddon(Addons[index].Id)">Удалить</button>
+                                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" OnClick="() => AskDeleteAddon(Addons[index].Id)">Удалить</FluentButton>
                             }
                         </div>
                     </div>
@@ -89,7 +89,7 @@ else
                         <div class="addon-actions">
                             <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>
                             <div class="addon-actions-btn">
-                                <button type="button" class="btn btn-secondary" @onclick="() => RemoveNewAddon(index)">Убрать</button>
+                                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => RemoveNewAddon(index)">Убрать</FluentButton>
                             </div>
                         </div>
                     </div>
@@ -97,11 +97,11 @@ else
             }
         }
 
-        <button type="button" class="btn btn-secondary" @onclick="AddNewAddon">Добавить дополнение</button>
+        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AddNewAddon">Добавить дополнение</FluentButton>
     </div>
 
     <div class="card">
-        <button type="button" class="btn btn-primary" disabled="@(!IsDirty || IsSaving)" @onclick="SaveAllAsync">Сохранить</button>
+        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" Disabled="@(!IsDirty)" Loading="@IsSaving" OnClick="SaveAllAsync">Сохранить</FluentButton>
         @if (!IsDirty)
         {
             <span class="muted" style="margin-left:8px;">Нет изменений для сохранения</span>
