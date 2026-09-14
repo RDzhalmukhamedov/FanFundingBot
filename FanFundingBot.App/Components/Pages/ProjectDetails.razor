@@ -21,12 +21,10 @@ else
     <div class="card">
         <p>@Project.Description</p>
         <p class="muted">Статус: @Project.StatusName @(Project.CanEditOrders ? "(✅ можно ред.)" : "(❌ нельзя ред.)")</p>
-        <select @bind="NewStatusId">
-            @foreach (var s in Statuses)
-            {
-                <option value="@s.Id">@s.DisplayName @(s.CanEditOrders ? "(✅ можно ред.)" : "(❌ нельзя ред.)")</option>
-            }
-        </select>
+        <FluentSelect TOption="ProjectStatusDto"
+                      Items="Statuses"
+                      OptionText="@(s => s.DisplayName + (s.CanEditOrders ? " (✅ можно ред.)" : " (❌ нельзя ред.)"))"
+                      @bind-SelectedOption="SelectedProjectStatus" />
         <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskProjectStatusAsync">Сменить статус</FluentButton>
         <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="EditProject">Редактировать</FluentButton>
         <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskBroadcastAsync">Сделать рассылку</FluentButton>
@@ -49,31 +47,21 @@ else
             else
             {
                 <div class="table-wrap">
-                <table class="orders">
-                    <thead>
-                        <tr>
-                            <th>Название</th>
-                            <th>Описание</th>
-                            <th>Цена</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var addon in Project.Addons)
+                <FluentDataGrid Items="@(Project.Addons.AsQueryable())" TGridItem="AddonDto">
+                    <ChildContent>
+                    <TemplateColumn Title="Название">
+                        @context.Name
+                        @if (context.HasOrders)
                         {
-                            <tr>
-                                <td>
-                                    @addon.Name
-                                    @if (addon.HasOrders)
-                                    {
-                                        <span title="Это дополнение есть в одном или нескольких заказах.">🔒</span>
-                                    }
-                                </td>
-                                <td>@addon.Description</td>
-                                <td>@addon.Price.ToString("F2")</td>
-                            </tr>
+                            <span title="Это дополнение есть в одном или нескольких заказах.">🔒</span>
                         }
-                    </tbody>
-                </table>
+                    </TemplateColumn>
+                    <PropertyColumn Property="@(a => a.Description)" Title="Описание" />
+                    <TemplateColumn Title="Цена">
+                        @context.Price.ToString("F2")
+                    </TemplateColumn>
+                    </ChildContent>
+                </FluentDataGrid>
                 </div>
             }
         </div>
@@ -94,38 +82,14 @@ else
     {
         <div class="card">
             <h3>Заказы</h3>
-            @if (Orders.Count == 0)
-            {
-                <p class="muted">Заказов пока нет.</p>
-            }
-            else
-            {
-                <OrdersTable Orders="Orders" OnStatusChange="AskOrderStatus" OnMessage="AskMessageAsync" />
-                <div class="pagination">
-                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(OrdersPage <= 1)" OnClick="OrdersPrevAsync">◀ Назад</FluentButton>
-                    <span class="muted">Страница @OrdersPage из @OrdersTotalPages</span>
-                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(OrdersPage >= OrdersTotalPages)" OnClick="OrdersNextAsync">Вперёд ▶</FluentButton>
-                </div>
-            }
+            <OrdersTable @ref="_ordersTable" ItemsProvider="OrdersProvider" Pagination="_ordersPagination" OnStatusChange="AskOrderStatus" OnMessage="AskMessageAsync" />
         </div>
     }
     else if (ActiveTab == "questions")
     {
         <div class="card">
             <h3>Вопросы пользователей</h3>
-            @if (Questions.Count == 0)
-            {
-                <p class="muted">Вопросов пока нет.</p>
-            }
-            else
-            {
-                <QuestionsTable Questions="Questions" OnAnswer="AskAnswerAsync" />
-                <div class="pagination">
-                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(QuestionsPage <= 1)" OnClick="QuestionsPrevAsync">◀ Назад</FluentButton>
-                    <span class="muted">Страница @QuestionsPage из @QuestionsTotalPages</span>
-                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(QuestionsPage >= QuestionsTotalPages)" OnClick="QuestionsNextAsync">Вперёд ▶</FluentButton>
-                </div>
-            }
+            <QuestionsTable @ref="_questionsTable" ItemsProvider="QuestionsProvider" Pagination="_questionsPagination" OnAnswer="AskAnswerAsync" />
         </div>
     }
 }
@@ -135,12 +99,10 @@ else
     <div class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true" aria-label="Смена статуса заказа">
             <h3>Смена статуса заказа</h3>
-            <select @bind="OrderStatusValue">
-                @foreach (var s in Enum.GetValues<OrderStatus>())
-                {
-                    <option value="@s">@OrderStatusText(s)</option>
-                }
-            </select>
+            <FluentSelect TOption="OrderStatus"
+                          Items="OrderStatuses"
+                          OptionText="@(OrderStatusTexts.Text)"
+                          @bind-SelectedOption="OrderStatusValue" />
             @if (!string.IsNullOrEmpty(ModalError))
             {
                 <FluentMessageBar Intent="MessageIntent.Error">@ModalError</FluentMessageBar>

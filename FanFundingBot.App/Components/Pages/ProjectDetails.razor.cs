@@ -8,8 +8,7 @@ using FanFundingBot.Application.Questions.Commands;
 using FanFundingBot.Application.Questions.DTOs;
 using FanFundingBot.Application.Questions.Queries;
 using FanFundingBot.App.Components.Shared;
-using FanFundingBot.App.Services;
-using FanFundingBot.Domain.Enums;
+using FanFundingBot.App.Services;using FanFundingBot.Domain.Enums;
 using Microsoft.AspNetCore.Components;
 using Microsoft.FluentUI.AspNetCore.Components;
 
@@ -25,14 +24,12 @@ public partial class ProjectDetails : AuthComponentBase
     [Inject] private IDialogService Dialogs { get; set; } = null!;
 
     private ProjectDto? Project { get; set; }
-    private List<OrderDto> Orders { get; set; } = [];
-    private int OrdersPage { get; set; } = 1;
+    private PaginationState _ordersPagination = new() { ItemsPerPage = PageSize };
+    private PaginationState _questionsPagination = new() { ItemsPerPage = PageSize };
+    private OrdersTable? _ordersTable;
+    private QuestionsTable? _questionsTable;
     private int OrdersTotalCount { get; set; }
-    private int OrdersTotalPages => Math.Max(1, (int)Math.Ceiling(OrdersTotalCount / (double)PageSize));
-    private List<QuestionDto> Questions { get; set; } = [];
-    private int QuestionsPage { get; set; } = 1;
     private int QuestionsTotalCount { get; set; }
-    private int QuestionsTotalPages => Math.Max(1, (int)Math.Ceiling(QuestionsTotalCount / (double)PageSize));
     private List<ProjectStatusDto> Statuses { get; set; } = [];
     private string? SheetUrl { get; set; }
     private string? Error { get; set; }
@@ -44,6 +41,18 @@ public partial class ProjectDetails : AuthComponentBase
     private int NewStatusId { get; set; }
     private string NewStatusName =>
         Statuses.FirstOrDefault(s => s.Id == NewStatusId)?.DisplayName ?? string.Empty;
+
+    private ProjectStatusDto? SelectedProjectStatus
+    {
+        get => Statuses.FirstOrDefault(s => s.Id == NewStatusId);
+        set
+        {
+            if (value is not null)
+                NewStatusId = value.Id;
+        }
+    }
+
+    private static List<OrderStatus> OrderStatuses => Enum.GetValues<OrderStatus>().ToList();
 
     private OrderDto? OrderStatusTarget { get; set; }
     private OrderStatus OrderStatusValue { get; set; }
@@ -90,91 +99,41 @@ public partial class ProjectDetails : AuthComponentBase
         if (Project is not null && !Statuses.Any(s => s.Id == NewStatusId))
             NewStatusId = Project.StatusId;
 
-        OrdersPage = 1;
-        QuestionsPage = 1;
-        await LoadOrdersAsync();
-        await LoadQuestionsAsync();
-
         var link = await SheetLinks.GetUrlAsync(Id);
         SheetUrl = link.IsSuccess ? link.Value : string.Empty;
+
+        if (_ordersTable is not null)
+            await _ordersTable.RefreshAsync();
+        if (_questionsTable is not null)
+            await _questionsTable.RefreshAsync();
     }
 
-    private async Task LoadOrdersAsync()
+    private async ValueTask<GridItemsProviderResult<OrderDto>> OrdersProvider(GridItemsProviderRequest<OrderDto> request)
     {
         var paged = await Mediator.Send(
-            new GetOrdersByProjectQuery(Id, _userId, OrdersPage, PageSize), RequestCt);
+            new GetOrdersByProjectQuery(Id, _userId, request.StartIndex / PageSize + 1, PageSize), RequestCt);
         if (paged.IsFailed)
         {
             Error = BlazorResult.Message(paged);
-            Orders = [];
-            OrdersTotalCount = 0;
-            return;
+            return GridItemsProviderResult.From(Array.Empty<OrderDto>(), 0);
         }
 
-        Orders = paged.Value.Items;
         OrdersTotalCount = paged.Value.TotalCount;
-        if (Orders.Count == 0 && OrdersPage > 1)
-        {
-            OrdersPage = Math.Max(1, OrdersTotalPages);
-            await LoadOrdersAsync();
-        }
+        return GridItemsProviderResult.From(paged.Value.Items, paged.Value.TotalCount);
     }
 
-    private async Task LoadQuestionsAsync()
+    private async ValueTask<GridItemsProviderResult<QuestionDto>> QuestionsProvider(GridItemsProviderRequest<QuestionDto> request)
     {
         var paged = await Mediator.Send(
-            new GetUnansweredQuestionsQuery(_userId, QuestionsPage, PageSize), RequestCt);
+            new GetUnansweredQuestionsQuery(_userId, request.StartIndex / PageSize + 1, PageSize), RequestCt);
         if (paged.IsFailed)
         {
             Error = BlazorResult.Message(paged);
-            Questions = [];
-            QuestionsTotalCount = 0;
-            return;
+            return GridItemsProviderResult.From(Array.Empty<QuestionDto>(), 0);
         }
 
-        Questions = paged.Value.Items;
         QuestionsTotalCount = paged.Value.TotalCount;
-        if (Questions.Count == 0 && QuestionsPage > 1)
-        {
-            QuestionsPage = Math.Max(1, QuestionsTotalPages);
-            await LoadQuestionsAsync();
-        }
-    }
-
-    private async Task OrdersPrevAsync()
-    {
-        if (OrdersPage > 1)
-        {
-            OrdersPage--;
-            await LoadOrdersAsync();
-        }
-    }
-
-    private async Task OrdersNextAsync()
-    {
-        if (OrdersPage < OrdersTotalPages)
-        {
-            OrdersPage++;
-            await LoadOrdersAsync();
-        }
-    }
-
-    private async Task QuestionsPrevAsync()
-    {
-        if (QuestionsPage > 1)
-        {
-            QuestionsPage--;
-            await LoadQuestionsAsync();
-        }
-    }
-
-    private async Task QuestionsNextAsync()
-    {
-        if (QuestionsPage < QuestionsTotalPages)
-        {
-            QuestionsPage++;
-            await LoadQuestionsAsync();
-        }
+        return GridItemsProviderResult.From(paged.Value.Items, paged.Value.TotalCount);
     }
 
     private async Task AskProjectStatusAsync()
@@ -234,7 +193,8 @@ public partial class ProjectDetails : AuthComponentBase
         {
             OrderStatusTarget = null;
             Toasts.ShowSuccess("Статус заказа изменён.");
-            await LoadOrdersAsync();
+            if (_ordersTable is not null)
+                await _ordersTable.RefreshAsync();
         }
         else
         {
@@ -303,7 +263,8 @@ public partial class ProjectDetails : AuthComponentBase
         if (result.IsSuccess)
         {
             Toasts.ShowSuccess("Ответ отправлен.");
-            await LoadQuestionsAsync();
+            if (_questionsTable is not null)
+                await _questionsTable.RefreshAsync();
         }
         else
         {
@@ -311,6 +272,4 @@ public partial class ProjectDetails : AuthComponentBase
         }
     }
 
-    private static string OrderStatusText(OrderStatus status) =>
-        Shared.OrderStatusTexts.Text(status);
 }
