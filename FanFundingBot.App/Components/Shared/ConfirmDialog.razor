@@ -1,0 +1,12 @@
+<FluentDialogHeader ShowDismiss="true">
+    <h3>@Content.Title</h3>
+</FluentDialogHeader>
+
+<FluentDialogBody>
+    @Content.Text
+</FluentDialogBody>
+
+<FluentDialogFooter>
+    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" OnClick="ConfirmAsync">Подтвердить</FluentButton>
+    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="CancelAsync">Отмена</FluentButton>
+</FluentDialogFooter>
