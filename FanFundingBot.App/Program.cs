@@ -49,6 +49,7 @@ builder.Services.AddHostedService<OutboxProcessor>();
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<BlazorCircuitUserContext>();
 builder.Services.AddScoped<ICurrentUserProvider, HybridCurrentUserProvider>();
 
 // Blazor Server: состояние аутентификации из JWT-cookie (claims-сессия, без сырого JWT).
