@@ -35,17 +35,17 @@
                 <div class="addon-actions">
                     <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>
                     <div class="addon-actions-btn">
-                        <button class="btn btn-secondary" @onclick="() => RemoveAddon(index)">Убрать</button>
+                        <button type="button" class="btn btn-secondary" @onclick="() => RemoveAddon(index)">Убрать</button>
                     </div>
                 </div>
             </div>
         </div>
     }
-    <button class="btn btn-secondary" @onclick="AddAddon">Добавить дополнение</button>
+    <button type="button" class="btn btn-secondary" @onclick="AddAddon">Добавить дополнение</button>
 
     @if (!string.IsNullOrEmpty(Error))
     {
         <p class="error">@Error</p>
     }
-    <button class="btn btn-primary" disabled="@IsSaving" @onclick="SaveAsync">Создать</button>
+    <button type="button" class="btn btn-primary" disabled="@IsSaving" @onclick="SaveAsync">Создать</button>
 </div>

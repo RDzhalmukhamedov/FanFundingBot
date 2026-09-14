@@ -20,12 +20,12 @@ else if (IsAdmin)
     <div>
         @if (CanCreate)
         {
-            <button class="btn btn-primary" @onclick="Create">Создать проект</button>
+            <button type="button" class="btn btn-primary" @onclick="Create">Создать проект</button>
         }
         else
         {
             <span class="tooltip">
-                <button class="btn btn-primary" disabled>Создать проект</button>
+                <button type="button" class="btn btn-primary" disabled>Создать проект</button>
                 <span class="tooltiptext">Нельзя иметь больше одного проекта</span>
             </span>
         }
@@ -43,9 +43,9 @@ else if (IsAdmin)
                 <h3><a href="/projects/@project.Id">@project.Name</a></h3>
                 <p>@project.Description</p>
                 <p class="muted">Статус: @project.StatusName · Дополнений: @project.Addons.Count</p>
-                <button class="btn btn-secondary" @onclick="() => Open(project.Id)">Открыть</button>
-                <button class="btn btn-secondary" @onclick="() => Edit(project.Id)">Редактировать</button>
-                <button class="btn btn-danger" @onclick="() => AskDelete(project.Id)">Удалить</button>
+                <button type="button" class="btn btn-secondary" @onclick="() => Open(project.Id)">Открыть</button>
+                <button type="button" class="btn btn-secondary" @onclick="() => Edit(project.Id)">Редактировать</button>
+                <button type="button" class="btn btn-danger" @onclick="() => AskDelete(project.Id)">Удалить</button>
             </div>
         }
     }

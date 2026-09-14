@@ -42,25 +42,8 @@
                         data-size="large"
                         data-onauth="onTelegramAuth(user)"
                         data-request-access="write"></script>
-                <script>
-                    async function onTelegramAuth(user) {
-                        const res = await fetch('/api/auth/telegram', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                id: user.id,
-                                firstName: user.first_name,
-                                lastName: user.last_name,
-                                username: user.username,
-                                photoUrl: user.photo_url,
-                                authDate: user.auth_date,
-                                hash: user.hash
-                            })
-                        });
-                        if (res.ok) window.location.href = '/projects';
-                        else alert('Не удалось войти. Попробуйте позже.');
-                    }
-                </script>
+                <script src="js/auth.js"></script>
+                <p id="login-error" class="error" hidden>Не удалось войти. Попробуйте позже.</p>
             }
             else
             {

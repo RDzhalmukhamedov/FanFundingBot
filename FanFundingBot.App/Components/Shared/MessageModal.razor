@@ -1,15 +1,15 @@
 @if (Visible)
 {
     <div class="modal-backdrop">
-        <div class="modal">
+        <div class="modal" role="dialog" aria-modal="true" aria-label="@Title">
             <h3>@Title</h3>
             <textarea rows="5" @bind="_text" placeholder="Введите сообщение..." />
             @if (!string.IsNullOrEmpty(Error))
             {
                 <p class="error">@Error</p>
             }
-            <button class="btn btn-primary" @onclick="ConfirmAsync">Подтвердить</button>
-            <button class="btn btn-secondary" @onclick="Cancel">Отмена</button>
+            <button type="button" class="btn btn-primary" @onclick="ConfirmAsync">Подтвердить</button>
+            <button type="button" class="btn btn-secondary" @onclick="Cancel">Отмена</button>
         </div>
     </div>
 }

@@ -1,5 +1,6 @@
 @if (Orders is not null)
 {
+    <div class="table-wrap">
     <table class="orders">
         <thead>
             <tr>
@@ -28,11 +29,12 @@
                     <td>@order.Total.ToString("F2")</td>
                     <td><StatusBadge Status="order.Status" /></td>
                     <td>
-                        <button class="btn btn-secondary" @onclick="() => ChangeStatus(order)">Статус</button>
-                        <button class="btn btn-secondary" @onclick="() => WriteMessage(order)">Написать</button>
+                        <button type="button" class="btn btn-secondary" @onclick="() => ChangeStatus(order)">Статус</button>
+                        <button type="button" class="btn btn-secondary" @onclick="() => WriteMessage(order)">Написать</button>
                     </td>
                 </tr>
             }
         </tbody>
     </table>
+    </div>
 }

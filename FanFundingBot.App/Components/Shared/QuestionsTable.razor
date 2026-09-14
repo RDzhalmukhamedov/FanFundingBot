@@ -2,6 +2,7 @@
 
 @if (Questions is not null)
 {
+    <div class="table-wrap">
     <table class="orders">
         <thead>
             <tr>
@@ -21,10 +22,11 @@
                     <td>@q.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
                     <td>@(q.Answer ?? string.Empty)</td>
                     <td>
-                        <button class="btn btn-secondary" @onclick="() => Answer(q)">Ответить</button>
+                        <button type="button" class="btn btn-secondary" @onclick="() => Answer(q)">Ответить</button>
                     </td>
                 </tr>
             }
         </tbody>
     </table>
+    </div>
 }

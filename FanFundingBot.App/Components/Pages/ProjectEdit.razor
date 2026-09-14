@@ -54,11 +54,11 @@ else
                         <div class="addon-actions-btn">
                             @if (Addons[index].HasOrders)
                             {
-                                <button class="btn btn-danger" disabled title="Это дополнение есть в одном или нескольких заказах.">Удалить</button>
+                                <button type="button" class="btn btn-danger" disabled title="Это дополнение есть в одном или нескольких заказах.">Удалить</button>
                             }
                             else
                             {
-                                <button class="btn btn-danger" @onclick="() => AskDeleteAddon(Addons[index].Id)">Удалить</button>
+                                <button type="button" class="btn btn-danger" @onclick="() => AskDeleteAddon(Addons[index].Id)">Удалить</button>
                             }
                         </div>
                     </div>
@@ -89,7 +89,7 @@ else
                         <div class="addon-actions">
                             <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>
                             <div class="addon-actions-btn">
-                                <button class="btn btn-secondary" @onclick="() => RemoveNewAddon(index)">Убрать</button>
+                                <button type="button" class="btn btn-secondary" @onclick="() => RemoveNewAddon(index)">Убрать</button>
                             </div>
                         </div>
                     </div>
@@ -97,11 +97,11 @@ else
             }
         }
 
-        <button class="btn btn-secondary" @onclick="AddNewAddon">Добавить дополнение</button>
+        <button type="button" class="btn btn-secondary" @onclick="AddNewAddon">Добавить дополнение</button>
     </div>
 
     <div class="card">
-        <button class="btn btn-primary" disabled="@(!IsDirty || IsSaving)" @onclick="SaveAllAsync">Сохранить</button>
+        <button type="button" class="btn btn-primary" disabled="@(!IsDirty || IsSaving)" @onclick="SaveAllAsync">Сохранить</button>
         @if (!IsDirty)
         {
             <span class="muted" style="margin-left:8px;">Нет изменений для сохранения</span>
