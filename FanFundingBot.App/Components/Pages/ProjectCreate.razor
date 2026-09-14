@@ -17,13 +17,26 @@
     {
         var index = i;
         <div class="card">
-            <label>Название</label>
-            <input @bind="Addons[index].Name" maxlength="256" />
-            <label>Описание</label>
-            <textarea rows="2" @bind="Addons[index].Description" maxlength="2048" />
-            <label>Цена</label>
-            <input type="number" min="0" step="0.01" @bind="Addons[index].Price" />
-            <button class="btn btn-secondary" @onclick="() => RemoveAddon(index)">Убрать</button>
+            <div class="addon-row">
+                <div class="addon-field addon-name">
+                    <label>Название</label>
+                    <input @bind="Addons[index].Name" maxlength="256" />
+                </div>
+                <div class="addon-field addon-desc">
+                    <label>Описание</label>
+                    <textarea rows="2" @bind="Addons[index].Description" maxlength="2048" />
+                </div>
+                <div class="addon-field addon-price">
+                    <label>Цена</label>
+                    <input type="number" min="0" step="0.01" @bind="Addons[index].Price" />
+                </div>
+                <div class="addon-actions">
+                    <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>
+                    <div class="addon-actions-btn">
+                        <button class="btn btn-secondary" @onclick="() => RemoveAddon(index)">Убрать</button>
+                    </div>
+                </div>
+            </div>
         </div>
     }
     <button class="btn btn-secondary" @onclick="AddAddon">Добавить дополнение</button>

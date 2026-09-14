@@ -31,6 +31,17 @@
         .tabs { display: flex; gap: 8px; margin: 16px 0 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 12px; }
         .tabs .btn { margin-right: 0; }
         .tabs .active { font-weight: 600; }
+        .addon-row { display: flex; align-items: center; gap: 12px; width: 100%; }
+        .addon-row .addon-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .addon-row .addon-field label { margin: 0; }
+        .addon-row .addon-field input, .addon-row .addon-field textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 8px; margin: 0; }
+        .addon-row .addon-name { flex: 0 0 200px; }
+        .addon-row .addon-desc { flex: 1; }
+        .addon-row .addon-price { flex: 0 0 100px; }
+        .addon-row .addon-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; align-self: stretch; }
+        .addon-row .addon-actions .addon-actions-spacer { margin: 0; visibility: hidden; }
+        .addon-row .addon-actions .addon-actions-btn { flex: 1; display: flex; align-items: center; }
+        .addon-row .addon-actions .btn { margin-right: 0; }
     </style>
 </head>
 <body>
