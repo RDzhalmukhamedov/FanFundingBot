@@ -274,14 +274,6 @@ public partial class ProjectDetails : AuthComponentBase
         }
     }
 
-    // Дублирует маппинг StatusBadge (там — компонент, здесь — текст для <option>).
-    // TODO(Фаза 4b): единый OrderStatusTextService + FluentUI-компоненты.
-    private static string OrderStatusText(OrderStatus status) => status switch
-    {
-        OrderStatus.New => "🆕 Новый",
-        OrderStatus.Confirmed => "✅ Подтверждён",
-        OrderStatus.Completed => "✔️ Выполнен",
-        OrderStatus.Cancelled => "❌ Отменён",
-        _ => status.ToString()
-    };
+    private static string OrderStatusText(OrderStatus status) =>
+        Shared.OrderStatusTexts.Text(status);
 }

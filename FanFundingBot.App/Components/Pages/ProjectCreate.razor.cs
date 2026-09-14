@@ -10,6 +10,7 @@ public partial class ProjectCreate : AuthComponentBase
     private string Description { get; set; } = string.Empty;
     private List<AddonForm> Addons { get; set; } = [];
     private string? Error { get; set; }
+    private bool IsSaving { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -23,17 +24,28 @@ public partial class ProjectCreate : AuthComponentBase
 
     private async Task SaveAsync()
     {
-        var uid = await UseUserAsync();
-        var result = await Mediator.Send(new CreateProjectCommand(
-            uid,
-            Name,
-            Description,
-            Addons.Select(a => new NewAddonItem(a.Name, a.Description, a.Price)).ToList()), RequestCt);
+        if (IsSaving)
+            return;
 
-        if (result.IsSuccess)
-            Nav.NavigateTo("/projects");
-        else
-            Error = BlazorResult.Message(result);
+        IsSaving = true;
+        try
+        {
+            var uid = await UseUserAsync();
+            var result = await Mediator.Send(new CreateProjectCommand(
+                uid,
+                Name,
+                Description,
+                Addons.Select(a => new NewAddonItem(a.Name, a.Description, a.Price)).ToList()), RequestCt);
+
+            if (result.IsSuccess)
+                Nav.NavigateTo("/projects");
+            else
+                Error = BlazorResult.Message(result);
+        }
+        finally
+        {
+            IsSaving = false;
+        }
     }
 
     private sealed class AddonForm

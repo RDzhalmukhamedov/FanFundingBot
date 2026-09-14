@@ -11,6 +11,18 @@ public partial class MessageModal
     [Parameter] public EventCallback<string> OnConfirm { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
 
-    private Task ConfirmAsync() => OnConfirm.InvokeAsync(Text);
+    private string _text = string.Empty;
+    private bool _wasVisible;
+
+    protected override void OnParametersSet()
+    {
+        // Сброс при каждом открытии: иначе виден текст прошлого сообщения.
+        if (Visible && !_wasVisible)
+            _text = Text;
+
+        _wasVisible = Visible;
+    }
+
+    private Task ConfirmAsync() => OnConfirm.InvokeAsync(_text);
     private Task Cancel() => OnCancel.InvokeAsync();
 }

@@ -16,6 +16,7 @@ public partial class ProjectEdit : AuthComponentBase
     private List<AddonForm> NewAddons { get; set; } = [];
     private HashSet<Guid> DeletedAddonIds { get; set; } = [];
     private string? Error { get; set; }
+    private bool IsSaving { get; set; }
     private Guid? DeleteAddonTarget { get; set; }
     private string? DeleteError { get; set; }
     private long _userId;
@@ -122,11 +123,23 @@ public partial class ProjectEdit : AuthComponentBase
 
     private async Task SaveAllAsync()
     {
-        if (!IsDirty)
+        if (!IsDirty || IsSaving)
             return;
 
         Error = null;
+        IsSaving = true;
+        try
+        {
+            await SaveAllCoreAsync();
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
 
+    private async Task SaveAllCoreAsync()
+    {
         // Validate new addons: if any new addon has empty name but other fields filled, show error
         foreach (var ne in NewAddons)
         {

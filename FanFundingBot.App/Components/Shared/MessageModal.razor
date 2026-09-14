@@ -3,7 +3,7 @@
     <div class="modal-backdrop">
         <div class="modal">
             <h3>@Title</h3>
-            <textarea rows="5" @bind="Text" placeholder="Введите сообщение..." />
+            <textarea rows="5" @bind="_text" placeholder="Введите сообщение..." />
             @if (!string.IsNullOrEmpty(Error))
             {
                 <p class="error">@Error</p>

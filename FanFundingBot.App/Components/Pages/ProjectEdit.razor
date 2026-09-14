@@ -101,7 +101,7 @@ else
     </div>
 
     <div class="card">
-        <button class="btn btn-primary" disabled="@(!IsDirty)" @onclick="SaveAllAsync">Сохранить</button>
+        <button class="btn btn-primary" disabled="@(!IsDirty || IsSaving)" @onclick="SaveAllAsync">Сохранить</button>
         @if (!IsDirty)
         {
             <span class="muted" style="margin-left:8px;">Нет изменений для сохранения</span>

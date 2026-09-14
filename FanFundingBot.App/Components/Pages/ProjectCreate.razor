@@ -47,5 +47,5 @@
     {
         <p class="error">@Error</p>
     }
-    <button class="btn btn-primary" @onclick="SaveAsync">Создать</button>
+    <button class="btn btn-primary" disabled="@IsSaving" @onclick="SaveAsync">Создать</button>
 </div>

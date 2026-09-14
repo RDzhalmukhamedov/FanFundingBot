@@ -1,6 +1,8 @@
 using FanFundingBot.App.Components;
+using FanFundingBot.App.Components.Shared;
 using FanFundingBot.App.Services;
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Domain.Enums;
 using FanFundingBot.Infrastructure.ExternalStorage;
 using FluentAssertions;
 using FluentResults;
@@ -21,6 +23,19 @@ public class BlazorResultTests
     public void Message_Failure_ReturnsFirstErrorMessage()
     {
         BlazorResult.Message(Result.Fail("бум")).Should().Be("бум");
+    }
+}
+
+[TestFixture]
+public class OrderStatusTextsTests
+{
+    [TestCase(OrderStatus.New, "🆕 Новый")]
+    [TestCase(OrderStatus.Confirmed, "✅ Подтверждён")]
+    [TestCase(OrderStatus.Completed, "✔️ Выполнен")]
+    [TestCase(OrderStatus.Cancelled, "❌ Отменён")]
+    public void Text_KnownStatus_ReturnsBadge(OrderStatus status, string expected)
+    {
+        OrderStatusTexts.Text(status).Should().Be(expected);
     }
 }
 
