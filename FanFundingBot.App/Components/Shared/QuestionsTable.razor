@@ -19,9 +19,7 @@
                     <td>@q.Text</td>
                     <td>@(q.Username is not null ? "@" + q.Username : q.FirstName is not null ? q.FirstName : q.UserId.ToString())</td>
                     <td>@q.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
-                    <td>
-                        <textarea rows="3" value="@Answers.GetValueOrDefault(q.Id, string.Empty)" @oninput="(e) => OnInput(q.Id, e.Value?.ToString() ?? string.Empty)" placeholder="Ваш ответ..." style="width:100%;min-width:180px;"></textarea>
-                    </td>
+                    <td>@(q.Answer ?? string.Empty)</td>
                     <td>
                         <button class="btn btn-secondary" @onclick="() => Answer(q)">Ответить</button>
                     </td>

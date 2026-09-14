@@ -18,12 +18,30 @@ public partial class ProjectEdit
     private string Name { get; set; } = string.Empty;
     private string Description { get; set; } = string.Empty;
     private List<AddonForm> Addons { get; set; } = [];
-    private string NewName { get; set; } = string.Empty;
-    private string NewDescription { get; set; } = string.Empty;
-    private decimal NewPrice { get; set; }
+    private List<AddonForm> NewAddons { get; set; } = [];
+    private HashSet<Guid> DeletedAddonIds { get; set; } = [];
     private string? Error { get; set; }
     private Guid? DeleteAddonTarget { get; set; }
     private string? DeleteError { get; set; }
+
+    private string _originalName = string.Empty;
+    private string _originalDescription = string.Empty;
+    private List<AddonForm> _originalAddons = [];
+
+    private bool IsDirty =>
+        Name != _originalName ||
+        Description != _originalDescription ||
+        DeletedAddonIds.Count > 0 ||
+        NewAddons.Count > 0 ||
+        Addons.Any(a =>
+        {
+            var orig = _originalAddons.FirstOrDefault(o => o.Id == a.Id);
+            if (orig is null) return true;
+            return a.Name != orig.Name || a.Description != orig.Description || a.Price != orig.Price;
+        }) ||
+        NewAddons.Any(n => !string.IsNullOrWhiteSpace(n.Name) || !string.IsNullOrWhiteSpace(n.Description) || n.Price != 0);
+
+    private void OnFieldChanged() => StateHasChanged();
 
     protected override async Task OnInitializedAsync()
     {
@@ -47,78 +65,149 @@ public partial class ProjectEdit
         Name = Project.Name;
         Description = Project.Description ?? string.Empty;
         Addons = Project.Addons
-            .Select(a => new AddonForm { Id = a.Id, Name = a.Name, Description = a.Description ?? string.Empty, Price = a.Price })
+            .Select(a => new AddonForm { Id = a.Id, Name = a.Name, Description = a.Description ?? string.Empty, Price = a.Price, HasOrders = a.HasOrders })
             .ToList();
+        NewAddons = [];
+        DeletedAddonIds = [];
+        _originalName = Name;
+        _originalDescription = Description;
+        _originalAddons = Addons.Select(a => new AddonForm { Id = a.Id, Name = a.Name, Description = a.Description, Price = a.Price, HasOrders = a.HasOrders }).ToList();
+        Error = null;
     }
 
-    private async Task SaveAsync()
+    private void AddNewAddon()
     {
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var response = await client.PutAsJsonAsync($"api/projects/{Id}", new { name = Name, description = Description });
-        if (response.IsSuccessStatusCode)
-            await ReloadAsync();
-        else
-            Error = await WebApi.ReadErrorAsync(response);
+        NewAddons.Add(new AddonForm { Id = Guid.Empty, Name = string.Empty, Description = string.Empty, Price = 0, HasOrders = false });
     }
 
-    private async Task SaveAddonAsync(AddonForm addon)
+    private void RemoveNewAddon(int index)
     {
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var response = await client.PutAsJsonAsync($"api/addons/{addon.Id}", new
-        {
-            name = addon.Name,
-            description = addon.Description,
-            price = addon.Price
-        });
-
-        if (response.IsSuccessStatusCode)
-            await ReloadAsync();
-        else
-            Error = await WebApi.ReadErrorAsync(response);
+        if (index >= 0 && index < NewAddons.Count)
+            NewAddons.RemoveAt(index);
     }
 
-    private async Task AddAddonAsync()
+    private void AskDeleteAddon(Guid addonId)
     {
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var response = await client.PostAsJsonAsync($"api/projects/{Id}/addons", new
+        var addon = Addons.FirstOrDefault(a => a.Id == addonId);
+        if (addon is not null && addon.HasOrders)
         {
-            name = NewName,
-            description = NewDescription,
-            price = NewPrice
-        });
-
-        if (response.IsSuccessStatusCode)
-        {
-            NewName = string.Empty;
-            NewDescription = string.Empty;
-            NewPrice = 0;
-            await ReloadAsync();
+            return;
         }
-        else
-        {
-            Error = await WebApi.ReadErrorAsync(response);
-        }
+        DeleteAddonTarget = addonId;
+        DeleteError = null;
     }
-
-    private void AskDeleteAddon(Guid addonId) { DeleteAddonTarget = addonId; DeleteError = null; }
     private void CancelDeleteAddon() { DeleteAddonTarget = null; DeleteError = null; }
 
-    private async Task DeleteAddonAsync()
+    private void ConfirmDeleteAddon()
     {
         if (!DeleteAddonTarget.HasValue)
             return;
 
+        var id = DeleteAddonTarget.Value;
+        var addon = Addons.FirstOrDefault(a => a.Id == id);
+        if (addon is not null)
+        {
+            if (addon.HasOrders)
+            {
+                DeleteError = "Это дополнение есть в одном или нескольких заказах.";
+                return;
+            }
+            Addons.Remove(addon);
+            DeletedAddonIds.Add(id);
+        }
+        DeleteAddonTarget = null;
+        DeleteError = null;
+    }
+
+    private async Task SaveAllAsync()
+    {
+        if (!IsDirty)
+            return;
+
+        Error = null;
         var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var response = await client.DeleteAsync($"api/addons/{DeleteAddonTarget.Value}");
-        if (response.IsSuccessStatusCode)
+
+        // Validate new addons: if any new addon has empty name but other fields filled, show error
+        foreach (var ne in NewAddons)
         {
-            DeleteAddonTarget = null;
-            await ReloadAsync();
+            if (string.IsNullOrWhiteSpace(ne.Name) && (!string.IsNullOrWhiteSpace(ne.Description) || ne.Price != 0))
+            {
+                Error = "У нового дополнения не заполнено название.";
+                return;
+            }
         }
-        else
+        // Filter out completely empty new addons
+        var toCreate = NewAddons.Where(n => !string.IsNullOrWhiteSpace(n.Name)).ToList();
+        if (toCreate.Count == 0 && NewAddons.Count > 0 && (Name == _originalName && Description == _originalDescription && !Addons.Any(a => { var o=_originalAddons.FirstOrDefault(x=>x.Id==a.Id); return o is null || o.Name!=a.Name || o.Description!=a.Description || o.Price!=a.Price; }) && DeletedAddonIds.Count==0))
         {
-            DeleteError = await WebApi.ReadErrorAsync(response);
+            // All new addons empty, nothing to create but UI has empty rows - just clear them
+            NewAddons.Clear();
+            return;
         }
+
+        // Save project details if changed
+        if (Name != _originalName || Description != _originalDescription)
+        {
+            var response = await client.PutAsJsonAsync($"api/projects/{Id}", new { name = Name, description = Description });
+            if (!response.IsSuccessStatusCode)
+            {
+                Error = await WebApi.ReadErrorAsync(response);
+                return;
+            }
+        }
+
+        // Save existing addons that changed
+        foreach (var addon in Addons)
+        {
+            var orig = _originalAddons.FirstOrDefault(o => o.Id == addon.Id);
+            if (orig is null) continue;
+            bool nameChanged = addon.Name != orig.Name;
+            bool descChanged = addon.Description != orig.Description;
+            bool priceChanged = addon.Price != orig.Price;
+            if (!nameChanged && !descChanged && !priceChanged) continue;
+
+            var payload = new
+            {
+                name = nameChanged ? addon.Name : null,
+                description = descChanged ? addon.Description : null,
+                price = priceChanged ? (decimal?)addon.Price : null
+            };
+            var response = await client.PutAsJsonAsync($"api/addons/{addon.Id}", payload);
+            if (!response.IsSuccessStatusCode)
+            {
+                Error = await WebApi.ReadErrorAsync(response);
+                return;
+            }
+        }
+
+        // Create new addons
+        foreach (var ne in toCreate)
+        {
+            var response = await client.PostAsJsonAsync($"api/projects/{Id}/addons", new
+            {
+                name = ne.Name,
+                description = ne.Description,
+                price = ne.Price
+            });
+            if (!response.IsSuccessStatusCode)
+            {
+                Error = await WebApi.ReadErrorAsync(response);
+                return;
+            }
+        }
+
+        // Delete addons
+        foreach (var delId in DeletedAddonIds.ToList())
+        {
+            var response = await client.DeleteAsync($"api/addons/{delId}");
+            if (!response.IsSuccessStatusCode)
+            {
+                Error = await WebApi.ReadErrorAsync(response);
+                return;
+            }
+        }
+
+        await ReloadAsync();
     }
 
     private sealed class AddonForm
@@ -127,5 +216,6 @@ public partial class ProjectEdit
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public decimal Price { get; set; }
+        public bool HasOrders { get; set; }
     }
 }

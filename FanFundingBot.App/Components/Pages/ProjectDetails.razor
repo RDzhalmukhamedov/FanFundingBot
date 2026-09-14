@@ -27,11 +27,12 @@ else
         </select>
         <button class="btn btn-secondary" @onclick="AskProjectStatus">Сменить статус</button>
         <button class="btn btn-secondary" @onclick="EditProject">Редактировать</button>
+        <button class="btn btn-secondary" @onclick="AskBroadcast">Сделать рассылку</button>
     </div>
 
     <div class="tabs">
         <button class="btn @(ActiveTab == "overview" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "overview"'>Обзор</button>
-        <button class="btn @(ActiveTab == "orders" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "orders"'>Заказы (@Orders.Count)</button>
+        <button class="btn @(ActiveTab == "orders" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "orders"'>Заказы (@NewOrdersCount/@Orders.Count)</button>
         <button class="btn @(ActiveTab == "questions" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "questions"'>Вопросы (@Questions.Count)</button>
     </div>
 
@@ -45,16 +46,32 @@ else
             }
             else
             {
-                @foreach (var addon in Project.Addons)
-                {
-                    <div>@addon.Name — @addon.Price.ToString("F2")</div>
-                }
+                <table class="orders">
+                    <thead>
+                        <tr>
+                            <th>Название</th>
+                            <th>Описание</th>
+                            <th>Цена</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var addon in Project.Addons)
+                        {
+                            <tr>
+                                <td>
+                                    @addon.Name
+                                    @if (addon.HasOrders)
+                                    {
+                                        <span title="Это дополнение есть в одном или нескольких заказах.">🔒</span>
+                                    }
+                                </td>
+                                <td>@addon.Description</td>
+                                <td>@addon.Price.ToString("F2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             }
-        </div>
-
-        <div class="card">
-            <h3>Рассылка</h3>
-            <button class="btn btn-secondary" @onclick="AskBroadcast">Сделать рассылку</button>
         </div>
 
         <div class="card">
@@ -93,7 +110,7 @@ else
             }
             else
             {
-                <QuestionsTable Questions="Questions" Answers="Answers" OnAnswer="AnswerAsync" />
+                <QuestionsTable Questions="Questions" OnAnswer="AskAnswer" />
             }
         </div>
     }
@@ -132,6 +149,12 @@ else
               Error="@ModalError"
               OnConfirm="SendMessageAsync"
               OnCancel="() => MessageTarget = null" />
+
+<MessageModal Visible="AnswerTarget is not null"
+              Title="Ответ на вопрос"
+              Error="@ModalError"
+              OnConfirm="SendAnswerAsync"
+              OnCancel="() => AnswerTarget = null" />
 
 <MessageModal Visible="BroadcastOpen"
               Title="Рассылка подписанным пользователям"

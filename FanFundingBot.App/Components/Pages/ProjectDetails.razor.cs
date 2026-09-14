@@ -22,7 +22,6 @@ public partial class ProjectDetails
     private List<OrderDto> Orders { get; set; } = [];
     private List<QuestionDto> Questions { get; set; } = [];
     private List<ProjectStatusDto> Statuses { get; set; } = [];
-    private Dictionary<Guid, string> Answers { get; set; } = new();
     private string? SheetUrl { get; set; }
     private string? Error { get; set; }
     private string? ModalError { get; set; }
@@ -34,9 +33,12 @@ public partial class ProjectDetails
     private string NewStatusName =>
         Statuses.FirstOrDefault(s => s.Id == NewStatusId)?.DisplayName ?? string.Empty;
 
+    private int NewOrdersCount => Orders.Count(o => o.Status == OrderStatus.New);
+
     private OrderDto? OrderStatusTarget { get; set; }
     private OrderStatus OrderStatusValue { get; set; }
     private OrderDto? MessageTarget { get; set; }
+    private QuestionDto? AnswerTarget { get; set; }
     private bool BroadcastOpen { get; set; }
 
     protected override async Task OnInitializedAsync()
@@ -66,7 +68,6 @@ public partial class ProjectDetails
         Project = await client.GetFromJsonAsync<ProjectDto>($"api/projects/{Id}");
         Orders = await client.GetFromJsonAsync<List<OrderDto>>($"api/projects/{Id}/orders") ?? [];
         Questions = await client.GetFromJsonAsync<List<QuestionDto>>("api/questions/unanswered") ?? [];
-        Answers = Questions.ToDictionary(q => q.Id, _ => string.Empty);
 
         if (Project is not null && !Statuses.Any(s => s.Id == NewStatusId))
             NewStatusId = Project.StatusId;
@@ -161,15 +162,25 @@ public partial class ProjectDetails
         }
     }
 
-    private async Task AnswerAsync(Guid questionId)
+    private void AskAnswer(QuestionDto question) { AnswerTarget = question; ModalError = null; }
+
+    private async Task SendAnswerAsync(string text)
     {
+        if (AnswerTarget is null)
+            return;
+
         var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         var response = await client.PostAsJsonAsync(
-            $"api/questions/{questionId}/answer", new { answer = Answers.GetValueOrDefault(questionId) ?? string.Empty });
+            $"api/questions/{AnswerTarget.Id}/answer", new { answer = text });
         if (response.IsSuccessStatusCode)
+        {
+            AnswerTarget = null;
             await ReloadAsync();
+        }
         else
-            Error = await WebApi.ReadErrorAsync(response);
+        {
+            ModalError = await WebApi.ReadErrorAsync(response);
+        }
     }
 
     // Дублирует маппинг StatusBadge (там — компонент, здесь — текст для <option>).

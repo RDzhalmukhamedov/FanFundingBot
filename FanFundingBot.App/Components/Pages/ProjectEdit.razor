@@ -17,10 +17,9 @@ else
     }
     <div class="form card">
         <label>Название</label>
-        <input @bind="Name" maxlength="256" />
+        <input @bind="Name" @bind:after="OnFieldChanged" maxlength="256" />
         <label>Описание</label>
-        <textarea rows="4" @bind="Description" maxlength="2048" />
-        <button class="btn btn-primary" @onclick="SaveAsync">Сохранить</button>
+        <textarea rows="4" @bind="Description" @bind:after="OnFieldChanged" maxlength="2048" />
     </div>
 
     <div class="card">
@@ -29,30 +28,62 @@ else
         {
             var index = i;
             <div class="card">
-                <label>Название</label>
-                <input @bind="Addons[index].Name" maxlength="256" />
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="margin:0;">Название</label>
+                    @if (Addons[index].HasOrders)
+                    {
+                        <span title="Это дополнение есть в одном или нескольких заказах.">🔒</span>
+                    }
+                </div>
+                <input @bind="Addons[index].Name" @bind:after="OnFieldChanged" maxlength="256" />
                 <label>Описание</label>
-                <textarea rows="2" @bind="Addons[index].Description" maxlength="2048" />
+                <textarea rows="2" @bind="Addons[index].Description" @bind:after="OnFieldChanged" maxlength="2048" />
                 <label>Цена</label>
-                <input type="number" min="0" step="0.01" @bind="Addons[index].Price" />
-                <button class="btn btn-secondary" @onclick="() => SaveAddonAsync(Addons[index])">Сохранить</button>
-                <button class="btn btn-danger" @onclick="() => AskDeleteAddon(Addons[index].Id)">Удалить</button>
+                <input type="number" min="0" step="0.01" @bind="Addons[index].Price" @bind:after="OnFieldChanged" />
+                @if (Addons[index].HasOrders)
+                {
+                    <button class="btn btn-danger" disabled title="Это дополнение есть в одном или нескольких заказах.">Удалить</button>
+                }
+                else
+                {
+                    <button class="btn btn-danger" @onclick="() => AskDeleteAddon(Addons[index].Id)">Удалить</button>
+                }
             </div>
         }
-        <h4>Новое дополнение</h4>
-        <label>Название</label>
-        <input @bind="NewName" maxlength="256" />
-        <label>Описание</label>
-        <textarea rows="2" @bind="NewDescription" maxlength="2048" />
-        <label>Цена</label>
-        <input type="number" min="0" step="0.01" @bind="NewPrice" />
-        <button class="btn btn-secondary" @onclick="AddAddonAsync">Добавить</button>
+
+        @if (NewAddons.Count > 0)
+        {
+            <h4>Новые дополнения (не сохранены)</h4>
+            @for (var i = 0; i < NewAddons.Count; i++)
+            {
+                var index = i;
+                <div class="card">
+                    <label>Название</label>
+                    <input @bind="NewAddons[index].Name" @bind:after="OnFieldChanged" maxlength="256" />
+                    <label>Описание</label>
+                    <textarea rows="2" @bind="NewAddons[index].Description" @bind:after="OnFieldChanged" maxlength="2048" />
+                    <label>Цена</label>
+                    <input type="number" min="0" step="0.01" @bind="NewAddons[index].Price" @bind:after="OnFieldChanged" />
+                    <button class="btn btn-secondary" @onclick="() => RemoveNewAddon(index)">Убрать</button>
+                </div>
+            }
+        }
+
+        <button class="btn btn-secondary" @onclick="AddNewAddon">Добавить дополнение</button>
+    </div>
+
+    <div class="card">
+        <button class="btn btn-primary" disabled="@(!IsDirty)" @onclick="SaveAllAsync">Сохранить</button>
+        @if (!IsDirty)
+        {
+            <span class="muted" style="margin-left:8px;">Нет изменений для сохранения</span>
+        }
     </div>
 }
 
 <ConfirmModal Visible="DeleteAddonTarget.HasValue"
               Title="Удаление дополнения"
-              Text="Удалить дополнение? Действие необратимо."
+              Text="Удалить дополнение? Действие будет применено при сохранении."
               Error="@DeleteError"
-              OnConfirm="DeleteAddonAsync"
+              OnConfirm="ConfirmDeleteAddon"
               OnCancel="CancelDeleteAddon" />
