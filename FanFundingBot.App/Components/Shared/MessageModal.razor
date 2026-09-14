@@ -3,7 +3,7 @@
     <div class="modal-backdrop">
         <div class="modal" role="dialog" aria-modal="true" aria-label="@Title">
             <h3>@Title</h3>
-            <textarea rows="5" @bind="_text" placeholder="Введите сообщение..." />
+            <FluentTextArea @bind-Value="_text" Rows="5" Placeholder="Введите сообщение..." />
             @if (!string.IsNullOrEmpty(Error))
             {
                 <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>

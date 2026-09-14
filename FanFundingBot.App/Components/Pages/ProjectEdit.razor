@@ -17,96 +17,102 @@ else
     {
         <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>
     }
-    <div class="form card">
-        <label>Название</label>
-        <input @bind="Name" @bind:after="OnFieldChanged" maxlength="256" />
-        <label>Описание</label>
-        <textarea rows="4" @bind="Description" @bind:after="OnFieldChanged" maxlength="2048" />
-    </div>
+    <EditForm Model="Form" OnValidSubmit="SaveAllAsync">
+        <DataAnnotationsValidator />
 
-    <div class="card">
-        <h3>Дополнения</h3>
-        @for (var i = 0; i < Addons.Count; i++)
-        {
-            var index = i;
-            <div class="card">
-                <div class="addon-row">
-                    <div class="addon-field addon-name">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <label style="margin:0;">Название</label>
-                            @if (Addons[index].HasOrders)
-                            {
-                                <span title="Это дополнение есть в одном или нескольких заказах.">🔒</span>
-                            }
-                        </div>
-                        <input @bind="Addons[index].Name" @bind:after="OnFieldChanged" maxlength="256" />
-                    </div>
-                    <div class="addon-field addon-desc">
-                        <label>Описание</label>
-                        <textarea rows="2" @bind="Addons[index].Description" @bind:after="OnFieldChanged" maxlength="2048" />
-                    </div>
-                    <div class="addon-field addon-price">
-                        <label>Цена</label>
-                        <input type="number" min="0" step="0.01" @bind="Addons[index].Price" @bind:after="OnFieldChanged" />
-                    </div>
-                    <div class="addon-actions">
-                        <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>
-                        <div class="addon-actions-btn">
-                            @if (Addons[index].HasOrders)
-                            {
-                                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" Disabled="true" Title="Это дополнение есть в одном или нескольких заказах.">Удалить</FluentButton>
-                            }
-                            else
-                            {
-                                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" OnClick="() => AskDeleteAddon(Addons[index].Id)">Удалить</FluentButton>
-                            }
-                        </div>
-                    </div>
-                </div>
-            </div>
-        }
+        <div class="form card">
+            <label>Название</label>
+            <FluentTextField @bind-Value="Form.Name" @bind-Value:after="OnFieldChanged" Maxlength="256" />
+            <FluentValidationMessage For="@(() => Form.Name)" />
+            <label>Описание</label>
+            <FluentTextArea @bind-Value="Form.Description" @bind-Value:after="OnFieldChanged" Rows="4" Maxlength="2048" />
+            <FluentValidationMessage For="@(() => Form.Description)" />
+        </div>
 
-        @if (NewAddons.Count > 0)
-        {
-            <h4>Новые дополнения (не сохранены)</h4>
-            @for (var i = 0; i < NewAddons.Count; i++)
+        <div class="card">
+            <h3>Дополнения</h3>
+            @for (var i = 0; i < Addons.Count; i++)
             {
                 var index = i;
                 <div class="card">
                     <div class="addon-row">
                         <div class="addon-field addon-name">
-                            <label>Название</label>
-                            <input @bind="NewAddons[index].Name" @bind:after="OnFieldChanged" maxlength="256" />
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="margin:0;">Название</label>
+                                @if (Addons[index].HasOrders)
+                                {
+                                    <span title="Это дополнение есть в одном или нескольких заказах.">🔒</span>
+                                }
+                            </div>
+                            <FluentTextField @bind-Value="Addons[index].Name" @bind-Value:after="OnFieldChanged" Maxlength="256" />
                         </div>
                         <div class="addon-field addon-desc">
                             <label>Описание</label>
-                            <textarea rows="2" @bind="NewAddons[index].Description" @bind:after="OnFieldChanged" maxlength="2048" />
+                            <FluentTextArea @bind-Value="Addons[index].Description" @bind-Value:after="OnFieldChanged" Rows="2" Maxlength="2048" />
                         </div>
                         <div class="addon-field addon-price">
                             <label>Цена</label>
-                            <input type="number" min="0" step="0.01" @bind="NewAddons[index].Price" @bind:after="OnFieldChanged" />
+                            <FluentNumberField TValue="decimal" @bind-Value="Addons[index].Price" @bind-Value:after="OnFieldChanged" Min="0" Step="0.01" />
                         </div>
                         <div class="addon-actions">
                             <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>
                             <div class="addon-actions-btn">
-                                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => RemoveNewAddon(index)">Убрать</FluentButton>
+                                @if (Addons[index].HasOrders)
+                                {
+                                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" Disabled="true" Title="Это дополнение есть в одном или нескольких заказах.">Удалить</FluentButton>
+                                }
+                                else
+                                {
+                                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" OnClick="() => AskDeleteAddon(Addons[index].Id)">Удалить</FluentButton>
+                                }
                             </div>
                         </div>
                     </div>
                 </div>
             }
-        }
 
-        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AddNewAddon">Добавить дополнение</FluentButton>
-    </div>
+            @if (NewAddons.Count > 0)
+            {
+                <h4>Новые дополнения (не сохранены)</h4>
+                @for (var i = 0; i < NewAddons.Count; i++)
+                {
+                    var index = i;
+                    <div class="card">
+                        <div class="addon-row">
+                            <div class="addon-field addon-name">
+                                <label>Название</label>
+                                <FluentTextField @bind-Value="NewAddons[index].Name" @bind-Value:after="OnFieldChanged" Maxlength="256" />
+                            </div>
+                            <div class="addon-field addon-desc">
+                                <label>Описание</label>
+                                <FluentTextArea @bind-Value="NewAddons[index].Description" @bind-Value:after="OnFieldChanged" Rows="2" Maxlength="2048" />
+                            </div>
+                            <div class="addon-field addon-price">
+                                <label>Цена</label>
+                                <FluentNumberField TValue="decimal" @bind-Value="NewAddons[index].Price" @bind-Value:after="OnFieldChanged" Min="0" Step="0.01" />
+                            </div>
+                            <div class="addon-actions">
+                                <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>
+                                <div class="addon-actions-btn">
+                                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => RemoveNewAddon(index)">Убрать</FluentButton>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
 
-    <div class="card">
-        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" Disabled="@(!IsDirty)" Loading="@IsSaving" OnClick="SaveAllAsync">Сохранить</FluentButton>
-        @if (!IsDirty)
-        {
-            <span class="muted" style="margin-left:8px;">Нет изменений для сохранения</span>
-        }
-    </div>
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AddNewAddon">Добавить дополнение</FluentButton>
+        </div>
+
+        <div class="card">
+            <FluentButton Type="ButtonType.Submit" Appearance="Appearance.Accent" Disabled="@(!IsDirty)" Loading="@IsSaving">Сохранить</FluentButton>
+            @if (!IsDirty)
+            {
+                <span class="muted" style="margin-left:8px;">Нет изменений для сохранения</span>
+            }
+        </div>
+    </EditForm>
 }
 
 <ConfirmModal Visible="DeleteAddonTarget.HasValue"

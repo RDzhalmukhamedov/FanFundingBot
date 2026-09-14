@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Application.Projects.Queries;
@@ -10,8 +11,7 @@ public partial class ProjectEdit : AuthComponentBase
     [Parameter] public Guid Id { get; set; }
 
     private ProjectDto? Project { get; set; }
-    private string Name { get; set; } = string.Empty;
-    private string Description { get; set; } = string.Empty;
+    private ProjectForm Form { get; set; } = new();
     private List<AddonForm> Addons { get; set; } = [];
     private List<AddonForm> NewAddons { get; set; } = [];
     private HashSet<Guid> DeletedAddonIds { get; set; } = [];
@@ -26,8 +26,8 @@ public partial class ProjectEdit : AuthComponentBase
     private List<AddonForm> _originalAddons = [];
 
     private bool IsDirty =>
-        Name != _originalName ||
-        Description != _originalDescription ||
+        Form.Name != _originalName ||
+        Form.Description != _originalDescription ||
         DeletedAddonIds.Count > 0 ||
         NewAddons.Count > 0 ||
         Addons.Any(a =>
@@ -64,15 +64,15 @@ public partial class ProjectEdit : AuthComponentBase
 
         Project = result.Value;
 
-        Name = Project.Name;
-        Description = Project.Description ?? string.Empty;
+        Form.Name = Project.Name;
+        Form.Description = Project.Description ?? string.Empty;
         Addons = Project.Addons
             .Select(a => new AddonForm { Id = a.Id, Name = a.Name, Description = a.Description ?? string.Empty, Price = a.Price, HasOrders = a.HasOrders })
             .ToList();
         NewAddons = [];
         DeletedAddonIds = [];
-        _originalName = Name;
-        _originalDescription = Description;
+        _originalName = Form.Name;
+        _originalDescription = Form.Description;
         _originalAddons = Addons.Select(a => new AddonForm { Id = a.Id, Name = a.Name, Description = a.Description, Price = a.Price, HasOrders = a.HasOrders }).ToList();
         Error = null;
     }
@@ -151,7 +151,7 @@ public partial class ProjectEdit : AuthComponentBase
         }
         // Filter out completely empty new addons
         var toCreate = NewAddons.Where(n => !string.IsNullOrWhiteSpace(n.Name)).ToList();
-        if (toCreate.Count == 0 && NewAddons.Count > 0 && (Name == _originalName && Description == _originalDescription && !Addons.Any(a => { var o=_originalAddons.FirstOrDefault(x=>x.Id==a.Id); return o is null || o.Name!=a.Name || o.Description!=a.Description || o.Price!=a.Price; }) && DeletedAddonIds.Count==0))
+        if (toCreate.Count == 0 && NewAddons.Count > 0 && (Form.Name == _originalName && Form.Description == _originalDescription && !Addons.Any(a => { var o=_originalAddons.FirstOrDefault(x=>x.Id==a.Id); return o is null || o.Name!=a.Name || o.Description!=a.Description || o.Price!=a.Price; }) && DeletedAddonIds.Count==0))
         {
             // All new addons empty, nothing to create but UI has empty rows - just clear them
             NewAddons.Clear();
@@ -159,16 +159,16 @@ public partial class ProjectEdit : AuthComponentBase
         }
 
         // Save project details if changed (два вызова, как в Minimal API).
-        if (Name != _originalName || Description != _originalDescription)
+        if (Form.Name != _originalName || Form.Description != _originalDescription)
         {
-            var renamed = await Mediator.Send(new RenameProjectCommand(_userId, Id, Name), RequestCt);
+            var renamed = await Mediator.Send(new RenameProjectCommand(_userId, Id, Form.Name), RequestCt);
             if (renamed.IsFailed)
             {
                 Error = BlazorResult.Message(renamed);
                 return;
             }
 
-            var described = await Mediator.Send(new UpdateProjectDescriptionCommand(_userId, Id, Description), RequestCt);
+            var described = await Mediator.Send(new UpdateProjectDescriptionCommand(_userId, Id, Form.Description), RequestCt);
             if (described.IsFailed)
             {
                 Error = BlazorResult.Message(described);
@@ -249,5 +249,16 @@ public partial class ProjectEdit : AuthComponentBase
         public string Description { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public bool HasOrders { get; set; }
+    }
+
+    private sealed class ProjectForm
+    {
+        [Required(ErrorMessage = "Укажите название.")]
+        [MaxLength(256, ErrorMessage = "Название длиннее 256 символов.")]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Укажите описание.")]
+        [MaxLength(2048, ErrorMessage = "Описание длиннее 2048 символов.")]
+        public string Description { get; set; } = string.Empty;
     }
 }
