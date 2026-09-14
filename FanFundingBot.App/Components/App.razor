@@ -9,7 +9,8 @@
     <link href="css/app.css" rel="stylesheet" />
 </head>
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    @* Static SSR по умолчанию; интерактив включается точечно на страницах (@rendermode InteractiveServer). *@
+    <Routes />
     <script src="_framework/blazor.web.js"></script>
 </body>
 </html>

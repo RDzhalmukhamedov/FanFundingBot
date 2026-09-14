@@ -1,15 +1,30 @@
 @inherits LayoutComponentBase
 
+<FluentToastProvider />
+<FluentDialogProvider />
+<FluentTooltipProvider />
+<FluentMessageBarProvider />
+
 <header class="nav">
     <a href="/">Главная</a>
     <AuthorizeView>
         <Authorized>
             <a href="/projects">Проекты</a>
             <a href="/my-orders">Мои заказы</a>
+            <form method="post" action="/api/auth/logout" style="display:inline">
+                <button type="submit" class="btn btn-secondary">Выйти</button>
+            </form>
         </Authorized>
     </AuthorizeView>
 </header>
 
 <div class="page">
-    @Body
+    <ErrorBoundary>
+        <ChildContent>
+            @Body
+        </ChildContent>
+        <ErrorContent>
+            <p class="error">Что-то пошло не так. <a href="/">На главную</a></p>
+        </ErrorContent>
+    </ErrorBoundary>
 </div>

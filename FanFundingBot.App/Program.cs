@@ -189,12 +189,13 @@ app.MapPost("/api/auth/telegram", async (
 .WithName("TelegramLogin")
 .WithSummary("Вход через Telegram Login Widget");
 
-// Выход: удаление HttpOnly-cookie (идемпотентный). Circuit дополнительно
-// сбрасывается на клиенте через NotifyAuthenticationStateChanged.
+// Выход: удаление HttpOnly-cookie (идемпотентный). Вызывается обычной
+// form-POST из MainLayout, поэтому возвращаем Redirect на главную.
+// Circuit дополнительно сбрасывается полной перезагрузкой страницы.
 app.MapPost("/api/auth/logout", (HttpContext http) =>
 {
     AuthCookieWriter.Clear(http.Response);
-    return Results.Ok();
+    return Results.Redirect("/");
 })
 .RequireAuthorization()
 .WithName("Logout")
