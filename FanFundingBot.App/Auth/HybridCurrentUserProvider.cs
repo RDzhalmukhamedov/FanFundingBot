@@ -14,13 +14,16 @@ public sealed class HybridCurrentUserProvider : ICurrentUserProvider
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly TelegramUserContext _telegramContext;
+    private readonly BlazorCircuitUserContext _circuitContext;
 
     public HybridCurrentUserProvider(
         IHttpContextAccessor httpContextAccessor,
-        TelegramUserContext telegramContext)
+        TelegramUserContext telegramContext,
+        BlazorCircuitUserContext circuitContext)
     {
         _httpContextAccessor = httpContextAccessor;
         _telegramContext = telegramContext;
+        _circuitContext = circuitContext;
     }
 
     public long GetCurrentUserId()
@@ -32,6 +35,11 @@ public sealed class HybridCurrentUserProvider : ICurrentUserProvider
             if (long.TryParse(sub, out var id) && id > 0)
                 return id;
         }
+
+        // Blazor Server interactive: HttpContext недоступен, берём id circuit'а
+        // (выставляется из UserSession перед прямыми вызовами MediatR).
+        if (_circuitContext.UserId > 0)
+            return _circuitContext.UserId;
 
         return _telegramContext.UserId;
     }

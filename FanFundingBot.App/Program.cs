@@ -54,6 +54,7 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddFluentUIComponents();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, CookieAuthenticationStateProvider>();
+builder.Services.AddScoped<BlazorCircuitUserContext>();
 builder.Services.AddScoped<WebApiTokenAccessor>();
 builder.Services.AddTransient<AuthHeaderHandler>();
 builder.Services.AddHttpClient("webapi").AddHttpMessageHandler<AuthHeaderHandler>();
@@ -85,6 +86,46 @@ if (!string.IsNullOrEmpty(jwtSecret))
                     }
 
                     return Task.CompletedTask;
+                },
+                // Stateless sliding refresh без refresh-таблицы: если до истечения
+                // осталось меньше половины срока — перевыпустить cookie со свежей ролью.
+                // Граница: продление никогда не должно ронять аутентификацию.
+                OnTokenValidated = async ctx =>
+                {
+                    try
+                    {
+                        var options = ctx.HttpContext.RequestServices
+                            .GetRequiredService<IOptions<JwtOptions>>().Value;
+                        var validTo = ctx.SecurityToken?.ValidTo;
+                        if (validTo is null
+                            || !SlidingRefreshPolicy.ShouldReissue(
+                                new DateTimeOffset(validTo.Value, TimeSpan.Zero),
+                                DateTimeOffset.UtcNow,
+                                options.ExpiresDays))
+                        {
+                            return;
+                        }
+
+                        var sub = ctx.Principal?.FindFirst(JwtTokenService.SubjectClaim)?.Value;
+                        if (!long.TryParse(sub, out var id) || id <= 0)
+                            return;
+
+                        var users = ctx.HttpContext.RequestServices.GetRequiredService<IUserRepository>();
+                        var tokens = ctx.HttpContext.RequestServices.GetRequiredService<JwtTokenService>();
+                        var user = await users.GetByIdAsync(id);
+                        if (user is null)
+                            return;
+
+                        AuthCookieWriter.Append(
+                            ctx.HttpContext.Response,
+                            tokens.CreateToken(user.Id, user.Role.ToString()),
+                            options.ExpiresDays,
+                            ctx.HttpContext.Request.IsHttps);
+                    }
+                    catch
+                    {
+                        // Продление — best effort, ошибка игнорируется.
+                    }
                 }
             };
         });
@@ -139,18 +180,51 @@ app.MapPost("/api/auth/telegram", async (
         return Results.BadRequest(new[] { "Пользователь не найден." });
 
     var token = tokens.CreateToken(user.Id, user.Role.ToString());
-    http.Response.Cookies.Append(JwtTokenService.CookieName, token, new CookieOptions
-    {
-        HttpOnly = true,
-        SameSite = SameSiteMode.Lax,
-        Secure = http.Request.IsHttps,
-        Expires = DateTimeOffset.UtcNow.AddDays(jwtOptions.Value.ExpiresDays)
-    });
+    AuthCookieWriter.Append(http.Response, token, jwtOptions.Value.ExpiresDays, http.Request.IsHttps);
 
     return Results.Ok(new { userId = user.Id, role = user.Role.ToString() });
 })
 .WithName("TelegramLogin")
 .WithSummary("Вход через Telegram Login Widget");
+
+// Выход: удаление HttpOnly-cookie (идемпотентный). Circuit дополнительно
+// сбрасывается на клиенте через NotifyAuthenticationStateChanged.
+app.MapPost("/api/auth/logout", (HttpContext http) =>
+{
+    AuthCookieWriter.Clear(http.Response);
+    return Results.Ok();
+})
+.RequireAuthorization()
+.WithName("Logout")
+.WithSummary("Выход (удаление auth-cookie)");
+
+// Явное продление сессии: перевыпуск JWT со свежей ролью из БД.
+app.MapPost("/api/auth/refresh", async (
+    ICurrentUserProvider me,
+    IUserRepository users,
+    JwtTokenService tokens,
+    IOptions<JwtOptions> jwtOptions,
+    HttpContext http) =>
+{
+    var id = me.GetCurrentUserId();
+    if (id <= 0)
+        return Results.Unauthorized();
+
+    var user = await users.GetByIdAsync(id);
+    if (user is null)
+        return Results.Unauthorized();
+
+    AuthCookieWriter.Append(
+        http.Response,
+        tokens.CreateToken(user.Id, user.Role.ToString()),
+        jwtOptions.Value.ExpiresDays,
+        http.Request.IsHttps);
+
+    return Results.Ok(new { userId = user.Id, role = user.Role.ToString() });
+})
+.RequireAuthorization()
+.WithName("RefreshSession")
+.WithSummary("Продление сессии (перевыпуск JWT-cookie)");
 
 app.MapWebApi();
 
