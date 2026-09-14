@@ -40,6 +40,8 @@ builder.Services.AddHttpClient("telegram_bot")
 
 builder.Services.AddScoped<UpdateHandler>();
 
+builder.Services.AddScoped<ProjectSheetLinkService>();
+
 builder.Services.AddHostedService<OutboxProcessor>();
 
 // Web-аутентификация (Telegram Login Widget -> JWT в HttpOnly-cookie).

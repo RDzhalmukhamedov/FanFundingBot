@@ -7,8 +7,8 @@ using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Application.Projects.Queries;
 using FanFundingBot.Application.Questions.Commands;
 using FanFundingBot.Application.Questions.Queries;
+using FanFundingBot.App.Services;
 using FanFundingBot.Domain.Enums;
-using FanFundingBot.Infrastructure.ExternalStorage;
 using FluentResults;
 using MediatR;
 
@@ -93,15 +93,12 @@ public static class WebApiEndpoints
         });
 
         api.MapGet("/projects/{id:guid}/sheet-link", async (
-            Guid id, IAuthorizationService authorization, ICurrentUserProvider me, GoogleSheetsOptions sheets) =>
+            Guid id, ProjectSheetLinkService sheets) =>
         {
-            if (!await authorization.CanManageProjectAsync(me.GetCurrentUserId(), id))
-                return Results.Forbid();
-
-            return Results.Ok(new
-            {
-                url = $"https://docs.google.com/spreadsheets/d/{sheets.SpreadsheetId}"
-            });
+            var result = await sheets.GetUrlAsync(id);
+            return result.IsSuccess
+                ? Results.Ok(new { url = result.Value })
+                : Failed(result);
         });
 
         api.MapPut("/orders/{id:guid}/status", async (Guid id, UpdateOrderStatusRequest request, IMediator mediator, ICurrentUserProvider me, CancellationToken ct) =>
