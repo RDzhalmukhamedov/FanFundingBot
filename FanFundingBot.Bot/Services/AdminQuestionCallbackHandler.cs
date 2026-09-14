@@ -37,7 +37,7 @@ public class AdminQuestionCallbackHandler : IAdminQuestionCallbackHandler
 
         var questionsResult = await _mediator.Send(new GetUnansweredQuestionsQuery(userId), ct);
         var questions = questionsResult.IsSuccess
-            ? questionsResult.Value
+            ? questionsResult.Value.Items
             : new List<Application.Questions.DTOs.QuestionDto>();
         var selected = questions.FirstOrDefault(q => q.Id == questionId);
 

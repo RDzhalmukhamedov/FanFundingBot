@@ -32,8 +32,8 @@ else
 
     <div class="tabs">
         <button class="btn @(ActiveTab == "overview" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "overview"'>Обзор</button>
-        <button class="btn @(ActiveTab == "orders" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "orders"'>Заказы (@NewOrdersCount/@Orders.Count)</button>
-        <button class="btn @(ActiveTab == "questions" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "questions"'>Вопросы (@Questions.Count)</button>
+        <button class="btn @(ActiveTab == "orders" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "orders"'>Заказы (@OrdersTotalCount)</button>
+        <button class="btn @(ActiveTab == "questions" ? "btn-primary active" : "btn-secondary")" @onclick='() => ActiveTab = "questions"'>Вопросы (@QuestionsTotalCount)</button>
     </div>
 
     @if (ActiveTab == "overview")
@@ -97,6 +97,11 @@ else
             else
             {
                 <OrdersTable Orders="Orders" OnStatusChange="AskOrderStatus" OnMessage="AskMessage" />
+                <div class="pagination">
+                    <button class="btn btn-secondary" @onclick="OrdersPrevAsync" disabled="@(OrdersPage <= 1)">◀ Назад</button>
+                    <span class="muted">Страница @OrdersPage из @OrdersTotalPages</span>
+                    <button class="btn btn-secondary" @onclick="OrdersNextAsync" disabled="@(OrdersPage >= OrdersTotalPages)">Вперёд ▶</button>
+                </div>
             }
         </div>
     }
@@ -111,6 +116,11 @@ else
             else
             {
                 <QuestionsTable Questions="Questions" OnAnswer="AskAnswer" />
+                <div class="pagination">
+                    <button class="btn btn-secondary" @onclick="QuestionsPrevAsync" disabled="@(QuestionsPage <= 1)">◀ Назад</button>
+                    <span class="muted">Страница @QuestionsPage из @QuestionsTotalPages</span>
+                    <button class="btn btn-secondary" @onclick="QuestionsNextAsync" disabled="@(QuestionsPage >= QuestionsTotalPages)">Вперёд ▶</button>
+                </div>
             }
         </div>
     }

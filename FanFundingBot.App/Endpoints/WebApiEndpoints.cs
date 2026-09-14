@@ -84,9 +84,11 @@ public static class WebApiEndpoints
             return ToResult(result);
         });
 
-        api.MapGet("/projects/{id:guid}/orders", async (Guid id, IMediator mediator, ICurrentUserProvider me, CancellationToken ct) =>
+        api.MapGet("/projects/{id:guid}/orders", async (
+            Guid id, int? page, int? pageSize, IMediator mediator, ICurrentUserProvider me, CancellationToken ct) =>
         {
-            var result = await mediator.Send(new GetOrdersByProjectQuery(id, me.GetCurrentUserId()), ct);
+            var result = await mediator.Send(new GetOrdersByProjectQuery(
+                id, me.GetCurrentUserId(), page ?? 1, pageSize ?? 20), ct);
             return ToResult(result);
         });
 
@@ -117,9 +119,11 @@ public static class WebApiEndpoints
             return ToResult(result);
         });
 
-        api.MapGet("/questions/unanswered", async (IMediator mediator, ICurrentUserProvider me, CancellationToken ct) =>
+        api.MapGet("/questions/unanswered", async (
+            int? page, int? pageSize, IMediator mediator, ICurrentUserProvider me, CancellationToken ct) =>
         {
-            var result = await mediator.Send(new GetUnansweredQuestionsQuery(me.GetCurrentUserId()), ct);
+            var result = await mediator.Send(new GetUnansweredQuestionsQuery(
+                me.GetCurrentUserId(), page ?? 1, pageSize ?? 20), ct);
             return ToResult(result);
         });
 

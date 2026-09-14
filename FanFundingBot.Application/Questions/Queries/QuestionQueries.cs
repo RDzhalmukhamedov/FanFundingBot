@@ -1,4 +1,5 @@
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Models;
 using FanFundingBot.Application.Questions.DTOs;
 using FanFundingBot.Domain.Interfaces;
 using FluentResults;
@@ -7,11 +8,11 @@ using MediatR;
 
 namespace FanFundingBot.Application.Questions.Queries;
 
-public sealed record GetUnansweredQuestionsQuery(long CallerUserId)
-    : IRequest<Result<List<QuestionDto>>>, IRequireGlobalAdmin;
+public sealed record GetUnansweredQuestionsQuery(long CallerUserId, int Page = 1, int PageSize = 20)
+    : IRequest<Result<PagedResult<QuestionDto>>>, IRequireGlobalAdmin;
 
 public class GetUnansweredQuestionsQueryHandler
-    : IRequestHandler<GetUnansweredQuestionsQuery, Result<List<QuestionDto>>>
+    : IRequestHandler<GetUnansweredQuestionsQuery, Result<PagedResult<QuestionDto>>>
 {
     private readonly IQuestionRepository _questions;
 
@@ -20,10 +21,13 @@ public class GetUnansweredQuestionsQueryHandler
         _questions = questions;
     }
 
-    public async Task<Result<List<QuestionDto>>> Handle(
+    public async Task<Result<PagedResult<QuestionDto>>> Handle(
         GetUnansweredQuestionsQuery request, CancellationToken cancellationToken)
     {
-        var questions = await _questions.GetUnansweredAsync();
-        return Result.Ok(questions.Adapt<List<QuestionDto>>());
+        var page = Math.Max(request.Page, 1);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var (items, total) = await _questions.GetUnansweredPagedAsync(page, pageSize);
+        return Result.Ok(new PagedResult<QuestionDto>(items.Adapt<List<QuestionDto>>(), total, page, pageSize));
     }
 }

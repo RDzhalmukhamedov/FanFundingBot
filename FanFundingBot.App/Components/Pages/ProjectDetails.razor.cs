@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using FanFundingBot.App.Auth;
+using FanFundingBot.Application.Common.Models;
 using FanFundingBot.Application.Orders.DTOs;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Application.Questions.DTOs;
@@ -12,6 +13,8 @@ namespace FanFundingBot.App.Components.Pages;
 
 public partial class ProjectDetails
 {
+    private const int PageSize = 20;
+
     [Parameter] public Guid Id { get; set; }
     [Inject] private AuthenticationStateProvider AuthState { get; set; } = null!;
     [Inject] private IHttpClientFactory HttpFactory { get; set; } = null!;
@@ -20,7 +23,13 @@ public partial class ProjectDetails
 
     private ProjectDto? Project { get; set; }
     private List<OrderDto> Orders { get; set; } = [];
+    private int OrdersPage { get; set; } = 1;
+    private int OrdersTotalCount { get; set; }
+    private int OrdersTotalPages => Math.Max(1, (int)Math.Ceiling(OrdersTotalCount / (double)PageSize));
     private List<QuestionDto> Questions { get; set; } = [];
+    private int QuestionsPage { get; set; } = 1;
+    private int QuestionsTotalCount { get; set; }
+    private int QuestionsTotalPages => Math.Max(1, (int)Math.Ceiling(QuestionsTotalCount / (double)PageSize));
     private List<ProjectStatusDto> Statuses { get; set; } = [];
     private string? SheetUrl { get; set; }
     private string? Error { get; set; }
@@ -32,8 +41,6 @@ public partial class ProjectDetails
     private bool ProjectStatusConfirm { get; set; }
     private string NewStatusName =>
         Statuses.FirstOrDefault(s => s.Id == NewStatusId)?.DisplayName ?? string.Empty;
-
-    private int NewOrdersCount => Orders.Count(o => o.Status == OrderStatus.New);
 
     private OrderDto? OrderStatusTarget { get; set; }
     private OrderStatus OrderStatusValue { get; set; }
@@ -66,11 +73,14 @@ public partial class ProjectDetails
     {
         var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         Project = await client.GetFromJsonAsync<ProjectDto>($"api/projects/{Id}");
-        Orders = await client.GetFromJsonAsync<List<OrderDto>>($"api/projects/{Id}/orders") ?? [];
-        Questions = await client.GetFromJsonAsync<List<QuestionDto>>("api/questions/unanswered") ?? [];
 
         if (Project is not null && !Statuses.Any(s => s.Id == NewStatusId))
             NewStatusId = Project.StatusId;
+
+        OrdersPage = 1;
+        QuestionsPage = 1;
+        await LoadOrdersAsync();
+        await LoadQuestionsAsync();
 
         try
         {
@@ -80,6 +90,70 @@ public partial class ProjectDetails
         catch
         {
             SheetUrl = string.Empty;
+        }
+    }
+
+    private async Task LoadOrdersAsync()
+    {
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
+        var paged = await client.GetFromJsonAsync<PagedResult<OrderDto>>(
+            $"api/projects/{Id}/orders?page={OrdersPage}&pageSize={PageSize}");
+        Orders = paged?.Items ?? [];
+        OrdersTotalCount = paged?.TotalCount ?? 0;
+        if (Orders.Count == 0 && OrdersPage > 1)
+        {
+            OrdersPage = Math.Max(1, OrdersTotalPages);
+            await LoadOrdersAsync();
+        }
+    }
+
+    private async Task LoadQuestionsAsync()
+    {
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
+        var paged = await client.GetFromJsonAsync<PagedResult<QuestionDto>>(
+            $"api/questions/unanswered?page={QuestionsPage}&pageSize={PageSize}");
+        Questions = paged?.Items ?? [];
+        QuestionsTotalCount = paged?.TotalCount ?? 0;
+        if (Questions.Count == 0 && QuestionsPage > 1)
+        {
+            QuestionsPage = Math.Max(1, QuestionsTotalPages);
+            await LoadQuestionsAsync();
+        }
+    }
+
+    private async Task OrdersPrevAsync()
+    {
+        if (OrdersPage > 1)
+        {
+            OrdersPage--;
+            await LoadOrdersAsync();
+        }
+    }
+
+    private async Task OrdersNextAsync()
+    {
+        if (OrdersPage < OrdersTotalPages)
+        {
+            OrdersPage++;
+            await LoadOrdersAsync();
+        }
+    }
+
+    private async Task QuestionsPrevAsync()
+    {
+        if (QuestionsPage > 1)
+        {
+            QuestionsPage--;
+            await LoadQuestionsAsync();
+        }
+    }
+
+    private async Task QuestionsNextAsync()
+    {
+        if (QuestionsPage < QuestionsTotalPages)
+        {
+            QuestionsPage++;
+            await LoadQuestionsAsync();
         }
     }
 
@@ -119,7 +193,7 @@ public partial class ProjectDetails
         if (response.IsSuccessStatusCode)
         {
             OrderStatusTarget = null;
-            await ReloadAsync();
+            await LoadOrdersAsync();
         }
         else
         {
@@ -175,7 +249,7 @@ public partial class ProjectDetails
         if (response.IsSuccessStatusCode)
         {
             AnswerTarget = null;
-            await ReloadAsync();
+            await LoadQuestionsAsync();
         }
         else
         {

@@ -61,6 +61,27 @@ public class OrderRepository : IOrderRepository
             .ToListAsync();
     }
 
+    public async Task<(List<Order> Items, int TotalCount)> GetByProjectPagedAsync(Guid projectId, int page, int pageSize)
+    {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = _context.Orders.Where(o => o.Project.Id == projectId);
+        var total = await query.CountAsync();
+
+        var items = await query
+            .Include(o => o.User)
+            .Include(o => o.Project)
+            .Include(o => o.OrderAddons)
+            .ThenInclude(p => p.Addon)
+            .OrderByDescending(o => o.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (items, total);
+    }
+
     public async Task<List<Order>> GetByProjectAndUserAsync(Guid projectId, long userId)
     {
         return await _context.Orders

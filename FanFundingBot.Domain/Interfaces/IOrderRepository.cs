@@ -9,6 +9,7 @@ public interface IOrderRepository
     Task<List<Order>> GetByUserAsync(long userId);
     Task<List<Order>> GetByUserWithAddonsAsync(long userId);
     Task<List<Order>> GetByProjectAsync(Guid projectId);
+    Task<(List<Order> Items, int TotalCount)> GetByProjectPagedAsync(Guid projectId, int page, int pageSize);
     Task<List<Order>> GetByProjectAndUserAsync(Guid projectId, long userId);
     Task AddAsync(Order order);
     Task UpdateAsync(Order order);

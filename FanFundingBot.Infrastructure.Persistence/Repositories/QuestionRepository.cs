@@ -37,6 +37,24 @@ public class QuestionRepository : IQuestionRepository
             .ToListAsync();
     }
 
+    public async Task<(List<Question> Items, int TotalCount)> GetUnansweredPagedAsync(int page, int pageSize)
+    {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = _context.Questions.Where(q => q.Answer == null);
+        var total = await query.CountAsync();
+
+        var items = await query
+            .Include(q => q.User)
+            .OrderBy(q => q.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (items, total);
+    }
+
     public async Task<List<Question>> GetAllAsync()
     {
         return await _context.Questions

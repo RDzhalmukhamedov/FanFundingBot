@@ -151,7 +151,7 @@ public class GetOrdersByProjectQueryTests
         var order = DomainTestFactory.NewFormed(
             DomainTestFactory.NewCustomer(7), project,
             Guid.NewGuid(), 2, "+71234567890", DeliveryMethod.Pickup, null);
-        orders.GetByProjectAsync(project.Id).Returns(new List<Order> { order });
+        orders.GetByProjectPagedAsync(project.Id, 1, 20).Returns((new List<Order> { order }, 1));
         auth.CanManageProjectAsync(1, project.Id).Returns(true);
 
         var handler = new GetOrdersByProjectQueryHandler(orders, auth);
@@ -159,7 +159,7 @@ public class GetOrdersByProjectQueryTests
             new GetOrdersByProjectQuery(project.Id, 1), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        var dto = result.Value.Should().ContainSingle().Subject;
+        var dto = result.Value.Items.Should().ContainSingle().Subject;
         dto.UserId.Should().Be(7);
         dto.ProjectId.Should().Be(project.Id);
     }
@@ -176,6 +176,6 @@ public class GetOrdersByProjectQueryTests
             new GetOrdersByProjectQuery(Guid.NewGuid(), 999), CancellationToken.None);
 
         result.IsFailed.Should().BeTrue();
-        await orders.DidNotReceive().GetByProjectAsync(Arg.Any<Guid>());
+        await orders.DidNotReceive().GetByProjectPagedAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>());
     }
 }
