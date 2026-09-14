@@ -7,6 +7,7 @@ using FanFundingBot.Application.Projects.Queries;
 using FanFundingBot.Application.Questions.Commands;
 using FanFundingBot.Application.Questions.DTOs;
 using FanFundingBot.Application.Questions.Queries;
+using FanFundingBot.App.Components.Shared;
 using FanFundingBot.App.Services;
 using FanFundingBot.Domain.Enums;
 using Microsoft.AspNetCore.Components;
@@ -21,6 +22,7 @@ public partial class ProjectDetails : AuthComponentBase
     [Parameter] public Guid Id { get; set; }
     [Inject] private ProjectSheetLinkService SheetLinks { get; set; } = null!;
     [Inject] private IToastService Toasts { get; set; } = null!;
+    [Inject] private IDialogService Dialogs { get; set; } = null!;
 
     private ProjectDto? Project { get; set; }
     private List<OrderDto> Orders { get; set; } = [];
@@ -40,15 +42,11 @@ public partial class ProjectDetails : AuthComponentBase
     private string ActiveTab { get; set; } = "overview";
 
     private int NewStatusId { get; set; }
-    private bool ProjectStatusConfirm { get; set; }
     private string NewStatusName =>
         Statuses.FirstOrDefault(s => s.Id == NewStatusId)?.DisplayName ?? string.Empty;
 
     private OrderDto? OrderStatusTarget { get; set; }
     private OrderStatus OrderStatusValue { get; set; }
-    private OrderDto? MessageTarget { get; set; }
-    private QuestionDto? AnswerTarget { get; set; }
-    private bool BroadcastOpen { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -179,8 +177,29 @@ public partial class ProjectDetails : AuthComponentBase
         }
     }
 
-    private void AskProjectStatus() { ModalError = null; ProjectStatusConfirm = true; }
+    private async Task AskProjectStatusAsync()
+    {
+        var dialog = await Dialogs.ShowDialogAsync<ConfirmDialog, ConfirmDialogData>(
+            new ConfirmDialogData(
+                "Смена статуса проекта",
+                $"Установить статус «{NewStatusName}»? Подписанным пользователям придёт оповещение."),
+            new DialogParameters { Title = "Смена статуса проекта" });
+        if ((await dialog.Result).Cancelled)
+            return;
+
+        await ChangeProjectStatusAsync();
+    }
+
     private void EditProject() => Nav.NavigateTo($"/projects/{Id}/edit");
+
+    private async Task<string?> ReadDialogTextAsync(string title)
+    {
+        var dialog = await Dialogs.ShowDialogAsync<MessageDialog, MessageDialogData>(
+            new MessageDialogData(title, "Введите сообщение..."),
+            new DialogParameters { Title = title });
+        var result = await dialog.Result;
+        return result.Cancelled ? null : result.Data as string ?? string.Empty;
+    }
 
     private async Task ChangeProjectStatusAsync()
     {
@@ -188,13 +207,12 @@ public partial class ProjectDetails : AuthComponentBase
             new UpdateProjectStatusCommand(_userId, Id, NewStatusId), RequestCt);
         if (result.IsSuccess)
         {
-            ProjectStatusConfirm = false;
             Toasts.ShowSuccess("Статус проекта изменён.");
             await ReloadAsync();
         }
         else
         {
-            ModalError = BlazorResult.Message(result);
+            Toasts.ShowError(BlazorResult.Message(result) ?? "Не удалось сменить статус.");
         }
     }
 
@@ -224,60 +242,72 @@ public partial class ProjectDetails : AuthComponentBase
         }
     }
 
-    private void AskMessage(OrderDto order) { MessageTarget = order; ModalError = null; }
-
-    private async Task SendMessageAsync(string text)
+    private async Task AskMessageAsync(OrderDto order)
     {
-        if (MessageTarget is null)
+        var text = await ReadDialogTextAsync("Сообщение пользователю");
+        if (text is null)
             return;
 
+        await SendMessageAsync(order.Id, text);
+    }
+
+    private async Task SendMessageAsync(Guid orderId, string text)
+    {
         var result = await Mediator.Send(
-            new SendDirectMessageCommand(_userId, MessageTarget.Id, text), RequestCt);
+            new SendDirectMessageCommand(_userId, orderId, text), RequestCt);
         if (result.IsSuccess)
         {
-            MessageTarget = null;
             Toasts.ShowSuccess("Сообщение отправлено.");
         }
         else
         {
-            ModalError = BlazorResult.Message(result);
+            Toasts.ShowError(BlazorResult.Message(result) ?? "Не удалось отправить сообщение.");
         }
     }
 
-    private void AskBroadcast() { BroadcastOpen = true; ModalError = null; }
+    private async Task AskBroadcastAsync()
+    {
+        var text = await ReadDialogTextAsync("Рассылка подписанным пользователям");
+        if (text is null)
+            return;
+
+        await BroadcastAsync(text);
+    }
 
     private async Task BroadcastAsync(string text)
     {
         var result = await Mediator.Send(new BroadcastCommand(_userId, Id, text), RequestCt);
         if (result.IsSuccess)
         {
-            BroadcastOpen = false;
             Toasts.ShowSuccess("Рассылка отправлена.");
         }
         else
         {
-            ModalError = BlazorResult.Message(result);
+            Toasts.ShowError(BlazorResult.Message(result) ?? "Не удалось отправить рассылку.");
         }
     }
 
-    private void AskAnswer(QuestionDto question) { AnswerTarget = question; ModalError = null; }
-
-    private async Task SendAnswerAsync(string text)
+    private async Task AskAnswerAsync(QuestionDto question)
     {
-        if (AnswerTarget is null)
+        var text = await ReadDialogTextAsync("Ответ на вопрос");
+        if (text is null)
             return;
 
+        await SendAnswerAsync(question.Id, text);
+    }
+
+    private async Task SendAnswerAsync(Guid questionId, string text)
+    {
         var result = await Mediator.Send(
-            new AnswerQuestionCommand(_userId, AnswerTarget.Id, text), RequestCt);
+            new AnswerQuestionCommand(_userId, questionId, text), RequestCt);
         if (result.IsSuccess)
         {
-            AnswerTarget = null;
             Toasts.ShowSuccess("Ответ отправлен.");
             await LoadQuestionsAsync();
         }
         else
         {
-            ModalError = BlazorResult.Message(result);
+            Toasts.ShowError(BlazorResult.Message(result) ?? "Не удалось отправить ответ.");
         }
     }
 

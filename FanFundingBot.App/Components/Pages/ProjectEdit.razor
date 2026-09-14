@@ -63,7 +63,7 @@ else
                                 }
                                 else
                                 {
-                                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" OnClick="() => AskDeleteAddon(Addons[index].Id)">Удалить</FluentButton>
+                                    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" OnClick="() => AskDeleteAddonAsync(Addons[index].Id)">Удалить</FluentButton>
                                 }
                             </div>
                         </div>
@@ -115,9 +115,3 @@ else
     </EditForm>
 }
 
-<ConfirmModal Visible="DeleteAddonTarget.HasValue"
-              Title="Удаление дополнения"
-              Text="Удалить дополнение? Действие будет применено при сохранении."
-              Error="@DeleteError"
-              OnConfirm="ConfirmDeleteAddon"
-              OnCancel="CancelDeleteAddon" />

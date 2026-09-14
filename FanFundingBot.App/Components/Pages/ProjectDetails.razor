@@ -27,9 +27,9 @@ else
                 <option value="@s.Id">@s.DisplayName @(s.CanEditOrders ? "(✅ можно ред.)" : "(❌ нельзя ред.)")</option>
             }
         </select>
-        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskProjectStatus">Сменить статус</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskProjectStatusAsync">Сменить статус</FluentButton>
         <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="EditProject">Редактировать</FluentButton>
-        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskBroadcast">Сделать рассылку</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskBroadcastAsync">Сделать рассылку</FluentButton>
     </div>
 
     <div class="tabs">
@@ -100,7 +100,7 @@ else
             }
             else
             {
-                <OrdersTable Orders="Orders" OnStatusChange="AskOrderStatus" OnMessage="AskMessage" />
+                <OrdersTable Orders="Orders" OnStatusChange="AskOrderStatus" OnMessage="AskMessageAsync" />
                 <div class="pagination">
                     <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(OrdersPage <= 1)" OnClick="OrdersPrevAsync">◀ Назад</FluentButton>
                     <span class="muted">Страница @OrdersPage из @OrdersTotalPages</span>
@@ -119,7 +119,7 @@ else
             }
             else
             {
-                <QuestionsTable Questions="Questions" OnAnswer="AskAnswer" />
+                <QuestionsTable Questions="Questions" OnAnswer="AskAnswerAsync" />
                 <div class="pagination">
                     <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(QuestionsPage <= 1)" OnClick="QuestionsPrevAsync">◀ Назад</FluentButton>
                     <span class="muted">Страница @QuestionsPage из @QuestionsTotalPages</span>
@@ -129,13 +129,6 @@ else
         </div>
     }
 }
-
-<ConfirmModal Visible="ProjectStatusConfirm"
-              Title="Смена статуса проекта"
-              Text="@($"Установить статус «{NewStatusName}»? Подписанным пользователям придёт оповещение.")"
-              Error="@ModalError"
-              OnConfirm="ChangeProjectStatusAsync"
-              OnCancel="() => ProjectStatusConfirm = false" />
 
 @if (OrderStatusTarget is not null)
 {
@@ -158,20 +151,3 @@ else
     </div>
 }
 
-<MessageModal Visible="MessageTarget is not null"
-              Title="Сообщение пользователю"
-              Error="@ModalError"
-              OnConfirm="SendMessageAsync"
-              OnCancel="() => MessageTarget = null" />
-
-<MessageModal Visible="AnswerTarget is not null"
-              Title="Ответ на вопрос"
-              Error="@ModalError"
-              OnConfirm="SendAnswerAsync"
-              OnCancel="() => AnswerTarget = null" />
-
-<MessageModal Visible="BroadcastOpen"
-              Title="Рассылка подписанным пользователям"
-              Error="@ModalError"
-              OnConfirm="BroadcastAsync"
-              OnCancel="() => BroadcastOpen = false" />

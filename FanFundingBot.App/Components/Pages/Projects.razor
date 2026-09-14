@@ -43,7 +43,7 @@ else if (IsAdmin)
                 <p class="muted">Статус: @project.StatusName · Дополнений: @project.Addons.Count</p>
                 <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => Open(project.Id)">Открыть</FluentButton>
                 <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => Edit(project.Id)">Редактировать</FluentButton>
-                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" OnClick="() => AskDelete(project.Id)">Удалить</FluentButton>
+                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" OnClick="() => AskDeleteAsync(project.Id)">Удалить</FluentButton>
             </div>
         }
     }
@@ -68,9 +68,3 @@ else
     }
 }
 
-<ConfirmModal Visible="DeleteTarget.HasValue"
-              Title="Удаление проекта"
-              Text="Удалить проект? Действие необратимо."
-              Error="@DeleteError"
-              OnConfirm="DeleteAsync"
-              OnCancel="CancelDelete" />

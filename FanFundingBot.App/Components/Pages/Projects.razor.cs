@@ -1,13 +1,17 @@
+using FanFundingBot.App.Components.Shared;
 using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Application.Projects.Queries;
 using Microsoft.AspNetCore.Components;
+using Microsoft.FluentUI.AspNetCore.Components;
 
 namespace FanFundingBot.App.Components.Pages;
 
 public partial class Projects : AuthComponentBase
 {
     [Inject] private ILogger<Projects> Logger { get; set; } = null!;
+    [Inject] private IDialogService Dialogs { get; set; } = null!;
+    [Inject] private IToastService Toasts { get; set; } = null!;
 
     private bool Loaded { get; set; }
     private bool IsAdmin { get; set; }
@@ -15,8 +19,6 @@ public partial class Projects : AuthComponentBase
     private List<ProjectDto> Manageable { get; set; } = [];
     private List<ProjectDto> Catalog { get; set; } = [];
     private bool CanCreate => Manageable.Count == 0;
-    private Guid? DeleteTarget { get; set; }
-    private string? DeleteError { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -61,29 +63,33 @@ public partial class Projects : AuthComponentBase
     private void Create() => Nav.NavigateTo("/projects/new");
     private void Open(Guid id) => Nav.NavigateTo($"/projects/{id}");
     private void Edit(Guid id) => Nav.NavigateTo($"/projects/{id}/edit");
-    private void AskDelete(Guid id) { DeleteTarget = id; DeleteError = null; }
-    private void CancelDelete() { DeleteTarget = null; DeleteError = null; }
 
-    private async Task DeleteAsync()
+    private async Task AskDeleteAsync(Guid id)
     {
-        if (!DeleteTarget.HasValue)
-            return;
+        var dialog = await Dialogs.ShowDialogAsync<ConfirmDialog, ConfirmDialogData>(
+            new ConfirmDialogData("Удаление проекта", "Удалить проект? Действие необратимо."),
+            new DialogParameters { Title = "Удаление проекта" });
+        var result = await dialog.Result;
+        if (!result.Cancelled)
+            await DeleteAsync(id);
+    }
 
+    private async Task DeleteAsync(Guid id)
+    {
         var uid = await UseUserAsync();
-        var result = await Mediator.Send(new DeleteProjectCommand(uid, DeleteTarget.Value), RequestCt);
+        var result = await Mediator.Send(new DeleteProjectCommand(uid, id), RequestCt);
         if (result.IsSuccess)
         {
-            DeleteTarget = null;
-            DeleteError = null;
+            Toasts.ShowSuccess("Проект удалён.");
             var manageable = await Mediator.Send(new GetManageableProjectsQuery(uid), RequestCt);
             if (manageable.IsSuccess)
                 Manageable = manageable.Value;
             else
-                DeleteError = BlazorResult.Message(manageable);
+                Error = BlazorResult.Message(manageable);
         }
         else
         {
-            DeleteError = BlazorResult.Message(result);
+            Toasts.ShowError(BlazorResult.Message(result) ?? "Не удалось удалить проект.");
         }
     }
 }

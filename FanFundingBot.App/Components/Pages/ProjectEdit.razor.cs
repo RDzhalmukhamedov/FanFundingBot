@@ -1,8 +1,10 @@
 using System.ComponentModel.DataAnnotations;
+using FanFundingBot.App.Components.Shared;
 using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Application.Projects.Queries;
 using Microsoft.AspNetCore.Components;
+using Microsoft.FluentUI.AspNetCore.Components;
 
 namespace FanFundingBot.App.Components.Pages;
 
@@ -17,8 +19,8 @@ public partial class ProjectEdit : AuthComponentBase
     private HashSet<Guid> DeletedAddonIds { get; set; } = [];
     private string? Error { get; set; }
     private bool IsSaving { get; set; }
-    private Guid? DeleteAddonTarget { get; set; }
-    private string? DeleteError { get; set; }
+    [Inject] private IDialogService Dialogs { get; set; } = null!;
+    [Inject] private IToastService Toasts { get; set; } = null!;
     private long _userId;
 
     private string _originalName = string.Empty;
@@ -88,37 +90,25 @@ public partial class ProjectEdit : AuthComponentBase
             NewAddons.RemoveAt(index);
     }
 
-    private void AskDeleteAddon(Guid addonId)
+    private async Task AskDeleteAddonAsync(Guid addonId)
     {
         var addon = Addons.FirstOrDefault(a => a.Id == addonId);
-        if (addon is not null && addon.HasOrders)
+        if (addon is null || addon.HasOrders)
         {
             return;
         }
-        DeleteAddonTarget = addonId;
-        DeleteError = null;
-    }
-    private void CancelDeleteAddon() { DeleteAddonTarget = null; DeleteError = null; }
 
-    private void ConfirmDeleteAddon()
-    {
-        if (!DeleteAddonTarget.HasValue)
+        var dialog = await Dialogs.ShowDialogAsync<ConfirmDialog, ConfirmDialogData>(
+            new ConfirmDialogData(
+                "Удаление дополнения",
+                "Удалить дополнение? Действие будет применено при сохранении."),
+            new DialogParameters { Title = "Удаление дополнения" });
+        if ((await dialog.Result).Cancelled)
             return;
 
-        var id = DeleteAddonTarget.Value;
-        var addon = Addons.FirstOrDefault(a => a.Id == id);
-        if (addon is not null)
-        {
-            if (addon.HasOrders)
-            {
-                DeleteError = "Это дополнение есть в одном или нескольких заказах.";
-                return;
-            }
-            Addons.Remove(addon);
-            DeletedAddonIds.Add(id);
-        }
-        DeleteAddonTarget = null;
-        DeleteError = null;
+        Addons.Remove(addon);
+        DeletedAddonIds.Add(addonId);
+        Toasts.ShowSuccess("Дополнение будет удалено при сохранении.");
     }
 
     private async Task SaveAllAsync()
