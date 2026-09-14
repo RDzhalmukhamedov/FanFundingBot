@@ -1,18 +1,13 @@
-using System.Net.Http.Json;
-using FanFundingBot.App.Auth;
+using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Projects.DTOs;
+using FanFundingBot.Application.Projects.Queries;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Authorization;
 
 namespace FanFundingBot.App.Components.Pages;
 
-public partial class ProjectEdit
+public partial class ProjectEdit : AuthComponentBase
 {
     [Parameter] public Guid Id { get; set; }
-    [Inject] private AuthenticationStateProvider AuthState { get; set; } = null!;
-    [Inject] private IHttpClientFactory HttpFactory { get; set; } = null!;
-    [Inject] private NavigationManager Nav { get; set; } = null!;
-    [Inject] private WebApiTokenAccessor TokenAccessor { get; set; } = null!;
 
     private ProjectDto? Project { get; set; }
     private string Name { get; set; } = string.Empty;
@@ -23,6 +18,7 @@ public partial class ProjectEdit
     private string? Error { get; set; }
     private Guid? DeleteAddonTarget { get; set; }
     private string? DeleteError { get; set; }
+    private long _userId;
 
     private string _originalName = string.Empty;
     private string _originalDescription = string.Empty;
@@ -46,21 +42,26 @@ public partial class ProjectEdit
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthState.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
+        if (!IsAuthenticated(state.User))
         {
-            Nav.NavigateTo("/", forceLoad: true);
+            RedirectToLogin();
             return;
         }
 
+        _userId = await UseUserAsync();
         await ReloadAsync();
     }
 
     private async Task ReloadAsync()
     {
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        Project = await client.GetFromJsonAsync<ProjectDto>($"api/projects/{Id}");
-        if (Project is null)
+        var result = await Mediator.Send(new GetProjectByIdQuery(Id), RequestCt);
+        if (result.IsFailed)
+        {
+            Error = BlazorResult.Message(result);
             return;
+        }
+
+        Project = result.Value;
 
         Name = Project.Name;
         Description = Project.Description ?? string.Empty;
@@ -125,7 +126,6 @@ public partial class ProjectEdit
             return;
 
         Error = null;
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
 
         // Validate new addons: if any new addon has empty name but other fields filled, show error
         foreach (var ne in NewAddons)
@@ -145,13 +145,20 @@ public partial class ProjectEdit
             return;
         }
 
-        // Save project details if changed
+        // Save project details if changed (два вызова, как в Minimal API).
         if (Name != _originalName || Description != _originalDescription)
         {
-            var response = await client.PutAsJsonAsync($"api/projects/{Id}", new { name = Name, description = Description });
-            if (!response.IsSuccessStatusCode)
+            var renamed = await Mediator.Send(new RenameProjectCommand(_userId, Id, Name), RequestCt);
+            if (renamed.IsFailed)
             {
-                Error = await WebApi.ReadErrorAsync(response);
+                Error = BlazorResult.Message(renamed);
+                return;
+            }
+
+            var described = await Mediator.Send(new UpdateProjectDescriptionCommand(_userId, Id, Description), RequestCt);
+            if (described.IsFailed)
+            {
+                Error = BlazorResult.Message(described);
                 return;
             }
         }
@@ -166,32 +173,44 @@ public partial class ProjectEdit
             bool priceChanged = addon.Price != orig.Price;
             if (!nameChanged && !descChanged && !priceChanged) continue;
 
-            var payload = new
+            if (nameChanged)
             {
-                name = nameChanged ? addon.Name : null,
-                description = descChanged ? addon.Description : null,
-                price = priceChanged ? (decimal?)addon.Price : null
-            };
-            var response = await client.PutAsJsonAsync($"api/addons/{addon.Id}", payload);
-            if (!response.IsSuccessStatusCode)
+                var renamed = await Mediator.Send(new UpdateAddonNameCommand(_userId, addon.Id, addon.Name), RequestCt);
+                if (renamed.IsFailed)
+                {
+                    Error = BlazorResult.Message(renamed);
+                    return;
+                }
+            }
+
+            if (descChanged)
             {
-                Error = await WebApi.ReadErrorAsync(response);
-                return;
+                var described = await Mediator.Send(new UpdateAddonDescriptionCommand(_userId, addon.Id, addon.Description), RequestCt);
+                if (described.IsFailed)
+                {
+                    Error = BlazorResult.Message(described);
+                    return;
+                }
+            }
+
+            if (priceChanged)
+            {
+                var priced = await Mediator.Send(new UpdateAddonPriceCommand(_userId, addon.Id, addon.Price), RequestCt);
+                if (priced.IsFailed)
+                {
+                    Error = BlazorResult.Message(priced);
+                    return;
+                }
             }
         }
 
         // Create new addons
         foreach (var ne in toCreate)
         {
-            var response = await client.PostAsJsonAsync($"api/projects/{Id}/addons", new
+            var created = await Mediator.Send(new CreateAddonCommand(_userId, Id, ne.Name, ne.Description, ne.Price), RequestCt);
+            if (created.IsFailed)
             {
-                name = ne.Name,
-                description = ne.Description,
-                price = ne.Price
-            });
-            if (!response.IsSuccessStatusCode)
-            {
-                Error = await WebApi.ReadErrorAsync(response);
+                Error = BlazorResult.Message(created);
                 return;
             }
         }
@@ -199,10 +218,10 @@ public partial class ProjectEdit
         // Delete addons
         foreach (var delId in DeletedAddonIds.ToList())
         {
-            var response = await client.DeleteAsync($"api/addons/{delId}");
-            if (!response.IsSuccessStatusCode)
+            var deleted = await Mediator.Send(new DeleteAddonCommand(_userId, delId), RequestCt);
+            if (deleted.IsFailed)
             {
-                Error = await WebApi.ReadErrorAsync(response);
+                Error = BlazorResult.Message(deleted);
                 return;
             }
         }

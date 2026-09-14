@@ -51,15 +51,11 @@ builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserProvider, HybridCurrentUserProvider>();
 
-// Blazor Server: состояние аутентификации из JWT-cookie + HTTP-клиент к своему API.
+// Blazor Server: состояние аутентификации из JWT-cookie (claims-сессия, без сырого JWT).
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddFluentUIComponents();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, CookieAuthenticationStateProvider>();
-builder.Services.AddScoped<BlazorCircuitUserContext>();
-builder.Services.AddScoped<WebApiTokenAccessor>();
-builder.Services.AddTransient<AuthHeaderHandler>();
-builder.Services.AddHttpClient("webapi").AddHttpMessageHandler<AuthHeaderHandler>();
 
 var jwtSecret = builder.Configuration["Jwt:Secret"];
 if (!string.IsNullOrEmpty(jwtSecret))

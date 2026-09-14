@@ -1,17 +1,12 @@
-using System.Net.Http.Json;
-using FanFundingBot.App.Auth;
+using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Projects.DTOs;
+using FanFundingBot.Application.Projects.Queries;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Authorization;
 
 namespace FanFundingBot.App.Components.Pages;
 
-public partial class Projects
+public partial class Projects : AuthComponentBase
 {
-    [Inject] private AuthenticationStateProvider AuthState { get; set; } = null!;
-    [Inject] private IHttpClientFactory HttpFactory { get; set; } = null!;
-    [Inject] private NavigationManager Nav { get; set; } = null!;
-    [Inject] private WebApiTokenAccessor TokenAccessor { get; set; } = null!;
     [Inject] private ILogger<Projects> Logger { get; set; } = null!;
 
     private bool Loaded { get; set; }
@@ -26,26 +21,32 @@ public partial class Projects
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthState.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
+        if (!IsAuthenticated(state.User))
         {
-            Nav.NavigateTo("/", forceLoad: true);
+            RedirectToLogin();
             return;
         }
 
         try
         {
-            var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-            var manageableResp = await client.GetAsync("api/projects/manageable");
-            if (!manageableResp.IsSuccessStatusCode)
-                throw new HttpRequestException($"manageable {(int)manageableResp.StatusCode} {await manageableResp.Content.ReadAsStringAsync()}");
-            Manageable = await manageableResp.Content.ReadFromJsonAsync<List<ProjectDto>>() ?? [];
-            IsAdmin = state.User.IsInRole("Admin") || Manageable.Count > 0;
-            if (!IsAdmin)
+            var uid = await UseUserAsync();
+            var manageable = await Mediator.Send(new GetManageableProjectsQuery(uid), RequestCt);
+            if (manageable.IsSuccess)
             {
-                var catalogResp = await client.GetAsync("api/projects");
-                if (!catalogResp.IsSuccessStatusCode)
-                    throw new HttpRequestException($"catalog {(int)catalogResp.StatusCode} {await catalogResp.Content.ReadAsStringAsync()}");
-                Catalog = await catalogResp.Content.ReadFromJsonAsync<List<ProjectDto>>() ?? [];
+                Manageable = manageable.Value;
+                IsAdmin = state.User.IsInRole("Admin") || Manageable.Count > 0;
+                if (!IsAdmin)
+                {
+                    var catalog = await Mediator.Send(new GetProjectsQuery(), RequestCt);
+                    if (catalog.IsSuccess)
+                        Catalog = catalog.Value;
+                    else
+                        Error = BlazorResult.Message(catalog);
+                }
+            }
+            else
+            {
+                Error = BlazorResult.Message(manageable);
             }
         }
         catch (Exception ex)
@@ -68,17 +69,21 @@ public partial class Projects
         if (!DeleteTarget.HasValue)
             return;
 
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var response = await client.DeleteAsync($"api/projects/{DeleteTarget.Value}");
-        if (response.IsSuccessStatusCode)
+        var uid = await UseUserAsync();
+        var result = await Mediator.Send(new DeleteProjectCommand(uid, DeleteTarget.Value), RequestCt);
+        if (result.IsSuccess)
         {
             DeleteTarget = null;
             DeleteError = null;
-            Manageable = await client.GetFromJsonAsync<List<ProjectDto>>("api/projects/manageable") ?? [];
+            var manageable = await Mediator.Send(new GetManageableProjectsQuery(uid), RequestCt);
+            if (manageable.IsSuccess)
+                Manageable = manageable.Value;
+            else
+                DeleteError = BlazorResult.Message(manageable);
         }
         else
         {
-            DeleteError = await WebApi.ReadErrorAsync(response);
+            DeleteError = BlazorResult.Message(result);
         }
     }
 }

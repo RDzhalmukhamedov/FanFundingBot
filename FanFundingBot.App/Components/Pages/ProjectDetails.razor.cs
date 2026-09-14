@@ -1,25 +1,24 @@
-using System.Net.Http.Json;
-using System.Text.Json;
-using FanFundingBot.App.Auth;
-using FanFundingBot.Application.Common.Models;
+using FanFundingBot.Application.Orders.Commands;
 using FanFundingBot.Application.Orders.DTOs;
+using FanFundingBot.Application.Orders.Queries;
+using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Projects.DTOs;
+using FanFundingBot.Application.Projects.Queries;
+using FanFundingBot.Application.Questions.Commands;
 using FanFundingBot.Application.Questions.DTOs;
+using FanFundingBot.Application.Questions.Queries;
+using FanFundingBot.App.Services;
 using FanFundingBot.Domain.Enums;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Authorization;
 
 namespace FanFundingBot.App.Components.Pages;
 
-public partial class ProjectDetails
+public partial class ProjectDetails : AuthComponentBase
 {
     private const int PageSize = 20;
 
     [Parameter] public Guid Id { get; set; }
-    [Inject] private AuthenticationStateProvider AuthState { get; set; } = null!;
-    [Inject] private IHttpClientFactory HttpFactory { get; set; } = null!;
-    [Inject] private NavigationManager Nav { get; set; } = null!;
-    [Inject] private WebApiTokenAccessor TokenAccessor { get; set; } = null!;
+    [Inject] private ProjectSheetLinkService SheetLinks { get; set; } = null!;
 
     private ProjectDto? Project { get; set; }
     private List<OrderDto> Orders { get; set; } = [];
@@ -34,6 +33,7 @@ public partial class ProjectDetails
     private string? SheetUrl { get; set; }
     private string? Error { get; set; }
     private string? ModalError { get; set; }
+    private long _userId;
 
     private string ActiveTab { get; set; } = "overview";
 
@@ -51,16 +51,23 @@ public partial class ProjectDetails
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthState.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
+        if (!IsAuthenticated(state.User))
         {
-            Nav.NavigateTo("/", forceLoad: true);
+            RedirectToLogin();
             return;
         }
 
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
+        _userId = await UseUserAsync();
         try
         {
-            Statuses = await client.GetFromJsonAsync<List<ProjectStatusDto>>("api/project-statuses") ?? [];
+            var statuses = await Mediator.Send(new GetProjectStatusesQuery(), RequestCt);
+            if (statuses.IsFailed)
+            {
+                Error = BlazorResult.Message(statuses);
+                return;
+            }
+
+            Statuses = statuses.Value;
             await ReloadAsync();
         }
         catch
@@ -71,8 +78,14 @@ public partial class ProjectDetails
 
     private async Task ReloadAsync()
     {
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        Project = await client.GetFromJsonAsync<ProjectDto>($"api/projects/{Id}");
+        var project = await Mediator.Send(new GetProjectByIdQuery(Id), RequestCt);
+        if (project.IsFailed)
+        {
+            Error = BlazorResult.Message(project);
+            return;
+        }
+
+        Project = project.Value;
 
         if (Project is not null && !Statuses.Any(s => s.Id == NewStatusId))
             NewStatusId = Project.StatusId;
@@ -82,24 +95,24 @@ public partial class ProjectDetails
         await LoadOrdersAsync();
         await LoadQuestionsAsync();
 
-        try
-        {
-            var link = await client.GetFromJsonAsync<JsonElement>($"api/projects/{Id}/sheet-link");
-            SheetUrl = link.GetProperty("url").GetString();
-        }
-        catch
-        {
-            SheetUrl = string.Empty;
-        }
+        var link = await SheetLinks.GetUrlAsync(Id);
+        SheetUrl = link.IsSuccess ? link.Value : string.Empty;
     }
 
     private async Task LoadOrdersAsync()
     {
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var paged = await client.GetFromJsonAsync<PagedResult<OrderDto>>(
-            $"api/projects/{Id}/orders?page={OrdersPage}&pageSize={PageSize}");
-        Orders = paged?.Items ?? [];
-        OrdersTotalCount = paged?.TotalCount ?? 0;
+        var paged = await Mediator.Send(
+            new GetOrdersByProjectQuery(Id, _userId, OrdersPage, PageSize), RequestCt);
+        if (paged.IsFailed)
+        {
+            Error = BlazorResult.Message(paged);
+            Orders = [];
+            OrdersTotalCount = 0;
+            return;
+        }
+
+        Orders = paged.Value.Items;
+        OrdersTotalCount = paged.Value.TotalCount;
         if (Orders.Count == 0 && OrdersPage > 1)
         {
             OrdersPage = Math.Max(1, OrdersTotalPages);
@@ -109,11 +122,18 @@ public partial class ProjectDetails
 
     private async Task LoadQuestionsAsync()
     {
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var paged = await client.GetFromJsonAsync<PagedResult<QuestionDto>>(
-            $"api/questions/unanswered?page={QuestionsPage}&pageSize={PageSize}");
-        Questions = paged?.Items ?? [];
-        QuestionsTotalCount = paged?.TotalCount ?? 0;
+        var paged = await Mediator.Send(
+            new GetUnansweredQuestionsQuery(_userId, QuestionsPage, PageSize), RequestCt);
+        if (paged.IsFailed)
+        {
+            Error = BlazorResult.Message(paged);
+            Questions = [];
+            QuestionsTotalCount = 0;
+            return;
+        }
+
+        Questions = paged.Value.Items;
+        QuestionsTotalCount = paged.Value.TotalCount;
         if (Questions.Count == 0 && QuestionsPage > 1)
         {
             QuestionsPage = Math.Max(1, QuestionsTotalPages);
@@ -162,16 +182,16 @@ public partial class ProjectDetails
 
     private async Task ChangeProjectStatusAsync()
     {
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var response = await client.PutAsJsonAsync($"api/projects/{Id}/status", new { statusId = NewStatusId });
-        if (response.IsSuccessStatusCode)
+        var result = await Mediator.Send(
+            new UpdateProjectStatusCommand(_userId, Id, NewStatusId), RequestCt);
+        if (result.IsSuccess)
         {
             ProjectStatusConfirm = false;
             await ReloadAsync();
         }
         else
         {
-            ModalError = await WebApi.ReadErrorAsync(response);
+            ModalError = BlazorResult.Message(result);
         }
     }
 
@@ -187,17 +207,16 @@ public partial class ProjectDetails
         if (OrderStatusTarget is null)
             return;
 
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var response = await client.PutAsJsonAsync(
-            $"api/orders/{OrderStatusTarget.Id}/status", new { status = OrderStatusValue.ToString() });
-        if (response.IsSuccessStatusCode)
+        var result = await Mediator.Send(
+            new UpdateOrderStatusCommand(OrderStatusTarget.Id, _userId, OrderStatusValue), RequestCt);
+        if (result.IsSuccess)
         {
             OrderStatusTarget = null;
             await LoadOrdersAsync();
         }
         else
         {
-            ModalError = await WebApi.ReadErrorAsync(response);
+            ModalError = BlazorResult.Message(result);
         }
     }
 
@@ -208,15 +227,15 @@ public partial class ProjectDetails
         if (MessageTarget is null)
             return;
 
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var response = await client.PostAsJsonAsync($"api/orders/{MessageTarget.Id}/message", new { text });
-        if (response.IsSuccessStatusCode)
+        var result = await Mediator.Send(
+            new SendDirectMessageCommand(_userId, MessageTarget.Id, text), RequestCt);
+        if (result.IsSuccess)
         {
             MessageTarget = null;
         }
         else
         {
-            ModalError = await WebApi.ReadErrorAsync(response);
+            ModalError = BlazorResult.Message(result);
         }
     }
 
@@ -224,15 +243,14 @@ public partial class ProjectDetails
 
     private async Task BroadcastAsync(string text)
     {
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var response = await client.PostAsJsonAsync($"api/projects/{Id}/broadcast", new { message = text });
-        if (response.IsSuccessStatusCode)
+        var result = await Mediator.Send(new BroadcastCommand(_userId, Id, text), RequestCt);
+        if (result.IsSuccess)
         {
             BroadcastOpen = false;
         }
         else
         {
-            ModalError = await WebApi.ReadErrorAsync(response);
+            ModalError = BlazorResult.Message(result);
         }
     }
 
@@ -243,21 +261,21 @@ public partial class ProjectDetails
         if (AnswerTarget is null)
             return;
 
-        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
-        var response = await client.PostAsJsonAsync(
-            $"api/questions/{AnswerTarget.Id}/answer", new { answer = text });
-        if (response.IsSuccessStatusCode)
+        var result = await Mediator.Send(
+            new AnswerQuestionCommand(_userId, AnswerTarget.Id, text), RequestCt);
+        if (result.IsSuccess)
         {
             AnswerTarget = null;
             await LoadQuestionsAsync();
         }
         else
         {
-            ModalError = await WebApi.ReadErrorAsync(response);
+            ModalError = BlazorResult.Message(result);
         }
     }
 
     // Дублирует маппинг StatusBadge (там — компонент, здесь — текст для <option>).
+    // TODO(Фаза 4b): единый OrderStatusTextService + FluentUI-компоненты.
     private static string OrderStatusText(OrderStatus status) => status switch
     {
         OrderStatus.New => "🆕 Новый",

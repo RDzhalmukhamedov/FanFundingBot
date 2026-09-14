@@ -14,13 +14,10 @@ namespace FanFundingBot.App.Auth;
 /// кладётся только <see cref="UserSession"/> (сырой JWT клиенту не отдаём —
 /// persisted state виден в HTML, в отличие от HttpOnly-cookie).
 /// Интерактив (SignalR, без HttpContext): principal восстанавливается из сессии.
-/// Совместимость: до Фазы 2 (прямые вызовы MediatR вместо HTTP-loopback)
-/// legacy-ключ "auth_token" тоже персистится для <see cref="WebApiTokenAccessor"/>.
 /// </summary>
 public sealed class CookieAuthenticationStateProvider : AuthenticationStateProvider
 {
     private const string SessionKey = "auth_session";
-    private const string LegacyTokenKey = "auth_token";
 
     private static readonly ClaimsPrincipal Anonymous = new(new ClaimsIdentity());
 
@@ -30,31 +27,24 @@ public sealed class CookieAuthenticationStateProvider : AuthenticationStateProvi
         PersistentComponentState state,
         IHttpContextAccessor httpContextAccessor,
         IOptions<JwtOptions> options,
-        WebApiTokenAccessor accessor,
         BlazorCircuitUserContext circuitContext)
     {
-        string? token = null;
-        UserSession? session = null;
+        UserSession? session;
         if (!state.TryTakeFromJson<UserSession?>(SessionKey, out var persisted) || persisted is null)
         {
-            token = httpContextAccessor.HttpContext?.Request.Cookies[JwtTokenService.CookieName];
+            var token = httpContextAccessor.HttpContext?.Request.Cookies[JwtTokenService.CookieName];
             session = ToSession(token, options.Value);
             state.RegisterOnPersisting(() =>
             {
                 state.PersistAsJson(SessionKey, session);
-                // TODO(Фаза 2): удалить вместе с WebApiTokenAccessor/AuthHeaderHandler.
-                state.PersistAsJson(LegacyTokenKey, token);
                 return Task.CompletedTask;
             });
         }
         else
         {
             session = persisted.Expires > DateTimeOffset.UtcNow && persisted.UserId > 0 ? persisted : null;
-            // TODO(Фаза 2): удалить вместе с WebApiTokenAccessor/AuthHeaderHandler.
-            state.TryTakeFromJson<string?>(LegacyTokenKey, out token);
         }
 
-        accessor.Token = token;
         _user = session is null ? Anonymous : ToPrincipal(session);
         if (session is not null)
             circuitContext.UserId = session.UserId;

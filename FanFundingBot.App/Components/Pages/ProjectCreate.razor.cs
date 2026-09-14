@@ -1,16 +1,11 @@
-using System.Net.Http.Json;
+using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Projects.DTOs;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Authorization;
 
 namespace FanFundingBot.App.Components.Pages;
 
-public partial class ProjectCreate
+public partial class ProjectCreate : AuthComponentBase
 {
-    [Inject] private AuthenticationStateProvider AuthState { get; set; } = null!;
-    [Inject] private IHttpClientFactory HttpFactory { get; set; } = null!;
-    [Inject] private NavigationManager Nav { get; set; } = null!;
-
     private string Name { get; set; } = string.Empty;
     private string Description { get; set; } = string.Empty;
     private List<AddonForm> Addons { get; set; } = [];
@@ -19,8 +14,8 @@ public partial class ProjectCreate
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthState.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated != true)
-            Nav.NavigateTo("/", forceLoad: true);
+        if (!IsAuthenticated(state.User))
+            RedirectToLogin();
     }
 
     private void AddAddon() => Addons.Add(new AddonForm());
@@ -28,18 +23,17 @@ public partial class ProjectCreate
 
     private async Task SaveAsync()
     {
-        var client = WebApi.Client(HttpFactory, Nav);
-        var response = await client.PostAsJsonAsync("api/projects", new
-        {
-            name = Name,
-            description = Description,
-            addons = Addons.Select(a => new NewAddonItem(a.Name, a.Description, a.Price)).ToList()
-        });
+        var uid = await UseUserAsync();
+        var result = await Mediator.Send(new CreateProjectCommand(
+            uid,
+            Name,
+            Description,
+            Addons.Select(a => new NewAddonItem(a.Name, a.Description, a.Price)).ToList()), RequestCt);
 
-        if (response.IsSuccessStatusCode)
+        if (result.IsSuccess)
             Nav.NavigateTo("/projects");
         else
-            Error = await WebApi.ReadErrorAsync(response);
+            Error = BlazorResult.Message(result);
     }
 
     private sealed class AddonForm

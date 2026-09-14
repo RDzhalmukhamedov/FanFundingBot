@@ -1,4 +1,6 @@
 @page "/projects/{id:guid}"
+@attribute [Authorize]
+@inherits AuthComponentBase
 @rendermode InteractiveServer
 
 <PageTitle>Проект</PageTitle>
