@@ -84,7 +84,7 @@ public class AssignManagerCommandHandler : IRequestHandler<AssignManagerCommand,
             return Result.Fail(ResultErrors.UserNotFound());
 
         project.AddMember(request.TargetUserId, request.Role);
-        await _projects.UpdateAsync(project);
+        await _projects.UpdateMembersAsync(project);
 
         return Result.Ok();
     }

@@ -97,7 +97,7 @@ public class UpdateProjectCommandTests
 
         result.IsSuccess.Should().BeTrue();
         project.Name.Should().Be("New");
-        await _projects.Received(1).UpdateAsync(project);
+        await _projects.Received(1).UpdateDetailsAsync(project);
     }
 
     [Test]
@@ -378,7 +378,7 @@ public class StatusAndMemberCommandTests
 
         result.IsSuccess.Should().BeTrue();
         project.GetMemberRole(9).Should().Be(ProjectRole.Manager);
-        await projects.Received(1).UpdateAsync(project);
+        await projects.Received(1).UpdateMembersAsync(project);
     }
 
     [Test]
@@ -394,7 +394,7 @@ public class StatusAndMemberCommandTests
             new AssignManagerCommand(2, Guid.NewGuid(), 9, ProjectRole.Manager), CancellationToken.None);
 
         result.IsFailed.Should().BeTrue();
-        await projects.DidNotReceive().UpdateAsync(Arg.Any<Project>());
+        await projects.DidNotReceive().UpdateMembersAsync(Arg.Any<Project>());
     }
 
     [Test]

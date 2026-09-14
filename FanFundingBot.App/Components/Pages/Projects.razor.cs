@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using FanFundingBot.App.Auth;
 using FanFundingBot.Application.Projects.DTOs;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -10,6 +11,8 @@ public partial class Projects
     [Inject] private AuthenticationStateProvider AuthState { get; set; } = null!;
     [Inject] private IHttpClientFactory HttpFactory { get; set; } = null!;
     [Inject] private NavigationManager Nav { get; set; } = null!;
+    [Inject] private WebApiTokenAccessor TokenAccessor { get; set; } = null!;
+    [Inject] private ILogger<Projects> Logger { get; set; } = null!;
 
     private bool Loaded { get; set; }
     private bool IsAdmin { get; set; }
@@ -31,14 +34,23 @@ public partial class Projects
 
         try
         {
-            var client = WebApi.Client(HttpFactory, Nav);
-            Manageable = await client.GetFromJsonAsync<List<ProjectDto>>("api/projects/manageable") ?? [];
+            var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
+            var manageableResp = await client.GetAsync("api/projects/manageable");
+            if (!manageableResp.IsSuccessStatusCode)
+                throw new HttpRequestException($"manageable {(int)manageableResp.StatusCode} {await manageableResp.Content.ReadAsStringAsync()}");
+            Manageable = await manageableResp.Content.ReadFromJsonAsync<List<ProjectDto>>() ?? [];
             IsAdmin = state.User.IsInRole("Admin") || Manageable.Count > 0;
             if (!IsAdmin)
-                Catalog = await client.GetFromJsonAsync<List<ProjectDto>>("projects") ?? [];
+            {
+                var catalogResp = await client.GetAsync("api/projects");
+                if (!catalogResp.IsSuccessStatusCode)
+                    throw new HttpRequestException($"catalog {(int)catalogResp.StatusCode} {await catalogResp.Content.ReadAsStringAsync()}");
+                Catalog = await catalogResp.Content.ReadFromJsonAsync<List<ProjectDto>>() ?? [];
+            }
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Projects load failed");
             Error = "Не удалось загрузить проекты. Попробуйте позже.";
         }
 
@@ -56,7 +68,7 @@ public partial class Projects
         if (!DeleteTarget.HasValue)
             return;
 
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         var response = await client.DeleteAsync($"api/projects/{DeleteTarget.Value}");
         if (response.IsSuccessStatusCode)
         {

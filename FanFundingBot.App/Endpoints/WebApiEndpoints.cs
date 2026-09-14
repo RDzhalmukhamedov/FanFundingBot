@@ -30,6 +30,12 @@ public static class WebApiEndpoints
     {
         var api = app.MapGroup("/api").RequireAuthorization();
 
+        api.MapGet("/projects", async (IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new GetProjectsQuery(), ct);
+            return ToResult(result);
+        });
+
         api.MapGet("/projects/manageable", async (IMediator mediator, ICurrentUserProvider me, CancellationToken ct) =>
         {
             var result = await mediator.Send(new GetManageableProjectsQuery(me.GetCurrentUserId()), ct);

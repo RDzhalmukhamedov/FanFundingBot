@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using FanFundingBot.App.Auth;
 using FanFundingBot.Application.Projects.DTOs;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -11,6 +12,7 @@ public partial class ProjectEdit
     [Inject] private AuthenticationStateProvider AuthState { get; set; } = null!;
     [Inject] private IHttpClientFactory HttpFactory { get; set; } = null!;
     [Inject] private NavigationManager Nav { get; set; } = null!;
+    [Inject] private WebApiTokenAccessor TokenAccessor { get; set; } = null!;
 
     private ProjectDto? Project { get; set; }
     private string Name { get; set; } = string.Empty;
@@ -37,7 +39,7 @@ public partial class ProjectEdit
 
     private async Task ReloadAsync()
     {
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         Project = await client.GetFromJsonAsync<ProjectDto>($"api/projects/{Id}");
         if (Project is null)
             return;
@@ -51,7 +53,7 @@ public partial class ProjectEdit
 
     private async Task SaveAsync()
     {
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         var response = await client.PutAsJsonAsync($"api/projects/{Id}", new { name = Name, description = Description });
         if (response.IsSuccessStatusCode)
             await ReloadAsync();
@@ -61,7 +63,7 @@ public partial class ProjectEdit
 
     private async Task SaveAddonAsync(AddonForm addon)
     {
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         var response = await client.PutAsJsonAsync($"api/addons/{addon.Id}", new
         {
             name = addon.Name,
@@ -77,7 +79,7 @@ public partial class ProjectEdit
 
     private async Task AddAddonAsync()
     {
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         var response = await client.PostAsJsonAsync($"api/projects/{Id}/addons", new
         {
             name = NewName,
@@ -106,7 +108,7 @@ public partial class ProjectEdit
         if (!DeleteAddonTarget.HasValue)
             return;
 
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         var response = await client.DeleteAsync($"api/addons/{DeleteAddonTarget.Value}");
         if (response.IsSuccessStatusCode)
         {

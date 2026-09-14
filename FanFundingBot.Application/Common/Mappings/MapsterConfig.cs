@@ -14,6 +14,8 @@ public static class MapsterConfig
     {
         TypeAdapterConfig<Order, OrderDto>.NewConfig()
             .Map(dest => dest.UserId, src => src.User.Id)
+            .Map(dest => dest.Username, src => src.User.Username)
+            .Map(dest => dest.FirstName, src => src.User.FirstName)
             .Map(dest => dest.ProjectId, src => src.Project.Id)
             .Map(dest => dest.ProjectName, src => src.Project.Name)
             .Map(dest => dest.Phone, src => src.Phone.ToString())

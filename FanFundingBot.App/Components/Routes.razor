@@ -1,7 +1,14 @@
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(App).Assembly">
         <Found Context="routeData">
-            <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    <LayoutView Layout="@typeof(MainLayout)">
+                        <p>Требуется вход. <a href="/">На главную</a></p>
+                    </LayoutView>
+                </NotAuthorized>
+                <Authorizing><p class="muted">Проверка доступа...</p></Authorizing>
+            </AuthorizeRouteView>
             <FocusOnNavigate RouteData="@routeData" Selector="h1" />
         </Found>
         <NotFound>

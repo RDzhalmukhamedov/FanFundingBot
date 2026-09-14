@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using FanFundingBot.App.Auth;
 using FanFundingBot.Application.Orders.DTOs;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Application.Questions.DTOs;
@@ -15,6 +16,7 @@ public partial class ProjectDetails
     [Inject] private AuthenticationStateProvider AuthState { get; set; } = null!;
     [Inject] private IHttpClientFactory HttpFactory { get; set; } = null!;
     [Inject] private NavigationManager Nav { get; set; } = null!;
+    [Inject] private WebApiTokenAccessor TokenAccessor { get; set; } = null!;
 
     private ProjectDto? Project { get; set; }
     private List<OrderDto> Orders { get; set; } = [];
@@ -24,6 +26,8 @@ public partial class ProjectDetails
     private string? SheetUrl { get; set; }
     private string? Error { get; set; }
     private string? ModalError { get; set; }
+
+    private string ActiveTab { get; set; } = "overview";
 
     private int NewStatusId { get; set; }
     private bool ProjectStatusConfirm { get; set; }
@@ -44,7 +48,7 @@ public partial class ProjectDetails
             return;
         }
 
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         try
         {
             Statuses = await client.GetFromJsonAsync<List<ProjectStatusDto>>("api/project-statuses") ?? [];
@@ -58,7 +62,7 @@ public partial class ProjectDetails
 
     private async Task ReloadAsync()
     {
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         Project = await client.GetFromJsonAsync<ProjectDto>($"api/projects/{Id}");
         Orders = await client.GetFromJsonAsync<List<OrderDto>>($"api/projects/{Id}/orders") ?? [];
         Questions = await client.GetFromJsonAsync<List<QuestionDto>>("api/questions/unanswered") ?? [];
@@ -83,7 +87,7 @@ public partial class ProjectDetails
 
     private async Task ChangeProjectStatusAsync()
     {
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         var response = await client.PutAsJsonAsync($"api/projects/{Id}/status", new { statusId = NewStatusId });
         if (response.IsSuccessStatusCode)
         {
@@ -108,7 +112,7 @@ public partial class ProjectDetails
         if (OrderStatusTarget is null)
             return;
 
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         var response = await client.PutAsJsonAsync(
             $"api/orders/{OrderStatusTarget.Id}/status", new { status = OrderStatusValue.ToString() });
         if (response.IsSuccessStatusCode)
@@ -129,7 +133,7 @@ public partial class ProjectDetails
         if (MessageTarget is null)
             return;
 
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         var response = await client.PostAsJsonAsync($"api/orders/{MessageTarget.Id}/message", new { text });
         if (response.IsSuccessStatusCode)
         {
@@ -145,7 +149,7 @@ public partial class ProjectDetails
 
     private async Task BroadcastAsync(string text)
     {
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         var response = await client.PostAsJsonAsync($"api/projects/{Id}/broadcast", new { message = text });
         if (response.IsSuccessStatusCode)
         {
@@ -159,7 +163,7 @@ public partial class ProjectDetails
 
     private async Task AnswerAsync(Guid questionId)
     {
-        var client = WebApi.Client(HttpFactory, Nav);
+        var client = WebApi.Client(HttpFactory, Nav, TokenAccessor);
         var response = await client.PostAsJsonAsync(
             $"api/questions/{questionId}/answer", new { answer = Answers.GetValueOrDefault(questionId) ?? string.Empty });
         if (response.IsSuccessStatusCode)

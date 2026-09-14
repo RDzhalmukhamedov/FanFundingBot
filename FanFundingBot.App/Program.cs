@@ -1,6 +1,5 @@
 using FanFundingBot.Application;
 using FanFundingBot.Application.Abstractions;
-using FanFundingBot.Application.Projects.Queries;
 using FanFundingBot.Application.Users.Commands;
 using FanFundingBot.App.Auth;
 using FanFundingBot.App.Components;
@@ -97,6 +96,8 @@ else
 
 var app = builder.Build();
 
+app.UseStaticFiles();
+
 if (!string.IsNullOrEmpty(jwtSecret))
 {
     app.UseAuthentication();
@@ -104,21 +105,9 @@ if (!string.IsNullOrEmpty(jwtSecret))
 }
 
 app.MapControllers();
-app.MapControllerRoute(name: "default", pattern: "{controller=App}/{action=Index}/{id?}");
 
-// Публичная витрина (экс-FanFundingBot.Web, поглощен: отдельный хост ради двух ручек не окупал дубль DI).
+// Health (anonymous)
 app.MapGet("/health", () => Results.Ok("ok"));
-
-app.MapGet("/projects", async (IMediator mediator, CancellationToken ct) =>
-{
-    var result = await mediator.Send(new GetProjectsQuery(), ct);
-    if (result.IsFailed)
-        return Results.BadRequest(result.Errors.Select(e => e.Message));
-
-    return Results.Ok(result.Value);
-})
-.WithName("GetProjects")
-.WithSummary("Публичная витрина проектов");
 
 // Вход через Telegram Login Widget: проверка подписи -> GetOrCreateUser -> JWT в HttpOnly-cookie.
 app.MapPost("/api/auth/telegram", async (
@@ -131,6 +120,9 @@ app.MapPost("/api/auth/telegram", async (
     HttpContext http,
     CancellationToken ct) =>
 {
+        if (string.IsNullOrEmpty(jwtOptions.Value.Secret))
+        return Results.Problem("JWT не настроен (Jwt:Secret пустой).", statusCode: 500);
+
     if (!TelegramAuthValidator.IsValid(request.ToFields(), botConfig.BotToken))
         return Results.Unauthorized();
 
@@ -161,6 +153,7 @@ app.MapPost("/api/auth/telegram", async (
 app.MapWebApi();
 
 app.UseAntiforgery();
+app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 using (var scope = app.Services.CreateScope())

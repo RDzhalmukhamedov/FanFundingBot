@@ -18,4 +18,6 @@ public sealed record OrderDto(
     OrderStatus Status,
     DateTime CreatedAt,
     List<OrderPositionDto> Positions,
-    decimal Total);
+    decimal Total,
+    string? Username = null,
+    string? FirstName = null);

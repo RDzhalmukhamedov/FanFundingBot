@@ -12,6 +12,12 @@ public static class TelegramAuthValidator
 {
     public static readonly TimeSpan DefaultMaxAge = TimeSpan.FromHours(24);
 
+    /// <summary>
+    /// Допуск на расхождение часов между Telegram и сервером: auth_date на
+    /// несколько секунд в будущем — норма (округление, NTP-дрейф), а не подделка.
+    /// </summary>
+    public static readonly TimeSpan FutureTolerance = TimeSpan.FromMinutes(5);
+
     public static bool IsValid(
         IReadOnlyDictionary<string, string?> fields,
         string botToken,
@@ -30,7 +36,7 @@ public static class TelegramAuthValidator
 
         var current = now ?? DateTimeOffset.UtcNow;
         var ageSeconds = current.ToUnixTimeSeconds() - authDate;
-        if (ageSeconds < 0 || ageSeconds > (maxAge ?? DefaultMaxAge).TotalSeconds)
+        if (ageSeconds < -FutureTolerance.TotalSeconds || ageSeconds > (maxAge ?? DefaultMaxAge).TotalSeconds)
             return false;
 
         var checkString = string.Join("\n",

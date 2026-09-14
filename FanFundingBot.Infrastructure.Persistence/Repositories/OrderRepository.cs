@@ -53,6 +53,10 @@ public class OrderRepository : IOrderRepository
     {
         return await _context.Orders
             .Where(o => o.Project.Id == projectId)
+            .Include(o => o.User)
+            .Include(o => o.Project)
+            .Include(o => o.OrderAddons)
+            .ThenInclude(p => p.Addon)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync();
     }

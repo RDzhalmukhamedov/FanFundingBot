@@ -1,9 +1,13 @@
 @page "/my-orders"
+@rendermode InteractiveServer
 
 <PageTitle>Мои заказы</PageTitle>
 
 <h1>Мои заказы</h1>
-
+@if (!string.IsNullOrEmpty(Error))
+{
+    <p class="error">@Error</p>
+}
 @if (!Loaded)
 {
     <p class="muted">Загрузка...</p>

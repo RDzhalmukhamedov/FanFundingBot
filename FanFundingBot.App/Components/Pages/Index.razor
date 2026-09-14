@@ -1,4 +1,5 @@
 @page "/"
+@rendermode InteractiveServer
 
 <PageTitle>FanFundingBot</PageTitle>
 
@@ -7,6 +8,28 @@
 <AuthorizeView>
     <Authorized>
         <p>Вы вошли. <a href="/projects">Перейти к проектам</a></p>
+        <div class="card">
+            <h2>Проекты</h2>
+            @if (Catalog is null)
+            {
+                <p class="muted">Загрузка...</p>
+            }
+            else if (Catalog.Count == 0)
+            {
+                <p class="muted">Пока нет доступных проектов.</p>
+            }
+            else
+            {
+                @foreach (var project in Catalog)
+                {
+                    <div class="card">
+                        <h3>@project.Name</h3>
+                        <p>@project.Description</p>
+                        <p class="muted">Статус: @project.StatusName</p>
+                    </div>
+                }
+            }
+        </div>
     </Authorized>
     <NotAuthorized>
         <div class="card">
@@ -45,26 +68,3 @@
         </div>
     </NotAuthorized>
 </AuthorizeView>
-
-<div class="card">
-    <h2>Проекты</h2>
-    @if (Catalog is null)
-    {
-        <p class="muted">Загрузка...</p>
-    }
-    else if (Catalog.Count == 0)
-    {
-        <p class="muted">Пока нет доступных проектов.</p>
-    }
-    else
-    {
-        @foreach (var project in Catalog)
-        {
-            <div class="card">
-                <h3>@project.Name</h3>
-                <p>@project.Description</p>
-                <p class="muted">Статус: @project.StatusName</p>
-            </div>
-        }
-    }
-</div>

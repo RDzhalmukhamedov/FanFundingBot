@@ -28,10 +28,13 @@
         .tooltip { position: relative; display: inline-block; }
         .tooltip .tooltiptext { visibility: hidden; background: #111; color: #fff; border-radius: 6px; padding: 6px 10px; position: absolute; z-index: 1; bottom: 125%; left: 0; white-space: nowrap; }
         .tooltip:hover .tooltiptext { visibility: visible; }
+        .tabs { display: flex; gap: 8px; margin: 16px 0 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 12px; }
+        .tabs .btn { margin-right: 0; }
+        .tabs .active { font-weight: 600; }
     </style>
 </head>
 <body>
-    <Routes />
+    <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
 </body>
 </html>

@@ -16,7 +16,7 @@
             @foreach (var order in Orders)
             {
                 <tr>
-                    <td>@order.UserId</td>
+                    <td>@(order.Username is not null ? "@" + order.Username : order.FirstName is not null ? order.FirstName : order.UserId.ToString())</td>
                     <td>@order.Phone</td>
                     <td>@order.DeliveryMethod@(order.Address is not null ? $" ({order.Address})" : "")</td>
                     <td>
@@ -25,7 +25,7 @@
                             <div>@p.AddonName × @p.Quantity</div>
                         }
                     </td>
-                    <td>@order.Total</td>
+                    <td>@order.Total.ToString("F2")</td>
                     <td><StatusBadge Status="order.Status" /></td>
                     <td>
                         <button class="btn btn-secondary" @onclick="() => ChangeStatus(order)">Статус</button>
