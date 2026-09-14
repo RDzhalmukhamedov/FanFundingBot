@@ -1,40 +1,36 @@
-@if (Orders is not null)
+@if (ItemsProvider is not null)
 {
     <div class="table-wrap">
-    <table class="orders">
-        <thead>
-            <tr>
-                <th>Пользователь</th>
-                <th>Телефон</th>
-                <th>Доставка</th>
-                <th>Позиции</th>
-                <th>Сумма</th>
-                <th>Статус</th>
-                <th>Действия</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var order in Orders)
+    <FluentDataGrid @ref="_grid" ItemsProvider="@ItemsProvider" Pagination="@Pagination" TGridItem="OrderDto">
+        <ChildContent>
+        <TemplateColumn Title="Пользователь">
+            @(context.Username is not null ? "@" + context.Username : context.FirstName is not null ? context.FirstName : context.UserId.ToString())
+        </TemplateColumn>
+        <PropertyColumn Property="@(o => o.Phone)" Title="Телефон" />
+        <TemplateColumn Title="Доставка">
+            @context.DeliveryMethod@(context.Address is not null ? $" ({context.Address})" : "")
+        </TemplateColumn>
+        <TemplateColumn Title="Позиции">
+            @foreach (var p in context.Positions)
             {
-                <tr>
-                    <td>@(order.Username is not null ? "@" + order.Username : order.FirstName is not null ? order.FirstName : order.UserId.ToString())</td>
-                    <td>@order.Phone</td>
-                    <td>@order.DeliveryMethod@(order.Address is not null ? $" ({order.Address})" : "")</td>
-                    <td>
-                        @foreach (var p in order.Positions)
-                        {
-                            <div>@p.AddonName × @p.Quantity</div>
-                        }
-                    </td>
-                    <td>@order.Total.ToString("F2")</td>
-                    <td><StatusBadge Status="order.Status" /></td>
-                    <td>
-                        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => ChangeStatus(order)">Статус</FluentButton>
-                        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => WriteMessage(order)">Написать</FluentButton>
-                    </td>
-                </tr>
+                <div>@p.AddonName × @p.Quantity</div>
             }
-        </tbody>
-    </table>
+        </TemplateColumn>
+        <TemplateColumn Title="Сумма">
+            @context.Total.ToString("F2")
+        </TemplateColumn>
+        <TemplateColumn Title="Статус">
+            <StatusBadge Status="context.Status" />
+        </TemplateColumn>
+        <TemplateColumn Title="Действия">
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => ChangeStatus(context)">Статус</FluentButton>
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => WriteMessage(context)">Написать</FluentButton>
+        </TemplateColumn>
+        </ChildContent>
+        <EmptyContent>
+            <p class="muted">Заказов пока нет.</p>
+        </EmptyContent>
+    </FluentDataGrid>
     </div>
+    <FluentPaginator State="@Pagination" />
 }

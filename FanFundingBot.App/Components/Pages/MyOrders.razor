@@ -21,31 +21,25 @@ else if (Orders.Count == 0)
 else
 {
     <div class="table-wrap">
-    <table class="orders">
-        <thead>
-            <tr>
-                <th>Проект</th>
-                <th>Позиции</th>
-                <th>Сумма</th>
-                <th>Статус</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var order in Orders)
+    <FluentDataGrid Items="@(Orders.AsQueryable())" TGridItem="OrderDto">
+        <ChildContent>
+        <PropertyColumn Property="@(o => o.ProjectName)" Title="Проект" />
+        <TemplateColumn Title="Позиции">
+            @foreach (var p in context.Positions)
             {
-                <tr>
-                    <td>@order.ProjectName</td>
-                    <td>
-                        @foreach (var p in order.Positions)
-                        {
-                            <div>@p.AddonName × @p.Quantity</div>
-                        }
-                    </td>
-                    <td>@order.Total</td>
-                    <td><StatusBadge Status="order.Status" /></td>
-                </tr>
+                <div>@p.AddonName × @p.Quantity</div>
             }
-        </tbody>
-    </table>
+        </TemplateColumn>
+        <TemplateColumn Title="Сумма">
+            @context.Total.ToString("F2")
+        </TemplateColumn>
+        <TemplateColumn Title="Статус">
+            <StatusBadge Status="context.Status" />
+        </TemplateColumn>
+        </ChildContent>
+        <EmptyContent>
+            <p class="muted">У вас пока нет заказов.</p>
+        </EmptyContent>
+    </FluentDataGrid>
     </div>
 }

@@ -1,32 +1,28 @@
 @using FanFundingBot.Application.Questions.DTOs
 
-@if (Questions is not null)
+@if (ItemsProvider is not null)
 {
     <div class="table-wrap">
-    <table class="orders">
-        <thead>
-            <tr>
-                <th>Вопрос</th>
-                <th>Пользователь</th>
-                <th>Дата</th>
-                <th>Ответ</th>
-                <th>Действия</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var q in Questions)
-            {
-                <tr>
-                    <td>@q.Text</td>
-                    <td>@(q.Username is not null ? "@" + q.Username : q.FirstName is not null ? q.FirstName : q.UserId.ToString())</td>
-                    <td>@q.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
-                    <td>@(q.Answer ?? string.Empty)</td>
-                    <td>
-                        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => Answer(q)">Ответить</FluentButton>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <FluentDataGrid @ref="_grid" ItemsProvider="@ItemsProvider" Pagination="@Pagination" TGridItem="QuestionDto">
+        <ChildContent>
+        <PropertyColumn Property="@(q => q.Text)" Title="Вопрос" />
+        <TemplateColumn Title="Пользователь">
+            @(context.Username is not null ? "@" + context.Username : context.FirstName is not null ? context.FirstName : context.UserId.ToString())
+        </TemplateColumn>
+        <TemplateColumn Title="Дата">
+            @context.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+        </TemplateColumn>
+        <TemplateColumn Title="Ответ">
+            @(context.Answer ?? string.Empty)
+        </TemplateColumn>
+        <TemplateColumn Title="Действия">
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => Answer(context)">Ответить</FluentButton>
+        </TemplateColumn>
+        </ChildContent>
+        <EmptyContent>
+            <p class="muted">Вопросов пока нет.</p>
+        </EmptyContent>
+    </FluentDataGrid>
     </div>
+    <FluentPaginator State="@Pagination" />
 }
