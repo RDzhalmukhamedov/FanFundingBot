@@ -8,6 +8,15 @@
 <FluentLayout>
     <FluentHeader>
         FanFundingBot
+        <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center">
+            <FluentAnchor Href="/" Appearance="@(IsActive("/") ? Appearance.Accent : Appearance.Hypertext)">Главная</FluentAnchor>
+            <AuthorizeView>
+                <Authorized>
+                    <FluentAnchor Href="/projects" Appearance="@(IsActive("/projects") ? Appearance.Accent : Appearance.Hypertext)">Проекты</FluentAnchor>
+                    <FluentAnchor Href="/my-orders" Appearance="@(IsActive("/my-orders") ? Appearance.Accent : Appearance.Hypertext)">Мои заказы</FluentAnchor>
+                </Authorized>
+            </AuthorizeView>
+        </FluentStack>
         <FluentSpacer />
         <AuthorizeView>
             <Authorized>
@@ -18,28 +27,16 @@
         </AuthorizeView>
     </FluentHeader>
 
-    <FluentStack Orientation="Orientation.Horizontal" Width="100%">
-        <FluentNavMenu>
-            <FluentNavLink Href="/" Match="NavLinkMatch.All">Главная</FluentNavLink>
-            <AuthorizeView>
-                <Authorized>
-                    <FluentNavLink Href="/projects">Проекты</FluentNavLink>
-                    <FluentNavLink Href="/my-orders">Мои заказы</FluentNavLink>
-                </Authorized>
-            </AuthorizeView>
-        </FluentNavMenu>
-
-        <FluentBodyContent>
-            <div class="page">
-                <ErrorBoundary>
-                    <ChildContent>
-                        @Body
-                    </ChildContent>
-                    <ErrorContent>
-                        <p class="error">Что-то пошло не так. <a href="/">На главную</a></p>
-                    </ErrorContent>
-                </ErrorBoundary>
-            </div>
-        </FluentBodyContent>
-    </FluentStack>
+    <FluentBodyContent>
+        <div class="page">
+            <ErrorBoundary>
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent>
+                    <p class="error">Что-то пошло не так. <a href="/">На главную</a></p>
+                </ErrorContent>
+            </ErrorBoundary>
+        </div>
+    </FluentBodyContent>
 </FluentLayout>
