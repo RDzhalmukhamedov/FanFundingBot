@@ -12,7 +12,7 @@
 
 @if (!Loaded)
 {
-    <FluentProgressRing />
+    <FluentProgressRing aria-label="Загрузка" />
 }
 else if (Project is null)
 {
@@ -29,10 +29,10 @@ else
 
         <div class="form card form-centered">
             <label>Название</label>
-            <FluentTextField @bind-Value="Form.Name" @bind-Value:after="OnFieldChanged" Maxlength="256" />
+            <FluentTextField @bind-Value="Form.Name" @bind-Value:after="OnFieldChanged" Maxlength="256" aria-label="Название" />
             <FluentValidationMessage For="@(() => Form.Name)" />
             <label>Описание</label>
-            <FluentTextArea @bind-Value="Form.Description" @bind-Value:after="OnFieldChanged" Rows="4" Maxlength="2048" />
+            <FluentTextArea @bind-Value="Form.Description" @bind-Value:after="OnFieldChanged" Rows="4" Maxlength="2048" aria-label="Описание" />
             <FluentValidationMessage For="@(() => Form.Description)" />
         </div>
 
@@ -48,18 +48,18 @@ else
                                 <label style="margin:0;">Название</label>
                                 @if (Addons[index].HasOrders)
                                 {
-                                    <span title="Это дополнение есть в одном или нескольких заказах.">🔒</span>
+                                    <span role="img" aria-label="Есть заказы" title="Это дополнение есть в одном или нескольких заказах.">🔒</span>
                                 }
                             </div>
-                            <FluentTextField @bind-Value="Addons[index].Name" @bind-Value:after="OnFieldChanged" Maxlength="256" />
+                            <FluentTextField @bind-Value="Addons[index].Name" @bind-Value:after="OnFieldChanged" Maxlength="256" aria-label="Название дополнения" />
                         </div>
                         <div class="addon-field addon-desc">
                             <label>Описание</label>
-                            <FluentTextArea @bind-Value="Addons[index].Description" @bind-Value:after="OnFieldChanged" Rows="2" Maxlength="2048" />
+                            <FluentTextArea @bind-Value="Addons[index].Description" @bind-Value:after="OnFieldChanged" Rows="2" Maxlength="2048" aria-label="Описание дополнения" />
                         </div>
                         <div class="addon-field addon-price">
                             <label>Цена</label>
-                            <FluentNumberField TValue="decimal" @bind-Value="Addons[index].Price" @bind-Value:after="OnFieldChanged" Min="0" Step="0.01" HideStep="true" />
+                            <FluentNumberField TValue="decimal" @bind-Value="Addons[index].Price" @bind-Value:after="OnFieldChanged" Min="0" Step="0.01" HideStep="true" aria-label="Цена дополнения" />
                         </div>
                         <div class="addon-actions">
                             <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>
@@ -88,15 +88,15 @@ else
                         <div class="addon-row">
                             <div class="addon-field addon-name">
                                 <label>Название</label>
-                                <FluentTextField @bind-Value="NewAddons[index].Name" @bind-Value:after="OnFieldChanged" Maxlength="256" />
+                                <FluentTextField @bind-Value="NewAddons[index].Name" @bind-Value:after="OnFieldChanged" Maxlength="256" aria-label="Название нового дополнения" />
                             </div>
                             <div class="addon-field addon-desc">
                                 <label>Описание</label>
-                                <FluentTextArea @bind-Value="NewAddons[index].Description" @bind-Value:after="OnFieldChanged" Rows="2" Maxlength="2048" />
+                                <FluentTextArea @bind-Value="NewAddons[index].Description" @bind-Value:after="OnFieldChanged" Rows="2" Maxlength="2048" aria-label="Описание нового дополнения" />
                             </div>
                             <div class="addon-field addon-price">
                                 <label>Цена</label>
-                                <FluentNumberField TValue="decimal" @bind-Value="NewAddons[index].Price" @bind-Value:after="OnFieldChanged" Min="0" Step="0.01" HideStep="true" />
+                                <FluentNumberField TValue="decimal" @bind-Value="NewAddons[index].Price" @bind-Value:after="OnFieldChanged" Min="0" Step="0.01" HideStep="true" aria-label="Цена нового дополнения" />
                             </div>
                             <div class="addon-actions">
                                 <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>

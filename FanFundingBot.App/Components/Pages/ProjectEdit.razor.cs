@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using FanFundingBot.App.Components.Shared;
 using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Projects.DTOs;
@@ -33,13 +32,15 @@ public partial class ProjectEdit : AuthComponentBase
         Form.Description != _originalDescription ||
         DeletedAddonIds.Count > 0 ||
         NewAddons.Count > 0 ||
-        Addons.Any(a =>
-        {
-            var orig = _originalAddons.FirstOrDefault(o => o.Id == a.Id);
-            if (orig is null) return true;
-            return a.Name != orig.Name || a.Description != orig.Description || a.Price != orig.Price;
-        }) ||
+        Addons.Any(AddonChanged) ||
         NewAddons.Any(n => !string.IsNullOrWhiteSpace(n.Name) || !string.IsNullOrWhiteSpace(n.Description) || n.Price != 0);
+
+    private bool AddonChanged(AddonForm addon)
+    {
+        var orig = _originalAddons.FirstOrDefault(o => o.Id == addon.Id);
+        if (orig is null) return true;
+        return addon.Name != orig.Name || addon.Description != orig.Description || addon.Price != orig.Price;
+    }
 
     private void OnFieldChanged() => StateHasChanged();
 
@@ -172,12 +173,16 @@ public partial class ProjectEdit : AuthComponentBase
         }
         // Filter out completely empty new addons
         var toCreate = NewAddons.Where(n => !string.IsNullOrWhiteSpace(n.Name)).ToList();
-        if (toCreate.Count == 0 && NewAddons.Count > 0 && (Form.Name == _originalName && Form.Description == _originalDescription && !Addons.Any(a => { var o=_originalAddons.FirstOrDefault(x=>x.Id==a.Id); return o is null || o.Name!=a.Name || o.Description!=a.Description || o.Price!=a.Price; }) && DeletedAddonIds.Count==0))
+        if (toCreate.Count == 0 && NewAddons.Count > 0 && (Form.Name == _originalName && Form.Description == _originalDescription && !Addons.Any(AddonChanged) && DeletedAddonIds.Count == 0))
         {
             // All new addons empty, nothing to create but UI has empty rows - just clear them
             NewAddons.Clear();
             return;
         }
+
+        Error = ProjectForms.ValidateAddons(Addons.Concat(toCreate));
+        if (Error is not null)
+            return;
 
         // Save project details if changed (два вызова, как в Minimal API).
         if (Form.Name != _originalName || Form.Description != _originalDescription)
@@ -261,25 +266,5 @@ public partial class ProjectEdit : AuthComponentBase
         }
 
         await ReloadAsync();
-    }
-
-    private sealed class AddonForm
-    {
-        public Guid Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string Description { get; set; } = string.Empty;
-        public decimal Price { get; set; }
-        public bool HasOrders { get; set; }
-    }
-
-    private sealed class ProjectForm
-    {
-        [Required(ErrorMessage = "Укажите название.")]
-        [MaxLength(256, ErrorMessage = "Название длиннее 256 символов.")]
-        public string Name { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Укажите описание.")]
-        [MaxLength(2048, ErrorMessage = "Описание длиннее 2048 символов.")]
-        public string Description { get; set; } = string.Empty;
     }
 }

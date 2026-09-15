@@ -3,7 +3,7 @@
 </FluentDialogHeader>
 
 <FluentDialogBody>
-    <FluentTextArea @bind-Value="_text" Rows="5" Placeholder="@Content.Placeholder" Style="width: 100%;" />
+    <FluentTextArea @bind-Value="_text" Rows="5" Placeholder="@Content.Placeholder" Style="width: 100%;" aria-label="@Content.Title" />
     @if (!string.IsNullOrEmpty(_error))
     {
         <FluentMessageBar Intent="MessageIntent.Error">@_error</FluentMessageBar>

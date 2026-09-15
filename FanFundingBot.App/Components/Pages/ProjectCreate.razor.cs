@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+using FanFundingBot.App.Components.Shared;
 using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Projects.DTOs;
 using Microsoft.AspNetCore.Components;
@@ -30,6 +30,10 @@ public partial class ProjectCreate : AuthComponentBase
         IsSaving = true;
         try
         {
+            Error = ProjectForms.ValidateAddons(Addons);
+            if (Error is not null)
+                return;
+
             var uid = await UseUserAsync();
             var result = await Mediator.Send(new CreateProjectCommand(
                 uid,
@@ -46,23 +50,5 @@ public partial class ProjectCreate : AuthComponentBase
         {
             IsSaving = false;
         }
-    }
-
-    private sealed class AddonForm
-    {
-        public string Name { get; set; } = string.Empty;
-        public string Description { get; set; } = string.Empty;
-        public decimal Price { get; set; }
-    }
-
-    private sealed class ProjectForm
-    {
-        [Required(ErrorMessage = "Укажите название.")]
-        [MaxLength(256, ErrorMessage = "Название длиннее 256 символов.")]
-        public string Name { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Укажите описание.")]
-        [MaxLength(2048, ErrorMessage = "Описание длиннее 2048 символов.")]
-        public string Description { get; set; } = string.Empty;
     }
 }

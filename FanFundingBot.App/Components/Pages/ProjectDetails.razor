@@ -10,7 +10,7 @@
 
 @if (!Loaded)
 {
-    <FluentProgressRing />
+    <FluentProgressRing aria-label="Загрузка" />
 }
 else if (Project is null)
 {
@@ -36,16 +36,17 @@ else
         <FluentSelect TOption="ProjectStatusDto"
                       Items="Statuses"
                       OptionText="@(s => s.DisplayName + (s.CanEditOrders ? " (можно ред. заказы)" : " (нельзя ред. заказы)"))"
+                      aria-label="Статус проекта"
                       @bind-SelectedOption="SelectedProjectStatus" />
         <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(Statuses.Count == 0 || Project.StatusId == NewStatusId)" OnClick="AskProjectStatusAsync">Сменить статус</FluentButton>
         <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="EditProject">Редактировать</FluentButton>
         <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskBroadcastAsync">Сделать рассылку</FluentButton>
     </div>
 
-    <div class="tabs">
-        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "overview" ? Appearance.Accent : Appearance.Neutral)' OnClick='() => ActiveTab = "overview"'>Обзор</FluentButton>
-        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "orders" ? Appearance.Accent : Appearance.Neutral)' OnClick='() => ActiveTab = "orders"'>Заказы (@OrdersTotalCount)</FluentButton>
-        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "questions" ? Appearance.Accent : Appearance.Neutral)' OnClick='() => ActiveTab = "questions"'>Вопросы (@QuestionsTotalCount)</FluentButton>
+    <div class="tabs" role="tablist">
+        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "overview" ? Appearance.Accent : Appearance.Neutral)' role="tab" aria-selected='@(ActiveTab == "overview")' OnClick='() => ActiveTab = "overview"'>Обзор</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "orders" ? Appearance.Accent : Appearance.Neutral)' role="tab" aria-selected='@(ActiveTab == "orders")' OnClick='() => ActiveTab = "orders"'>Заказы (@OrdersTotalCount)</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "questions" ? Appearance.Accent : Appearance.Neutral)' role="tab" aria-selected='@(ActiveTab == "questions")' OnClick='() => ActiveTab = "questions"'>Вопросы (@QuestionsTotalCount)</FluentButton>
     </div>
 
     @if (ActiveTab == "overview")
@@ -65,7 +66,7 @@ else
                         @context.Name
                         @if (context.HasOrders)
                         {
-                            <span title="Это дополнение есть в одном или нескольких заказах.">🔒</span>
+                            <span role="img" aria-label="Есть заказы" title="Это дополнение есть в одном или нескольких заказах.">🔒</span>
                         }
                     </TemplateColumn>
                     <PropertyColumn Property="@(a => a.Description)" Title="Описание" />

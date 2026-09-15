@@ -13,7 +13,7 @@
 
 @if (!Loaded)
 {
-    <FluentProgressRing />
+    <FluentProgressRing aria-label="Загрузка" />
 }
 else if (!string.IsNullOrEmpty(Error))
 {
@@ -28,7 +28,9 @@ else if (IsAdmin)
         }
         else
         {
-            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" Disabled="true" Id="create-project-btn">Создать проект</FluentButton>
+            <span>
+                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" Disabled="true" Id="create-project-btn">Создать проект</FluentButton>
+            </span>
             <FluentTooltip Anchor="create-project-btn">Нельзя иметь больше одного проекта</FluentTooltip>
         }
     </div>

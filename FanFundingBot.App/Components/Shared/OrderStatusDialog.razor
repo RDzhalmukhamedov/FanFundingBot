@@ -6,6 +6,7 @@
     <FluentSelect TOption="OrderStatus"
                   Items="@OrderStatuses"
                   OptionText="@(OrderStatusTexts.Text)"
+                  aria-label="Статус заказа"
                   @bind-SelectedOption="_status" />
 </FluentDialogBody>
 

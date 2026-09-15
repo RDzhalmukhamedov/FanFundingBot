@@ -13,7 +13,7 @@
             <h2>Проекты</h2>
             @if (Catalog is null)
             {
-                <FluentProgressRing />
+                <FluentProgressRing aria-label="Загрузка" />
             }
             else
             {
@@ -52,7 +52,7 @@
                     </span>
                     <span>Войти через Telegram</span>
                 </button>
-                <p id="login-error" class="error" hidden>Не удалось войти. Попробуйте позже.</p>
+                <p id="login-error" class="error" role="alert" hidden>Не удалось войти. Попробуйте позже.</p>
             }
             else
             {
