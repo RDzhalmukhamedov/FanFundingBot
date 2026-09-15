@@ -20,7 +20,7 @@ else
     <EditForm Model="Form" OnValidSubmit="SaveAllAsync">
         <DataAnnotationsValidator />
 
-        <div class="form card">
+        <div class="form card form-centered">
             <label>Название</label>
             <FluentTextField @bind-Value="Form.Name" @bind-Value:after="OnFieldChanged" Maxlength="256" />
             <FluentValidationMessage For="@(() => Form.Name)" />
@@ -52,7 +52,7 @@ else
                         </div>
                         <div class="addon-field addon-price">
                             <label>Цена</label>
-                            <FluentNumberField TValue="decimal" @bind-Value="Addons[index].Price" @bind-Value:after="OnFieldChanged" Min="0" Step="0.01" />
+                            <FluentNumberField TValue="decimal" @bind-Value="Addons[index].Price" @bind-Value:after="OnFieldChanged" Min="0" Step="0.01" HideStep="true" />
                         </div>
                         <div class="addon-actions">
                             <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>
@@ -89,7 +89,7 @@ else
                             </div>
                             <div class="addon-field addon-price">
                                 <label>Цена</label>
-                                <FluentNumberField TValue="decimal" @bind-Value="NewAddons[index].Price" @bind-Value:after="OnFieldChanged" Min="0" Step="0.01" />
+                                <FluentNumberField TValue="decimal" @bind-Value="NewAddons[index].Price" @bind-Value:after="OnFieldChanged" Min="0" Step="0.01" HideStep="true" />
                             </div>
                             <div class="addon-actions">
                                 <label class="addon-actions-spacer" aria-hidden="true">&nbsp;</label>

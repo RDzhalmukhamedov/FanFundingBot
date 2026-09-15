@@ -20,10 +20,15 @@ else
 
     <div class="card">
         <p>@Project.Description</p>
-        <p class="muted">Статус: @Project.StatusName @(Project.CanEditOrders ? "(✅ можно ред.)" : "(❌ нельзя ред.)")</p>
+        <p class="muted">
+            Статус: @Project.StatusName
+            <FluentBadge Appearance="@(Project.CanEditOrders ? Appearance.Accent : Appearance.Neutral)">
+                @(Project.CanEditOrders ? "можно ред. заказы" : "нельзя ред. заказы")
+            </FluentBadge>
+        </p>
         <FluentSelect TOption="ProjectStatusDto"
                       Items="Statuses"
-                      OptionText="@(s => s.DisplayName + (s.CanEditOrders ? " (✅ можно ред.)" : " (❌ нельзя ред.)"))"
+                      OptionText="@(s => s.DisplayName + (s.CanEditOrders ? " (можно ред. заказы)" : " (нельзя ред. заказы)"))"
                       @bind-SelectedOption="SelectedProjectStatus" />
         <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskProjectStatusAsync">Сменить статус</FluentButton>
         <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="EditProject">Редактировать</FluentButton>
