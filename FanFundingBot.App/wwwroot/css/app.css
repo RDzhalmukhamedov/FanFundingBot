@@ -10,6 +10,11 @@ body { font-family: Segoe UI, Arial, sans-serif; margin: 0; background: #f5f5f5;
 .form-centered fluent-text-area { width: 100%; }
 .error { color: #dc2626; }
 .muted { color: #666; }
+/* Своя кнопка входа через Telegram (новая Login library вместо iframe-виджета):
+   фон полностью наш — белый, без чёрной подложки. */
+.tg-login-btn { display: inline-flex; align-items: center; gap: 10px; background: #fff; color: #222; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 16px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.tg-login-btn:hover { background: #f8fafc; }
+.tg-login-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #229ED9; flex-shrink: 0; }
 .tabs { display: flex; gap: 8px; margin: 16px 0 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 12px; }
 .addon-row { display: flex; align-items: center; gap: 12px; width: 100%; }
 .addon-row .addon-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }

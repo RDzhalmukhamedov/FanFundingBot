@@ -58,6 +58,9 @@ builder.Services.AddFluentUIComponents();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, CookieAuthenticationStateProvider>();
 
+// JWKS Telegram для проверки OIDC id_token (новая Login library).
+builder.Services.AddSingleton<TelegramJwksCache>();
+
 var jwtSecret = builder.Configuration["Jwt:Secret"];
 if (!string.IsNullOrEmpty(jwtSecret))
 {
@@ -151,13 +154,15 @@ app.MapControllers();
 // Health (anonymous)
 app.MapGet("/health", () => Results.Ok("ok"));
 
-// Вход через Telegram Login Widget: проверка подписи -> GetOrCreateUser -> JWT в HttpOnly-cookie.
+// Вход через новую Telegram Login library (telegram-login.js):
+// проверка OIDC id_token по JWKS -> GetOrCreateUser -> JWT в HttpOnly-cookie.
 app.MapPost("/api/auth/telegram", async (
-    TelegramAuthRequest request,
+    TelegramOidcAuthRequest request,
     IMediator mediator,
     JwtTokenService tokens,
     IOptions<JwtOptions> jwtOptions,
     BotConfiguration botConfig,
+    TelegramJwksCache jwks,
     IUserRepository users,
     HttpContext http,
     CancellationToken ct) =>
@@ -165,16 +170,23 @@ app.MapPost("/api/auth/telegram", async (
         if (string.IsNullOrEmpty(jwtOptions.Value.Secret))
         return Results.Problem("JWT не настроен (Jwt:Secret пустой).", statusCode: 500);
 
-    if (!TelegramAuthValidator.IsValid(request.ToFields(), botConfig.BotToken))
+    if (string.IsNullOrEmpty(botConfig.ClientId))
+        return Results.Problem("Telegram Login не настроен (BotConfiguration:ClientId пустой).", statusCode: 500);
+
+    var keys = await jwks.GetKeysAsync(ct);
+    var tgUser = keys is null
+        ? null
+        : TelegramIdTokenValidator.Validate(request.IdToken, botConfig.ClientId, keys);
+    if (tgUser is null)
         return Results.Unauthorized();
 
     var login = await mediator.Send(new GetOrCreateUserCommand(
-        request.Id, request.FirstName, request.LastName, request.Username,
-        request.Id == botConfig.OwnerId), ct);
+        tgUser.Id, tgUser.FirstName, tgUser.LastName, tgUser.Username,
+        tgUser.Id == botConfig.OwnerId), ct);
     if (login.IsFailed)
         return Results.BadRequest(login.Errors.Select(e => e.Message));
 
-    var user = await users.GetByIdAsync(request.Id);
+    var user = await users.GetByIdAsync(tgUser.Id);
     if (user is null)
         return Results.BadRequest(new[] { "Пользователь не найден." });
 
@@ -184,7 +196,7 @@ app.MapPost("/api/auth/telegram", async (
     return Results.Ok(new { userId = user.Id, role = user.Role.ToString() });
 })
 .WithName("TelegramLogin")
-.WithSummary("Вход через Telegram Login Widget");
+.WithSummary("Вход через Telegram Login (OIDC id_token)");
 
 // Выход: удаление HttpOnly-cookie (идемпотентный). Вызывается обычной
 // form-POST из MainLayout, поэтому возвращаем Redirect на главную.

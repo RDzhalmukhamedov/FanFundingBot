@@ -8,12 +8,13 @@ public partial class Index : AuthComponentBase
 {
     [Inject] private IConfiguration Configuration { get; set; } = null!;
 
-    private string? BotUsername { get; set; }
+    private string? ClientId { get; set; }
     private List<ProjectDto>? Catalog { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        BotUsername = Configuration["TelegramLogin:BotUsername"];
+        ClientId = Configuration["BotConfiguration:ClientId"]
+            ?? Configuration["TelegramLogin:ClientId"];
 
         var state = await AuthState.GetAuthenticationStateAsync();
         if (!IsAuthenticated(state.User))
