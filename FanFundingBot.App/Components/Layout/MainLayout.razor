@@ -5,13 +5,13 @@
 
 <FluentLayout>
     <FluentHeader>
-        FanFundingBot
-        <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center">
-            <FluentAnchor Href="/" Appearance="@(IsActive("/") ? Appearance.Accent : Appearance.Hypertext)">Главная</FluentAnchor>
+        <span class="brand">FanFundingBot</span>
+        <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="12">
+            <FluentAnchor Href="/" Appearance="@(IsActive("/") ? Appearance.Accent : Appearance.Stealth)">Главная</FluentAnchor>
             <AuthorizeView>
                 <Authorized>
-                    <FluentAnchor Href="/projects" Appearance="@(IsActive("/projects") ? Appearance.Accent : Appearance.Hypertext)">Проекты</FluentAnchor>
-                    <FluentAnchor Href="/my-orders" Appearance="@(IsActive("/my-orders") ? Appearance.Accent : Appearance.Hypertext)">Мои заказы</FluentAnchor>
+                    <FluentAnchor Href="/projects" Appearance="@(IsActive("/projects") ? Appearance.Accent : Appearance.Stealth)">Проекты</FluentAnchor>
+                    <FluentAnchor Href="/my-orders" Appearance="@(IsActive("/my-orders") ? Appearance.Accent : Appearance.Stealth)">Мои заказы</FluentAnchor>
                 </Authorized>
             </AuthorizeView>
         </FluentStack>
