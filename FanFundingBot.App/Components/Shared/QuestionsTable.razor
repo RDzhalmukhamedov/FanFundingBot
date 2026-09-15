@@ -3,7 +3,7 @@
 @if (ItemsProvider is not null)
 {
     <div class="table-wrap">
-    <FluentDataGrid @ref="_grid" ItemsProvider="@ItemsProvider" Pagination="@Pagination" TGridItem="QuestionDto" Style="width: 100%;">
+    <FluentDataGrid @ref="_grid" ItemsProvider="@ItemsProvider" Pagination="@Pagination" TGridItem="QuestionDto" Style="width: 100%;" RowSize="DataGridRowSize.Large">
         <ChildContent>
         <PropertyColumn Property="@(q => q.Text)" Title="Вопрос" />
         <TemplateColumn Title="Пользователь">
@@ -15,7 +15,7 @@
         <TemplateColumn Title="Ответ">
             @(context.Answer ?? string.Empty)
         </TemplateColumn>
-        <TemplateColumn Title="Действия">
+        <TemplateColumn Title="Действия" Width="140px">
             <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => Answer(context)">Ответить</FluentButton>
         </TemplateColumn>
         </ChildContent>
