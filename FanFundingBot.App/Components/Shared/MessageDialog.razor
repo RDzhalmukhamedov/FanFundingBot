@@ -4,6 +4,10 @@
 
 <FluentDialogBody>
     <FluentTextArea @bind-Value="_text" Rows="5" Placeholder="@Content.Placeholder" Style="width: 100%;" />
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <FluentMessageBar Intent="MessageIntent.Error">@_error</FluentMessageBar>
+    }
 </FluentDialogBody>
 
 <FluentDialogFooter>

@@ -10,9 +10,13 @@
 
 <h1>Редактирование проекта</h1>
 
-@if (Project is null)
+@if (!Loaded)
 {
     <FluentProgressRing />
+}
+else if (Project is null)
+{
+    <FluentMessageBar Intent="MessageIntent.Error">@(Error ?? "Не удалось загрузить проект.")</FluentMessageBar>
 }
 else
 {

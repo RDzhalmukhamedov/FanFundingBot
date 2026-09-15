@@ -13,6 +13,7 @@ public partial class ProjectEdit : AuthComponentBase
     [Parameter] public Guid Id { get; set; }
 
     private ProjectDto? Project { get; set; }
+    private bool Loaded { get; set; }
     private ProjectForm Form { get; set; } = new();
     private List<AddonForm> Addons { get; set; } = [];
     private List<AddonForm> NewAddons { get; set; } = [];
@@ -52,7 +53,18 @@ public partial class ProjectEdit : AuthComponentBase
         }
 
         _userId = await UseUserAsync();
-        await ReloadAsync();
+        try
+        {
+            await ReloadAsync();
+        }
+        catch
+        {
+            Error = "Не удалось загрузить проект. Попробуйте позже.";
+        }
+        finally
+        {
+            Loaded = true;
+        }
     }
 
     private async Task ReloadAsync()

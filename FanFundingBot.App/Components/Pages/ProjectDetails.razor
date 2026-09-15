@@ -8,9 +8,13 @@
 <FluentDialogProvider />
 <FluentToastProvider />
 
-@if (Project is null)
+@if (!Loaded)
 {
     <FluentProgressRing />
+}
+else if (Project is null)
+{
+    <FluentMessageBar Intent="MessageIntent.Error">@(Error ?? "Не удалось загрузить проект.")</FluentMessageBar>
 }
 else
 {
@@ -79,6 +83,10 @@ else
             @if (SheetUrl is null)
             {
                 <p class="muted">Загрузка ссылки...</p>
+            }
+            else if (SheetUrl.Length == 0)
+            {
+                <FluentMessageBar Intent="MessageIntent.Error">Не удалось получить ссылку на таблицу.</FluentMessageBar>
             }
             else
             {

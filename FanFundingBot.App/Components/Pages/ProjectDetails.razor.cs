@@ -24,6 +24,7 @@ public partial class ProjectDetails : AuthComponentBase
     [Inject] private IDialogService Dialogs { get; set; } = null!;
 
     private ProjectDto? Project { get; set; }
+    private bool Loaded { get; set; }
     private PaginationState _ordersPagination = new() { ItemsPerPage = PageSize };
     private PaginationState _questionsPagination = new() { ItemsPerPage = PageSize };
     private OrdersTable? _ordersTable;
@@ -77,6 +78,10 @@ public partial class ProjectDetails : AuthComponentBase
         catch
         {
             Error = "Не удалось загрузить проект. Попробуйте позже.";
+        }
+        finally
+        {
+            Loaded = true;
         }
     }
 

@@ -9,8 +9,19 @@ public partial class MessageDialog : IDialogContentComponent<MessageDialogData>
     [CascadingParameter] public FluentDialog Dialog { get; set; } = null!;
 
     private string _text = string.Empty;
+    private string? _error;
 
-    private async Task ConfirmAsync() => await Dialog.CloseAsync(DialogResult.Ok(_text));
+    private async Task ConfirmAsync()
+    {
+        var text = _text.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            _error = "Введите сообщение.";
+            return;
+        }
+
+        await Dialog.CloseAsync(DialogResult.Ok(text));
+    }
     private async Task CancelAsync() => await Dialog.CancelAsync();
 }
 
