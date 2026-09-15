@@ -111,6 +111,25 @@ public partial class ProjectEdit : AuthComponentBase
         Toasts.ShowSuccess("Дополнение будет удалено при сохранении.");
     }
 
+    private async Task BackToProjectAsync()
+    {
+        if (!IsDirty)
+        {
+            Nav.NavigateTo($"/projects/{Id}");
+            return;
+        }
+
+        var dialog = await Dialogs.ShowDialogAsync<ConfirmDialog, ConfirmDialogData>(
+            new ConfirmDialogData(
+                "Несохранённые изменения",
+                "Вернуться без сохранения? Несохранённые изменения будут потеряны."),
+            new DialogParameters { Title = "Несохранённые изменения" });
+        if ((await dialog.Result).Cancelled)
+            return;
+
+        Nav.NavigateTo($"/projects/{Id}");
+    }
+
     private async Task SaveAllAsync()
     {
         if (!IsDirty || IsSaving)

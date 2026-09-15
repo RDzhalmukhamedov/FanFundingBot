@@ -110,6 +110,7 @@ else
 
         <div class="card">
             <FluentButton Type="ButtonType.Submit" Appearance="Appearance.Accent" Disabled="@(!IsDirty)" Loading="@IsSaving">Сохранить</FluentButton>
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="BackToProjectAsync">Назад к проекту</FluentButton>
             @if (!IsDirty)
             {
                 <span class="muted" style="margin-left:8px;">Нет изменений для сохранения</span>
