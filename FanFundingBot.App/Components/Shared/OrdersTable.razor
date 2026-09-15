@@ -1,7 +1,7 @@
 @if (ItemsProvider is not null)
 {
     <div class="table-wrap">
-    <FluentDataGrid @ref="_grid" ItemsProvider="@ItemsProvider" Pagination="@Pagination" TGridItem="OrderDto" Style="width: 100%;" RowSize="DataGridRowSize.Large">
+    <FluentDataGrid @ref="_grid" ItemsProvider="@ItemsProvider" Pagination="@Pagination" TGridItem="OrderDto" Style="width: 100%;" RowSize="DataGridRowSize.Large" MultiLine="true">
         <ChildContent>
         <TemplateColumn Title="Пользователь">
             @(context.Username is not null ? "@" + context.Username : context.FirstName is not null ? context.FirstName : context.UserId.ToString())
