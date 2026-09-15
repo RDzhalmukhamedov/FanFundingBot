@@ -33,7 +33,7 @@ else
                       Items="Statuses"
                       OptionText="@(s => s.DisplayName + (s.CanEditOrders ? " (можно ред. заказы)" : " (нельзя ред. заказы)"))"
                       @bind-SelectedOption="SelectedProjectStatus" />
-        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskProjectStatusAsync">Сменить статус</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(Statuses.Count == 0 || Project.StatusId == NewStatusId)" OnClick="AskProjectStatusAsync">Сменить статус</FluentButton>
         <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="EditProject">Редактировать</FluentButton>
         <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskBroadcastAsync">Сделать рассылку</FluentButton>
     </div>
