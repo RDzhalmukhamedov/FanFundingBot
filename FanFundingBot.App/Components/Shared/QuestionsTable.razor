@@ -3,7 +3,7 @@
 @if (ItemsProvider is not null)
 {
     <div class="table-wrap">
-    <FluentDataGrid @ref="_grid" ItemsProvider="@ItemsProvider" Pagination="@Pagination" TGridItem="QuestionDto">
+    <FluentDataGrid @ref="_grid" ItemsProvider="@ItemsProvider" Pagination="@Pagination" TGridItem="QuestionDto" Style="width: 100%;">
         <ChildContent>
         <PropertyColumn Property="@(q => q.Text)" Title="Вопрос" />
         <TemplateColumn Title="Пользователь">
@@ -24,5 +24,7 @@
         </EmptyContent>
     </FluentDataGrid>
     </div>
+    <div class="paginator-row">
     <FluentPaginator State="@Pagination" />
+    </div>
 }

@@ -21,7 +21,7 @@ else if (Orders.Count == 0)
 else
 {
     <div class="table-wrap">
-    <FluentDataGrid Items="@(Orders.AsQueryable())" TGridItem="OrderDto">
+    <FluentDataGrid Items="@(Orders.AsQueryable())" TGridItem="OrderDto" Style="width: 100%;">
         <ChildContent>
         <PropertyColumn Property="@(o => o.ProjectName)" Title="Проект" />
         <TemplateColumn Title="Позиции">

@@ -102,6 +102,17 @@ public partial class ProjectDetails : AuthComponentBase
         var link = await SheetLinks.GetUrlAsync(Id);
         SheetUrl = link.IsSuccess ? link.Value : string.Empty;
 
+        // Счётчики вкладок — сразу, не дожидаясь первого рендера гридов.
+        var ordersCount = await Mediator.Send(
+            new GetOrdersByProjectQuery(Id, _userId, 1, 1), RequestCt);
+        if (ordersCount.IsSuccess)
+            OrdersTotalCount = ordersCount.Value.TotalCount;
+
+        var questionsCount = await Mediator.Send(
+            new GetUnansweredQuestionsQuery(_userId, 1, 1), RequestCt);
+        if (questionsCount.IsSuccess)
+            QuestionsTotalCount = questionsCount.Value.TotalCount;
+
         if (_ordersTable is not null)
             await _ordersTable.RefreshAsync();
         if (_questionsTable is not null)

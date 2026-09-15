@@ -47,7 +47,7 @@ else
             else
             {
                 <div class="table-wrap">
-                <FluentDataGrid Items="@(Project.Addons.AsQueryable())" TGridItem="AddonDto">
+                <FluentDataGrid Items="@(Project.Addons.AsQueryable())" TGridItem="AddonDto" Style="width: 100%;">
                     <ChildContent>
                     <TemplateColumn Title="Название">
                         @context.Name
