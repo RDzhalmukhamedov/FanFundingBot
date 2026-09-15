@@ -33,7 +33,6 @@ public partial class ProjectDetails : AuthComponentBase
     private List<ProjectStatusDto> Statuses { get; set; } = [];
     private string? SheetUrl { get; set; }
     private string? Error { get; set; }
-    private string? ModalError { get; set; }
     private long _userId;
 
     private string ActiveTab { get; set; } = "overview";
@@ -52,10 +51,6 @@ public partial class ProjectDetails : AuthComponentBase
         }
     }
 
-    private static List<OrderStatus> OrderStatuses => Enum.GetValues<OrderStatus>().ToList();
-
-    private OrderDto? OrderStatusTarget { get; set; }
-    private OrderStatus OrderStatusValue { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -186,30 +181,31 @@ public partial class ProjectDetails : AuthComponentBase
         }
     }
 
-    private void AskOrderStatus(OrderDto order)
+    private async Task AskOrderStatusAsync(OrderDto order)
     {
-        OrderStatusTarget = order;
-        OrderStatusValue = order.Status;
-        ModalError = null;
-    }
-
-    private async Task ChangeOrderStatusAsync()
-    {
-        if (OrderStatusTarget is null)
+        var dialog = await Dialogs.ShowDialogAsync<OrderStatusDialog, OrderStatusDialogData>(
+            new OrderStatusDialogData(order.Status),
+            new DialogParameters { Title = "Смена статуса заказа" });
+        var result = await dialog.Result;
+        if (result.Cancelled)
             return;
 
+        await ChangeOrderStatusAsync(order.Id, (OrderStatus?)result.Data ?? order.Status);
+    }
+
+    private async Task ChangeOrderStatusAsync(Guid orderId, OrderStatus newStatus)
+    {
         var result = await Mediator.Send(
-            new UpdateOrderStatusCommand(OrderStatusTarget.Id, _userId, OrderStatusValue), RequestCt);
+            new UpdateOrderStatusCommand(orderId, _userId, newStatus), RequestCt);
         if (result.IsSuccess)
         {
-            OrderStatusTarget = null;
             Toasts.ShowSuccess("Статус заказа изменён.");
             if (_ordersTable is not null)
                 await _ordersTable.RefreshAsync();
         }
         else
         {
-            ModalError = BlazorResult.Message(result);
+            Toasts.ShowError(BlazorResult.Message(result) ?? "Не удалось сменить статус заказа.");
         }
     }
 

@@ -90,7 +90,7 @@ else
     {
         <div class="card">
             <h3>Заказы</h3>
-            <OrdersTable @ref="_ordersTable" ItemsProvider="OrdersProvider" Pagination="_ordersPagination" OnStatusChange="AskOrderStatus" OnMessage="AskMessageAsync" />
+                <OrdersTable @ref="_ordersTable" ItemsProvider="OrdersProvider" Pagination="_ordersPagination" OnStatusChange="AskOrderStatusAsync" OnMessage="AskMessageAsync" />
         </div>
     }
     else if (ActiveTab == "questions")
@@ -102,22 +102,4 @@ else
     }
 }
 
-@if (OrderStatusTarget is not null)
-{
-    <div class="modal-backdrop">
-        <div class="modal" role="dialog" aria-modal="true" aria-label="Смена статуса заказа">
-            <h3>Смена статуса заказа</h3>
-            <FluentSelect TOption="OrderStatus"
-                          Items="OrderStatuses"
-                          OptionText="@(OrderStatusTexts.Text)"
-                          @bind-SelectedOption="OrderStatusValue" />
-            @if (!string.IsNullOrEmpty(ModalError))
-            {
-                <FluentMessageBar Intent="MessageIntent.Error">@ModalError</FluentMessageBar>
-            }
-            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" OnClick="ChangeOrderStatusAsync">Подтвердить</FluentButton>
-            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => OrderStatusTarget = null">Отмена</FluentButton>
-        </div>
-    </div>
-}
 

@@ -1,0 +1,15 @@
+<FluentDialogHeader ShowDismiss="true">
+    <h3>Смена статуса заказа</h3>
+</FluentDialogHeader>
+
+<FluentDialogBody>
+    <FluentSelect TOption="OrderStatus"
+                  Items="@OrderStatuses"
+                  OptionText="@(OrderStatusTexts.Text)"
+                  @bind-SelectedOption="_status" />
+</FluentDialogBody>
+
+<FluentDialogFooter>
+    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" OnClick="ConfirmAsync">Подтвердить</FluentButton>
+    <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="CancelAsync">Отмена</FluentButton>
+</FluentDialogFooter>
