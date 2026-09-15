@@ -1,9 +1,7 @@
 @inherits LayoutComponentBase
 
-<FluentToastProvider />
-<FluentDialogProvider />
-<FluentTooltipProvider />
-<FluentMessageBarProvider />
+@* Провайдеры Fluent — только на интерактивных страницах (см. ProjectDetails/Projects/ProjectEdit):
+   статически отрендеренный провайдер DialogService/ToastService не видит (Parameter 'OnShowAsync'). *@
 
 <FluentLayout>
     <FluentHeader>
