@@ -34,23 +34,76 @@ public class AuthCookieWriterTests
     {
         var ctx = new DefaultHttpContext();
 
-        AuthCookieWriter.Append(ctx.Response, "tok123", 30, isHttps: false);
+        AuthCookieWriter.Append(ctx.Response, "tok123", 14, isHttps: false);
 
         var setCookie = ctx.Response.Headers.SetCookie.ToString();
         setCookie.Should().ContainEquivalentOf("ffbot_auth=tok123");
         setCookie.Should().ContainEquivalentOf("httponly");
         setCookie.Should().ContainEquivalentOf("samesite=lax");
+        setCookie.Should().ContainEquivalentOf("path=/");
     }
 
     [Test]
-    public void Clear_ExpiresCookie()
+    public void Clear_MirrorsAppendPath()
     {
         var ctx = new DefaultHttpContext();
 
-        AuthCookieWriter.Clear(ctx.Response);
+        AuthCookieWriter.Clear(ctx.Response, isHttps: false);
 
         var setCookie = ctx.Response.Headers.SetCookie.ToString();
         setCookie.Should().ContainEquivalentOf("ffbot_auth=");
         setCookie.Should().ContainEquivalentOf("expires=");
+        setCookie.Should().ContainEquivalentOf("path=/");
+    }
+}
+
+[TestFixture]
+public class SessionRevalidationTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 9, 15, 12, 0, 0, TimeSpan.Zero);
+
+    private static UserSession Session() => new()
+    {
+        UserId = 7,
+        Role = "Admin",
+        Expires = Now.AddDays(1)
+    };
+
+    [Test]
+    public void Check_NullSession_Invalid()
+    {
+        SessionRevalidation.Check(null, 7, "Admin", Now)
+            .Should().Be(SessionRevalidation.Verdict.Invalid);
+    }
+
+    [Test]
+    public void Check_ExpiredSession_Invalid()
+    {
+        var expired = Session();
+        expired.Expires = Now.AddMinutes(-1);
+
+        SessionRevalidation.Check(expired, 7, "Admin", Now)
+            .Should().Be(SessionRevalidation.Verdict.Invalid);
+    }
+
+    [Test]
+    public void Check_MissingUser_Invalid()
+    {
+        SessionRevalidation.Check(Session(), null, null, Now)
+            .Should().Be(SessionRevalidation.Verdict.Invalid);
+    }
+
+    [Test]
+    public void Check_RoleChanged_RefreshRole()
+    {
+        SessionRevalidation.Check(Session(), 7, "User", Now)
+            .Should().Be(SessionRevalidation.Verdict.RefreshRole);
+    }
+
+    [Test]
+    public void Check_FreshSession_Valid()
+    {
+        SessionRevalidation.Check(Session(), 7, "Admin", Now)
+            .Should().Be(SessionRevalidation.Verdict.Valid);
     }
 }

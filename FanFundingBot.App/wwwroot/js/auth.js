@@ -29,9 +29,14 @@ async function onTelegramLoginData(data) {
 
     let res;
     try {
+        const csrf = await fetch('/api/auth/csrf-token');
+        const csrfJson = csrf.ok ? await csrf.json() : null;
         res = await fetch('/api/auth/telegram', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': (csrfJson && csrfJson.token) || ''
+            },
             body: JSON.stringify({ idToken: data.id_token })
         });
     } catch {

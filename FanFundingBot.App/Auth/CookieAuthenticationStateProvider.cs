@@ -1,8 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using FanFundingBot.Domain.Interfaces;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -13,22 +16,35 @@ namespace FanFundingBot.App.Auth;
 /// Prerender: токен читается из cookie запроса, валидируется, в persisted state
 /// кладётся только <see cref="UserSession"/> (сырой JWT клиенту не отдаём —
 /// persisted state виден в HTML, в отличие от HttpOnly-cookie).
-/// Интерактив (SignalR, без HttpContext): principal восстанавливается из сессии.
+/// Интерактив (SignalR, без HttpContext): principal восстанавливается из сессии
+/// и ревалидируется по БД каждые 30 минут (роль/свежесть).
 /// </summary>
-public sealed class CookieAuthenticationStateProvider : AuthenticationStateProvider
+public sealed class CookieAuthenticationStateProvider : RevalidatingServerAuthenticationStateProvider
 {
     private const string SessionKey = "auth_session";
 
     private static readonly ClaimsPrincipal Anonymous = new(new ClaimsIdentity());
 
-    private readonly ClaimsPrincipal _user;
+    private static readonly TimeSpan RevalidationPeriod = TimeSpan.FromMinutes(30);
+
+    private readonly BlazorCircuitUserContext _circuitContext;
+    private readonly IUserRepository _users;
+
+    private UserSession? _session;
+    private ClaimsPrincipal _user = Anonymous;
 
     public CookieAuthenticationStateProvider(
+        ILoggerFactory loggerFactory,
         PersistentComponentState state,
         IHttpContextAccessor httpContextAccessor,
         IOptions<JwtOptions> options,
-        BlazorCircuitUserContext circuitContext)
+        BlazorCircuitUserContext circuitContext,
+        IUserRepository users)
+        : base(loggerFactory)
     {
+        _circuitContext = circuitContext;
+        _users = users;
+
         UserSession? session;
         if (!state.TryTakeFromJson<UserSession?>(SessionKey, out var persisted) || persisted is null)
         {
@@ -45,13 +61,55 @@ public sealed class CookieAuthenticationStateProvider : AuthenticationStateProvi
             session = persisted.Expires > DateTimeOffset.UtcNow && persisted.UserId > 0 ? persisted : null;
         }
 
-        _user = session is null ? Anonymous : ToPrincipal(session);
-        if (session is not null)
-            circuitContext.UserId = session.UserId;
+        ApplySession(session);
+    }
+
+    protected override TimeSpan RevalidationInterval => RevalidationPeriod;
+
+    protected override async Task<bool> ValidateAuthenticationStateAsync(
+        AuthenticationState authenticationState, CancellationToken cancellationToken)
+    {
+        UserSession? fresh = null;
+        try
+        {
+            var user = _session is null
+                ? null
+                : await _users.GetByIdAsync(_session.UserId);
+
+            var verdict = SessionRevalidation.Check(
+                _session, user?.Id, user?.Role.ToString(), DateTimeOffset.UtcNow);
+            if (verdict == SessionRevalidation.Verdict.Valid)
+                return true;
+
+            if (verdict == SessionRevalidation.Verdict.RefreshRole && user is not null && _session is not null)
+            {
+                fresh = new UserSession
+                {
+                    UserId = user.Id,
+                    Role = user.Role.ToString(),
+                    Expires = _session.Expires
+                };
+            }
+        }
+        catch
+        {
+            // Граница: недоступность БД не должна разлогинивать.
+            return true;
+        }
+
+        ApplySession(fresh);
+        return false;
     }
 
     public override Task<AuthenticationState> GetAuthenticationStateAsync()
         => Task.FromResult(new AuthenticationState(_user));
+
+    private void ApplySession(UserSession? session)
+    {
+        _session = session;
+        _user = session is null ? Anonymous : ToPrincipal(session);
+        _circuitContext.UserId = session?.UserId ?? 0;
+    }
 
     private static TokenValidationParameters Validation(JwtOptions options) => new()
     {

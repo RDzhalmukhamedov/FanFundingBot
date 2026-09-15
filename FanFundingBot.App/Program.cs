@@ -12,6 +12,7 @@ using FanFundingBot.Domain.Interfaces;
 using FanFundingBot.Infrastructure.Persistence;
 using FanFundingBot.Infrastructure.ExternalStorage;
 using MediatR;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.FluentUI.AspNetCore.Components;
@@ -167,6 +168,9 @@ app.MapPost("/api/auth/telegram", async (
     HttpContext http,
     CancellationToken ct) =>
 {
+    if (!await AntiforgeryHelper.HasValidTokenAsync(http))
+        return Results.BadRequest(new[] { "CSRF-токен отсутствует или недействителен." });
+
         if (string.IsNullOrEmpty(jwtOptions.Value.Secret))
         return Results.Problem("JWT не настроен (Jwt:Secret пустой).", statusCode: 500);
 
@@ -198,15 +202,27 @@ app.MapPost("/api/auth/telegram", async (
 .WithName("TelegramLogin")
 .WithSummary("Вход через Telegram Login (OIDC id_token)");
 
-// Выход: удаление HttpOnly-cookie (идемпотентный). Вызывается обычной
-// form-POST из MainLayout, поэтому возвращаем Redirect на главную.
-// Circuit дополнительно сбрасывается полной перезагрузкой страницы.
-app.MapPost("/api/auth/logout", (HttpContext http) =>
+// CSRF-токен для fetch-вызовов (auth.js): cookie ставится автоматически,
+// значение передаётся заголовком RequestVerificationToken.
+app.MapGet("/api/auth/csrf-token", (IAntiforgery antiforgery, HttpContext http) =>
 {
-    AuthCookieWriter.Clear(http.Response);
+    var tokens = antiforgery.GetAndStoreTokens(http);
+    return Results.Ok(new { token = tokens.RequestToken });
+})
+.WithName("CsrfToken")
+.WithSummary("CSRF-токен для fetch-вызовов");
+
+// Выход: удаление HttpOnly-cookie (идемпотентный, анонимный — чистит и битую cookie).
+// Вызывается обычной form-POST из MainLayout, поэтому возвращаем Redirect на главную.
+// Circuit дополнительно сбрасывается полной перезагрузкой страницы.
+app.MapPost("/api/auth/logout", async (HttpContext http) =>
+{
+    if (!await AntiforgeryHelper.HasValidTokenAsync(http))
+        return Results.BadRequest("CSRF-токен отсутствует или недействителен.");
+
+    AuthCookieWriter.Clear(http.Response, http.Request.IsHttps);
     return Results.Redirect("/");
 })
-.RequireAuthorization()
 .WithName("Logout")
 .WithSummary("Выход (удаление auth-cookie)");
 
@@ -218,6 +234,9 @@ app.MapPost("/api/auth/refresh", async (
     IOptions<JwtOptions> jwtOptions,
     HttpContext http) =>
 {
+    if (!await AntiforgeryHelper.HasValidTokenAsync(http))
+        return Results.BadRequest(new[] { "CSRF-токен отсутствует или недействителен." });
+
     var id = me.GetCurrentUserId();
     if (id <= 0)
         return Results.Unauthorized();

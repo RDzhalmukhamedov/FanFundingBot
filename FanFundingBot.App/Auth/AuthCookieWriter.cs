@@ -10,6 +10,7 @@ public static class AuthCookieWriter
     {
         response.Cookies.Append(JwtTokenService.CookieName, token, new CookieOptions
         {
+            Path = "/",
             HttpOnly = true,
             SameSite = SameSiteMode.Lax,
             Secure = isHttps,
@@ -17,8 +18,14 @@ public static class AuthCookieWriter
         });
     }
 
-    public static void Clear(HttpResponse response)
+    public static void Clear(HttpResponse response, bool isHttps)
     {
-        response.Cookies.Delete(JwtTokenService.CookieName);
+        response.Cookies.Delete(JwtTokenService.CookieName, new CookieOptions
+        {
+            Path = "/",
+            HttpOnly = true,
+            SameSite = SameSiteMode.Lax,
+            Secure = isHttps
+        });
     }
 }

@@ -19,6 +19,7 @@
         <AuthorizeView>
             <Authorized>
                 <form method="post" action="/api/auth/logout">
+                    <AntiforgeryToken />
                     <FluentButton Type="ButtonType.Submit" Appearance="Appearance.Stealth">Выйти</FluentButton>
                 </form>
             </Authorized>
