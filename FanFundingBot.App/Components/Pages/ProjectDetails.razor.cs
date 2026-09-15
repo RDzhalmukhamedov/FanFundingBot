@@ -87,6 +87,17 @@ public partial class ProjectDetails : AuthComponentBase
 
     private async Task ReloadAsync()
     {
+        await ReloadProjectAsync();
+
+        if (_ordersTable is not null)
+            await _ordersTable.RefreshAsync();
+        if (_questionsTable is not null)
+            await _questionsTable.RefreshAsync();
+    }
+
+    // Проект + ссылка + счётчики без трогания гридов (смена статуса проекта их не меняет).
+    private async Task ReloadProjectAsync()
+    {
         var project = await Mediator.Send(new GetProjectByIdQuery(Id), RequestCt);
         if (project.IsFailed)
         {
@@ -112,11 +123,6 @@ public partial class ProjectDetails : AuthComponentBase
             new GetUnansweredQuestionsQuery(_userId, 1, 1), RequestCt);
         if (questionsCount.IsSuccess)
             QuestionsTotalCount = questionsCount.Value.TotalCount;
-
-        if (_ordersTable is not null)
-            await _ordersTable.RefreshAsync();
-        if (_questionsTable is not null)
-            await _questionsTable.RefreshAsync();
     }
 
     private async ValueTask<GridItemsProviderResult<OrderDto>> OrdersProvider(GridItemsProviderRequest<OrderDto> request)
@@ -178,7 +184,7 @@ public partial class ProjectDetails : AuthComponentBase
         if (result.IsSuccess)
         {
             Toasts.ShowSuccess("Статус проекта изменён.");
-            await ReloadAsync();
+            await ReloadProjectAsync();
         }
         else
         {

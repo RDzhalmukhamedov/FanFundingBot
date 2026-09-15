@@ -10,6 +10,7 @@ public partial class Index : AuthComponentBase
 
     private string? ClientId { get; set; }
     private List<ProjectDto>? Catalog { get; set; }
+    private string? Error { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -27,11 +28,20 @@ public partial class Index : AuthComponentBase
         try
         {
             var result = await Mediator.Send(new GetProjectsQuery(), RequestCt);
-            Catalog = result.IsSuccess ? result.Value : [];
+            if (result.IsSuccess)
+            {
+                Catalog = result.Value;
+            }
+            else
+            {
+                Catalog = [];
+                Error = BlazorResult.Message(result);
+            }
         }
         catch
         {
             Catalog = [];
+            Error = "Не удалось загрузить проекты. Попробуйте позже.";
         }
     }
 }

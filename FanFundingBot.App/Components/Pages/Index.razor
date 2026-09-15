@@ -15,19 +15,26 @@
             {
                 <FluentProgressRing />
             }
-            else if (Catalog.Count == 0)
-            {
-                <p class="muted">Пока нет доступных проектов.</p>
-            }
             else
             {
-                @foreach (var project in Catalog)
+                @if (!string.IsNullOrEmpty(Error))
                 {
-                    <div class="card">
-                        <h3>@project.Name</h3>
-                        <p>@project.Description</p>
-                        <p class="muted">Статус: @project.StatusName</p>
-                    </div>
+                    <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>
+                }
+                @if (Catalog.Count == 0 && string.IsNullOrEmpty(Error))
+                {
+                    <p class="muted">Пока нет доступных проектов.</p>
+                }
+                else
+                {
+                    @foreach (var project in Catalog)
+                    {
+                        <div class="card">
+                            <h3>@project.Name</h3>
+                            <p>@project.Description</p>
+                            <p class="muted">Статус: @project.StatusName</p>
+                        </div>
+                    }
                 }
             }
         </div>
