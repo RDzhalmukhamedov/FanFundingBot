@@ -8,7 +8,7 @@ namespace FanFundingBot.App.Services;
 /// <summary>
 /// Ссылка на Google-таблицу заказов: проверка <c>CanManage</c> + глобальный
 /// <c>SpreadsheetId</c> (задел под per-project из PLAN_MULTI.md).
-/// Используется и Minimal API, и Blazor напрямую.
+/// Используется Blazor напрямую.
 /// </summary>
 public sealed class ProjectSheetLinkService
 {

@@ -184,7 +184,7 @@ public partial class ProjectEdit : AuthComponentBase
         if (Error is not null)
             return;
 
-        // Save project details if changed (два вызова, как в Minimal API).
+        // Save project details if changed (два вызова: Rename + UpdateDescription).
         if (Form.Name != _originalName || Form.Description != _originalDescription)
         {
             var renamed = await Mediator.Send(new RenameProjectCommand(_userId, Id, Form.Name), RequestCt);

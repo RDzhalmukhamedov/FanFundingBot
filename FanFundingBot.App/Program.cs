@@ -3,7 +3,6 @@ using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Application.Users.Commands;
 using FanFundingBot.App.Auth;
 using FanFundingBot.App.Components;
-using FanFundingBot.App.Endpoints;
 using FanFundingBot.App.Services;
 using FanFundingBot.Bot;
 using FanFundingBot.Bot.Handlers;
@@ -256,8 +255,6 @@ app.MapPost("/api/auth/refresh", async (
 .RequireAuthorization()
 .WithName("RefreshSession")
 .WithSummary("Продление сессии (перевыпуск JWT-cookie)");
-
-app.MapWebApi();
 
 app.UseAntiforgery();
 app.MapStaticAssets();
