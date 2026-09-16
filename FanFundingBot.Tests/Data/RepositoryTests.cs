@@ -116,7 +116,7 @@ public class UserRepositoryTests : RepositoryTestBase
         var updated = await context.Users.FindAsync(1L);
         Assert.Multiple(() =>
         {
-            Assert.That(updated!.Phone, Is.EqualTo("+79990001122"));
+            Assert.That(updated!.Phone?.ToString(), Is.EqualTo("+79990001122"));
             Assert.That(updated.Role, Is.EqualTo(UserRole.Admin));
         });
     }

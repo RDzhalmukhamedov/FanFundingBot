@@ -186,7 +186,16 @@ public class EntityTests
         var user = new User(1, "John", "Doe", "johndoe");
         user.SetPhone("+71234567890");
 
-        Assert.That(user.Phone, Is.EqualTo("+71234567890"));
+        Assert.That(user.Phone?.ToString(), Is.EqualTo("+71234567890"));
+    }
+
+    [Test]
+    public void User_SetPhone_Invalid_ShouldThrow()
+    {
+        var user = new User(1, "John", "Doe", "johndoe");
+
+        Assert.Throws<DomainException>(() => user.SetPhone("bad"));
+        Assert.Throws<DomainException>(() => user.SetPhone("  "));
     }
 
     [Test]

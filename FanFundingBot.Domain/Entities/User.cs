@@ -1,6 +1,7 @@
 using FanFundingBot.Domain.Common;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Exceptions;
+using FanFundingBot.Domain.ValueObjects;
 
 namespace FanFundingBot.Domain.Entities;
 
@@ -13,7 +14,7 @@ public class User : AggregateRoot
     public string? FirstName { get; private set; }
     public string? LastName { get; private set; }
     public string? Username { get; private set; }
-    public string? Phone { get; private set; }
+    public PhoneNumber? Phone { get; private set; }
     public UserRole Role { get; private set; }
 
     public DateTime CreatedAt { get; private set; }
@@ -44,8 +45,7 @@ public class User : AggregateRoot
 
     public void SetPhone(string phone)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(phone);
-        Phone = phone;
+        Phone = PhoneNumber.Create(phone);
     }
 
     public void CreateOrder(Order order)
