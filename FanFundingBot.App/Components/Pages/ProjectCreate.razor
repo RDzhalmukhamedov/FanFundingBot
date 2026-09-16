@@ -11,11 +11,11 @@
     <DataAnnotationsValidator />
 
     <div class="form card">
-        <label>Название</label>
+        <label class="project-field-label">Название</label>
         <FluentTextField @bind-Value="Form.Name" Maxlength="256" aria-label="Название" />
         <FluentValidationMessage For="@(() => Form.Name)" />
 
-        <label>Описание</label>
+        <label class="project-field-label">Описание</label>
         <FluentTextArea @bind-Value="Form.Description" Rows="4" Maxlength="2048" aria-label="Описание" />
         <FluentValidationMessage For="@(() => Form.Description)" />
 

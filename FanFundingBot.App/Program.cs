@@ -28,7 +28,7 @@ builder.Services.AddControllers();
 
 builder.Services.AddApplication();
 builder.Services.AddDataLayer(builder.Configuration);
-builder.Services.AddBotLayer(builder.Configuration);
+builder.Services.AddBotLayer();
 builder.Services.AddExternalStorage(builder.Configuration);
 
 var botConfig = new BotConfiguration();

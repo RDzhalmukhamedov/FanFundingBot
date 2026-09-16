@@ -14,8 +14,7 @@ public partial class Index : AuthComponentBase
 
     protected override async Task OnInitializedAsync()
     {
-        ClientId = Configuration["BotConfiguration:ClientId"]
-            ?? Configuration["TelegramLogin:ClientId"];
+        ClientId = Configuration["BotConfiguration:ClientId"];
 
         var state = await AuthState.GetAuthenticationStateAsync();
         if (!IsAuthenticated(state.User))

@@ -2,9 +2,7 @@ using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Helpers;
-using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics.CodeAnalysis;
 
@@ -13,12 +11,8 @@ namespace FanFundingBot.Bot;
 [ExcludeFromCodeCoverage]
 public static class DependencyInjection
 {
-    public static IServiceCollection AddBotLayer(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddBotLayer(this IServiceCollection services)
     {
-        var botConfig = new BotConfiguration();
-        configuration.Bind("BotConfiguration", botConfig);
-        services.AddSingleton(botConfig);
-
         services.AddMemoryCache();
         services.AddSingleton<IUserStateService, UserStateService>();
 
