@@ -108,7 +108,7 @@ public class OutboxProcessor : BackgroundService
         return messages.Count;
     }
 
-    private static async Task DispatchAsync(
+    private async Task DispatchAsync(
         OutboxMessage message,
         IOrderRepository orders,
         IOrderExternalStorage storage,
@@ -116,17 +116,41 @@ public class OutboxProcessor : BackgroundService
     {
         var eventType = Type.GetType(message.Type);
         if (eventType is null)
+        {
+            _logger.LogWarning("Outbox unknown event type {MessageType} for {MessageId}, skipping",
+                message.Type, message.Id);
             return;
+        }
 
-        if (JsonSerializer.Deserialize(message.Payload, eventType) is not IDomainEvent domainEvent)
+        IDomainEvent? domainEvent;
+        try
+        {
+            domainEvent = JsonSerializer.Deserialize(message.Payload, eventType) as IDomainEvent;
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Outbox undecodable payload for {MessageId} ({MessageType}), skipping",
+                message.Id, message.Type);
             return;
+        }
+
+        if (domainEvent is null)
+        {
+            _logger.LogWarning("Outbox undecodable payload for {MessageId} ({MessageType}), skipping",
+                message.Id, message.Type);
+            return;
+        }
 
         switch (domainEvent)
         {
             case OrderFormedEvent formed:
                 var order = await orders.GetByIdWithAddonsAsync(formed.OrderId);
                 if (order is null)
+                {
+                    _logger.LogInformation("Outbox order {OrderId} not found for {MessageId}, skipping",
+                        formed.OrderId, message.Id);
                     return;
+                }
                 await storage.SaveOrderAsync(order, cancellationToken);
                 break;
 
@@ -137,11 +161,17 @@ public class OutboxProcessor : BackgroundService
             case OrderStatusChangedEvent statusChanged:
                 var updated = await orders.GetByIdWithAddonsAsync(statusChanged.OrderId);
                 if (updated is null)
+                {
+                    _logger.LogInformation("Outbox order {OrderId} not found for {MessageId}, skipping",
+                        statusChanged.OrderId, message.Id);
                     return;
+                }
                 await storage.SaveOrderAsync(updated, cancellationToken);
                 break;
 
             default:
+                _logger.LogWarning("Outbox unhandled event {EventType} for {MessageId}, skipping",
+                    domainEvent.GetType().Name, message.Id);
                 break;
         }
     }

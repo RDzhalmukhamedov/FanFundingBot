@@ -1,3 +1,4 @@
+using FanFundingBot.Domain.Common;
 using FanFundingBot.Domain.DomainEvents;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.Exceptions;

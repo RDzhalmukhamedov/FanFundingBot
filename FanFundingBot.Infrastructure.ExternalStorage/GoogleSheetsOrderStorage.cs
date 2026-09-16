@@ -351,14 +351,13 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
 
         var addonsParts = new List<string>();
         var addonIdsParts = new List<string>();
-        decimal totalCost = 0;
+        var totalCost = (decimal)order.Total;
 
         foreach (var oa in order.OrderAddons)
         {
             var addonName = oa.Addon?.Name ?? oa.AddonId.ToString();
             var addonId = oa.Addon?.Id ?? oa.AddonId;
             var price = oa.Addon?.Price ?? 0m;
-            totalCost += price * oa.Quantity;
             addonsParts.Add($"{addonName} × {oa.Quantity}");
             addonIdsParts.Add($"{addonId}|{price:F2}");
         }

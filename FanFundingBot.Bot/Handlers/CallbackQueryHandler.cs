@@ -52,7 +52,15 @@ public class CallbackQueryHandler : ICallbackQueryHandler
             }
 
             await handler.HandleAsync(botClient, query, userId, data, ct);
-            await botClient.AnswerCallbackQuery(query.Id, cancellationToken: ct);
+            try
+            {
+                await botClient.AnswerCallbackQuery(query.Id, cancellationToken: ct);
+            }
+            catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.ErrorCode == 400)
+            {
+                // Inner handler already answered (e.g. validation alert) — second ack is rejected by Telegram.
+                _logger.LogDebug(ex, "Callback query already answered for user {UserId}", userId);
+            }
         }
         catch (Exception ex)
         {

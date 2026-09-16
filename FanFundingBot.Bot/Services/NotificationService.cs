@@ -1,5 +1,6 @@
 using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Bot.Models;
+using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 
@@ -9,12 +10,14 @@ public class NotificationService : INotificationPort
 {
     private readonly ITelegramBotClient _botClient;
     private readonly BotConfiguration _config;
+    private readonly ILogger<NotificationService> _logger;
     private static readonly SemaphoreSlim _sendSemaphore = new(1, 1);
 
-    public NotificationService(ITelegramBotClient botClient, BotConfiguration config)
+    public NotificationService(ITelegramBotClient botClient, BotConfiguration config, ILogger<NotificationService> logger)
     {
         _botClient = botClient;
         _config = config;
+        _logger = logger;
     }
 
     public async Task NotifyProjectStatusChangedAsync(
@@ -46,9 +49,10 @@ public class NotificationService : INotificationPort
                 parseMode: ParseMode.Html,
                 cancellationToken: ct);
         }
-        catch
+        catch (Exception ex)
         {
             // Ignore users who blocked the bot
+            _logger.LogDebug(ex, "Skipping notify for blocked user {UserId} (question answered)", userId);
         }
     }
 
@@ -67,9 +71,10 @@ public class NotificationService : INotificationPort
                 parseMode: ParseMode.Html,
                 cancellationToken: ct);
         }
-        catch
+        catch (Exception ex)
         {
             // Ignore users who blocked the bot
+            _logger.LogDebug(ex, "Skipping notify for blocked user {UserId} (order status)", userId);
         }
     }
 
@@ -83,9 +88,10 @@ public class NotificationService : INotificationPort
                 parseMode: ParseMode.Html,
                 cancellationToken: ct);
         }
-        catch
+        catch (Exception ex)
         {
             // Ignore users who blocked the bot
+            _logger.LogDebug(ex, "Skipping direct message for blocked user {UserId}", userId);
         }
     }
 
@@ -108,9 +114,10 @@ public class NotificationService : INotificationPort
                     if (_config.SendDelayMs > 0)
                         await Task.Delay(_config.SendDelayMs, ct);
                 }
-                catch
+                catch (Exception ex)
                 {
                     // Ignore users who blocked the bot
+                    _logger.LogDebug(ex, "Skipping broadcast for blocked user {UserId}", userId);
                 }
             }
         }

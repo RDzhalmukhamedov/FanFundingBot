@@ -36,9 +36,8 @@ public static class ConfirmationKeyboard
     {
         var buttons = new List<InlineKeyboardButton[]>();
 
-        foreach (var (id, name, price, qty) in addons)
+        foreach (var (id, name, _, qty) in addons)
         {
-            var total = price * qty;
             buttons.Add(new[]
             {
                 InlineKeyboardButton.WithCallbackData("➖", CallbackData.Build("addon_qty_dec", id)),

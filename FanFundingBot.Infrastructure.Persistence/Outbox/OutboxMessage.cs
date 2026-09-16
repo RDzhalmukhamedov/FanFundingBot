@@ -1,10 +1,8 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using FanFundingBot.Domain.DomainEvents;
 
 namespace FanFundingBot.Infrastructure.Persistence.Outbox;
 
-[ExcludeFromCodeCoverage]
 public class OutboxMessage
 {
     public Guid Id { get; private set; }

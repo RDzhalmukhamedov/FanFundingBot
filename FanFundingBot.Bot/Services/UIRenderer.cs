@@ -7,6 +7,7 @@ using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Domain.Enums;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -19,13 +20,16 @@ public class UIRenderer : IUIRenderer
 
     private readonly IUserStateService _stateService;
     private readonly IMediator _mediator;
+    private readonly ILogger<UIRenderer> _logger;
 
     public UIRenderer(
         IUserStateService stateService,
-        IMediator mediator)
+        IMediator mediator,
+        ILogger<UIRenderer> logger)
     {
         _stateService = stateService;
         _mediator = mediator;
+        _logger = logger;
     }
 
     public async Task ShowConfirmationAsync(ITelegramBotClient botClient, long chatId, long userId, CancellationToken ct)
@@ -119,8 +123,9 @@ public class UIRenderer : IUIRenderer
                     cancellationToken: ct);
                 return;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogDebug(ex, "EditMessageText failed, falling back to SendMessage for chat {ChatId}", chatId);
             }
         }
 

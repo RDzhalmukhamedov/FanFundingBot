@@ -1,3 +1,4 @@
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
@@ -174,7 +175,7 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
         if (projectResult.IsFailed)
         {
             await botClient.EditMessageText(
-                query.Message!.Chat.Id, query.Message!.MessageId, "Дополнение не найдено.", cancellationToken: ct);
+                query.Message!.Chat.Id, query.Message!.MessageId, projectResult.UserMessage(), cancellationToken: ct);
             return;
         }
 
@@ -204,7 +205,7 @@ public class AdminProjectCallbackHandler : IAdminProjectCallbackHandler
         if (projectResult.IsFailed)
         {
             await botClient.EditMessageText(
-                query.Message!.Chat.Id, query.Message!.MessageId, "Дополнение не найдено.", cancellationToken: ct);
+                query.Message!.Chat.Id, query.Message!.MessageId, projectResult.UserMessage(), cancellationToken: ct);
             return;
         }
 

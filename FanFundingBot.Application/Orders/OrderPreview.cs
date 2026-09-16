@@ -1,10 +1,11 @@
 using FanFundingBot.Application.Projects.DTOs;
+using FanFundingBot.Domain.Entities;
 
 namespace FanFundingBot.Application.Orders;
 
 /// <summary>
 /// Подсчет превью заказа из эфемерного состояния Bot-сессии.
-/// Формула итога 1:1 с <c>MapsterConfig</c> (Order → OrderDto.Total): сумма Price × Quantity.
+/// Источник формулы — <see cref="Order.CalculateTotal"/>.
 /// </summary>
 public static class OrderPreview
 {
@@ -29,6 +30,6 @@ public static class OrderPreview
             lines.Add(new Line(addon.Id, addon.Name, addon.Price, qty));
         }
 
-        return (lines, lines.Sum(l => l.Total));
+        return (lines, (decimal)Order.CalculateTotal(lines.Select(l => (l.Price, l.Quantity))));
     }
 }

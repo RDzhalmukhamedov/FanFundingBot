@@ -1,6 +1,7 @@
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Bot.Services;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Telegram.Bot;
 using Telegram.Bot.Requests;
@@ -18,7 +19,7 @@ public class NotificationServiceTests
     public void Setup()
     {
         _botClient = Substitute.For<ITelegramBotClient>();
-        _service = new NotificationService(_botClient, new BotConfiguration());
+        _service = new NotificationService(_botClient, new BotConfiguration(), NullLogger<NotificationService>.Instance);
     }
 
     [Test]

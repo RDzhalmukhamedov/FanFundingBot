@@ -1,4 +1,4 @@
-namespace FanFundingBot.Domain.Enums;
+namespace FanFundingBot.Bot.Models;
 
 public enum OrderFlowState
 {

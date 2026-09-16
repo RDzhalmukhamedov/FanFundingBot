@@ -1,6 +1,6 @@
 using FanFundingBot.Domain.Enums;
 
-namespace FanFundingBot.Domain.Entities;
+namespace FanFundingBot.Domain.Common;
 
 public interface IEditable<T> where T : IEditable<T>
 {

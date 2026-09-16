@@ -1,4 +1,4 @@
-using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Common;
 using FanFundingBot.Infrastructure.Persistence.Outbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;

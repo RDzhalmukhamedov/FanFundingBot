@@ -320,4 +320,16 @@ public class CallbackQueryHandlerTests
         var cq = MakeCq("admin_status:id:Completed");
         await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None);
     }
+
+    [Test]
+    public async Task AlreadyAnsweredByInnerHandler_DoesNotThrow()
+    {
+        // Inner handler answered with alert; outer success-ack is rejected by Telegram with 400.
+        _botClient.SendRequest<bool>(Arg.Any<Telegram.Bot.Requests.AnswerCallbackQueryRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<bool>(new Telegram.Bot.Exceptions.ApiRequestException("Bad Request: query is too old", 400)));
+        var cq = MakeCq("addon_toggle:g");
+
+        Assert.DoesNotThrowAsync(async () =>
+            await _handler.HandleCallbackQueryAsync(_botClient, cq, CancellationToken.None));
+    }
 }

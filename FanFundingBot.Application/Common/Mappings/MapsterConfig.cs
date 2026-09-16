@@ -26,8 +26,7 @@ public static class MapsterConfig
                     p.Addon.Name,
                     p.Addon.Price,
                     p.Quantity)))
-            .Map(dest => dest.Total, src => src.OrderAddons
-                .Sum(p => (decimal)p.Addon.Price * (int)p.Quantity));
+            .Map(dest => dest.Total, src => (decimal)src.Total);
 
         TypeAdapterConfig<OrderPosition, OrderPositionDto>.NewConfig()
             .Map(dest => dest.AddonId, src => src.Addon.Id)
