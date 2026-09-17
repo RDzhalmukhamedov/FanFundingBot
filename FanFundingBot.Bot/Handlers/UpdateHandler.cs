@@ -1,4 +1,5 @@
 using FanFundingBot.Bot.Abstractions;
+using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -10,15 +11,18 @@ public class UpdateHandler : IUpdateHandler
     private readonly ICommandHandler _commandHandler;
     private readonly ICallbackQueryHandler _callbackQueryHandler;
     private readonly IContactHandler _contactHandler;
+    private readonly ILogger<UpdateHandler> _logger;
 
     public UpdateHandler(
         ICommandHandler commandHandler,
         ICallbackQueryHandler callbackQueryHandler,
-        IContactHandler contactHandler)
+        IContactHandler contactHandler,
+        ILogger<UpdateHandler> logger)
     {
         _commandHandler = commandHandler;
         _callbackQueryHandler = callbackQueryHandler;
         _contactHandler = contactHandler;
+        _logger = logger;
     }
 
     public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken ct)
@@ -41,6 +45,7 @@ public class UpdateHandler : IUpdateHandler
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Update handling failed for update {UpdateId}", update.Id);
             if (update.Message?.Chat is { } chat)
             {
                 try

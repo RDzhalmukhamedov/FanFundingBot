@@ -9,5 +9,5 @@ public record ProjectEditForm(
 
 public interface IProjectEditFormBuilder
 {
-    Task<ProjectEditForm> BuildAsync(Guid projectId, string? prependText = null);
+    Task<ProjectEditForm?> BuildAsync(Guid projectId, string? prependText = null);
 }

@@ -1,0 +1,45 @@
+@page "/my-orders"
+@attribute [Authorize]
+@inherits AuthComponentBase
+@rendermode InteractiveServer
+
+<PageTitle>Мои заказы</PageTitle>
+
+<h1>Мои заказы</h1>
+@if (!string.IsNullOrEmpty(Error))
+{
+    <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>
+}
+@if (!Loaded)
+{
+    <FluentProgressRing aria-label="Загрузка" />
+}
+else if (Orders.Count == 0)
+{
+    <p class="muted">У вас пока нет заказов.</p>
+}
+else
+{
+    <div class="table-wrap">
+    <FluentDataGrid Items="@(Orders.AsQueryable())" TGridItem="OrderDto" Style="width: 100%;" RowSize="DataGridRowSize.Large" MultiLine="true">
+        <ChildContent>
+        <PropertyColumn Property="@(o => o.ProjectName)" Title="Проект" />
+        <TemplateColumn Title="Позиции">
+            @foreach (var p in context.Positions)
+            {
+                <div>@p.AddonName × @p.Quantity</div>
+            }
+        </TemplateColumn>
+        <TemplateColumn Title="Сумма">
+            @context.Total.ToString("F2")
+        </TemplateColumn>
+        <TemplateColumn Title="Статус">
+            <StatusBadge Status="context.Status" />
+        </TemplateColumn>
+        </ChildContent>
+        <EmptyContent>
+            <p class="muted">У вас пока нет заказов.</p>
+        </EmptyContent>
+    </FluentDataGrid>
+    </div>
+}

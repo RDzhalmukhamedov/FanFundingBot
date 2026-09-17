@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using FanFundingBot.Bot.Helpers;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Keyboards;
 
+[ExcludeFromCodeCoverage]
 public static class ConfirmationKeyboard
 {
     public static InlineKeyboardMarkup Create(bool showEditButton = true)
@@ -34,9 +36,8 @@ public static class ConfirmationKeyboard
     {
         var buttons = new List<InlineKeyboardButton[]>();
 
-        foreach (var (id, name, price, qty) in addons)
+        foreach (var (id, name, _, qty) in addons)
         {
-            var total = price * qty;
             buttons.Add(new[]
             {
                 InlineKeyboardButton.WithCallbackData("➖", CallbackData.Build("addon_qty_dec", id)),

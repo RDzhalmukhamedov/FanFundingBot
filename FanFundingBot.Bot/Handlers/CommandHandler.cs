@@ -1,10 +1,14 @@
+using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Orders.Queries;
+using FanFundingBot.Application.Projects.Queries;
+using FanFundingBot.Application.Users.Commands;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Bot.Services;
+using FanFundingBot.Domain.Enums;
+using MediatR;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -14,11 +18,10 @@ namespace FanFundingBot.Bot.Handlers;
 
 public class CommandHandler : ICommandHandler
 {
-    private readonly IUserRepository _userRepository;
-    private readonly IProjectRepository _projectRepository;
     private readonly IUserStateService _stateService;
-    private readonly IAdminService _adminService;
-    private readonly IOrderFlowService _orderFlowService;
+    private readonly IAuthorizationService _authorization;
+    private readonly IMediator _mediator;
+    private readonly TelegramUserContext _userContext;
     private readonly BotConfiguration _config;
     private readonly IUIRenderer _uiRenderer;
     private readonly ITextInputHandler _textInputHandler;
@@ -26,22 +29,20 @@ public class CommandHandler : ICommandHandler
     private readonly IAdminCommandHandler _adminCommandHandler;
 
     public CommandHandler(
-        IUserRepository userRepository,
-        IProjectRepository projectRepository,
         IUserStateService stateService,
-        IAdminService adminService,
-        IOrderFlowService orderFlowService,
+        IAuthorizationService authorization,
+        IMediator mediator,
+        TelegramUserContext userContext,
         BotConfiguration config,
         IUIRenderer uiRenderer,
         ITextInputHandler textInputHandler,
         MainMenuHelper menuHelper,
         IAdminCommandHandler adminCommandHandler)
     {
-        _userRepository = userRepository;
-        _projectRepository = projectRepository;
         _stateService = stateService;
-        _adminService = adminService;
-        _orderFlowService = orderFlowService;
+        _authorization = authorization;
+        _mediator = mediator;
+        _userContext = userContext;
         _config = config;
         _uiRenderer = uiRenderer;
         _textInputHandler = textInputHandler;
@@ -53,6 +54,7 @@ public class CommandHandler : ICommandHandler
     {
         var userId = message.From!.Id;
         var text = message.Text!;
+        _userContext.UserId = userId;
 
         await EnsureUserExistsAsync(message);
 
@@ -77,7 +79,7 @@ public class CommandHandler : ICommandHandler
     private async Task HandleStartAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        var isAdmin = await _adminService.IsAdminAsync(userId);
+        var isAdmin = await _authorization.CanCreateProjectAsync(userId);
 
         var welcomeText = "👋 Добро пожаловать в FanFundingBot!\n\n" +
                           "Здесь вы можете оформить заказ, узнать статус проекта и задать вопросы.\n\n" +
@@ -92,13 +94,15 @@ public class CommandHandler : ICommandHandler
 
     private async Task HandleProjectStatusAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
-        var projects = await _projectRepository.GetAllAsync();
+        var userId = message.From!.Id;
+        var projectsResult = await _mediator.Send(new GetProjectsQuery(), ct);
+        var projects = projectsResult.IsSuccess ? projectsResult.Value : new List<Application.Projects.DTOs.ProjectDto>();
         if (projects.Count == 0)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
                 "В данный момент нет активных проектов.",
-                replyMarkup: MainMenuKeyboard.Create(await _adminService.IsAdminAsync(message.From!.Id)),
+                replyMarkup: MainMenuKeyboard.Create(await _authorization.CanCreateProjectAsync(userId)),
                 cancellationToken: ct);
             return;
         }
@@ -106,28 +110,29 @@ public class CommandHandler : ICommandHandler
         var project = projects.First();
 
         var text = $"📋 <b>Проект: {project.Name}</b>\n\n" +
-                   $"Статус: {project.Status?.DisplayName ?? "❓ Неизвестно"}\n" +
+                   $"Статус: {project.StatusName}\n" +
                    (project.Description != null ? $"Описание: <i>{project.Description}</i>" : "");
 
         await botClient.SendMessage(
             message.Chat.Id,
             text,
             parseMode: ParseMode.Html,
-            replyMarkup: MainMenuKeyboard.Create(await _adminService.IsAdminAsync(message.From!.Id)),
+            replyMarkup: MainMenuKeyboard.Create(await _authorization.CanCreateProjectAsync(userId)),
             cancellationToken: ct);
     }
 
     private async Task HandleMyOrderAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        var order = await _orderFlowService.GetLatestOrderWithAddonsAsync(userId);
+        var ordersResult = await _mediator.Send(new GetMyOrdersQuery(userId), ct);
+        var order = ordersResult.IsSuccess ? ordersResult.Value.FirstOrDefault() : null;
 
         if (order == null)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
                 "У вас нет заказов.",
-                replyMarkup: MainMenuKeyboard.Create(await _adminService.IsAdminAsync(message.From!.Id)),
+                replyMarkup: MainMenuKeyboard.Create(await _authorization.CanCreateProjectAsync(userId)),
                 cancellationToken: ct);
             return;
         }
@@ -138,15 +143,16 @@ public class CommandHandler : ICommandHandler
     private async Task HandleStartOrderAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        var projects = await _projectRepository.GetAllWithAddonsAsync();
+        var projectsResult = await _mediator.Send(new GetProjectsQuery(), ct);
+        var projects = projectsResult.IsSuccess ? projectsResult.Value : new List<Application.Projects.DTOs.ProjectDto>();
 
-        var activeProject = projects.FirstOrDefault(p => p.Status?.CanEdit == true);
+        var activeProject = projects.FirstOrDefault(p => p.CanEditOrders);
         if (activeProject == null)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
                 "В данный момент нет доступных для заказа проектов.",
-                replyMarkup: MainMenuKeyboard.Create(await _adminService.IsAdminAsync(userId)),
+                replyMarkup: MainMenuKeyboard.Create(await _authorization.CanCreateProjectAsync(userId)),
                 cancellationToken: ct);
             return;
         }
@@ -156,18 +162,19 @@ public class CommandHandler : ICommandHandler
             await botClient.SendMessage(
                 message.Chat.Id,
                 "В выбранном проекте нет доступных дополнений.",
-                replyMarkup: MainMenuKeyboard.Create(await _adminService.IsAdminAsync(userId)),
+                replyMarkup: MainMenuKeyboard.Create(await _authorization.CanCreateProjectAsync(userId)),
                 cancellationToken: ct);
             return;
         }
 
-        var existingOrder = await _orderFlowService.GetLatestOrderAsync(userId);
+        var ordersResult = await _mediator.Send(new GetMyOrdersQuery(userId), ct);
+        var existingOrder = ordersResult.IsSuccess ? ordersResult.Value.FirstOrDefault() : null;
         if (existingOrder is { Status: OrderStatus.New or OrderStatus.Confirmed })
         {
             await botClient.SendMessage(
                 message.Chat.Id,
                 "У вас уже есть оформленный заказ. Вы можете оформить новый только после завершения текущего.",
-                replyMarkup: MainMenuKeyboard.Create(await _adminService.IsAdminAsync(userId)),
+                replyMarkup: MainMenuKeyboard.Create(await _authorization.CanCreateProjectAsync(userId)),
                 cancellationToken: ct);
             return;
         }
@@ -206,13 +213,14 @@ public class CommandHandler : ICommandHandler
 
     private async Task HandleProjectInfoAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
-        var projects = await _projectRepository.GetAllWithAddonsAsync();
+        var projectsResult = await _mediator.Send(new GetProjectsQuery(), ct);
+        var projects = projectsResult.IsSuccess ? projectsResult.Value : new List<Application.Projects.DTOs.ProjectDto>();
         if (projects.Count == 0)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
                 "Информация о проектах отсутствует.",
-                replyMarkup: MainMenuKeyboard.Create(await _adminService.IsAdminAsync(message.From!.Id)),
+                replyMarkup: MainMenuKeyboard.Create(await _authorization.CanCreateProjectAsync(message.From!.Id)),
                 cancellationToken: ct);
             return;
         }
@@ -240,7 +248,7 @@ public class CommandHandler : ICommandHandler
             message.Chat.Id,
             text,
             parseMode: ParseMode.Html,
-            replyMarkup: MainMenuKeyboard.Create(await _adminService.IsAdminAsync(message.From!.Id)),
+            replyMarkup: MainMenuKeyboard.Create(await _authorization.CanCreateProjectAsync(message.From!.Id)),
             cancellationToken: ct);
     }
 
@@ -258,9 +266,10 @@ public class CommandHandler : ICommandHandler
                     session.Phone = null;
                     _stateService.Update(userId, session);
 
-                    var project = await _projectRepository.GetByIdWithAddonsAsync(session.SelectedProjectId!.Value);
-                    if (project != null)
-                        await _uiRenderer.SendAddonSelectionAsync(botClient, message.Chat.Id, userId, project, ct);
+                    var projectResult = await _mediator.Send(
+                        new Application.Projects.Queries.GetProjectByIdQuery(session.SelectedProjectId!.Value), ct);
+                    if (projectResult.IsSuccess)
+                        await _uiRenderer.SendAddonSelectionAsync(botClient, message.Chat.Id, userId, projectResult.Value, ct);
                     return;
 
                 case OrderFlowState.EnteringAddress:
@@ -280,6 +289,17 @@ public class CommandHandler : ICommandHandler
             }
         }
 
+        if (session?.PendingAction == "answer_question")
+        {
+            _stateService.Remove(userId);
+            await botClient.SendMessage(
+                message.Chat.Id,
+                "❌ Ввод ответа отменён.",
+                cancellationToken: ct);
+            await _menuHelper.SendReturnToMenuAsync(botClient, message.Chat.Id, userId, ct);
+            return;
+        }
+
         _stateService.Remove(userId);
         await _menuHelper.SendReturnToMenuAsync(botClient, message.Chat.Id, userId, ct);
     }
@@ -294,7 +314,7 @@ public class CommandHandler : ICommandHandler
             return;
         }
 
-        var error = _orderFlowService.ValidatePhone(phone);
+        var error = InputValidation.ValidatePhone(phone);
         if (error != null)
         {
             await botClient.SendMessage(
@@ -320,23 +340,9 @@ public class CommandHandler : ICommandHandler
 
     private async Task EnsureUserExistsAsync(Message message)
     {
-        var userId = message.From!.Id;
-        if (await _userRepository.ExistsAsync(userId))
-        {
-            await _adminService.EnsureAdminRoleAsync(userId);
-            return;
-        }
-
-        var user = new Core.Entities.User
-        {
-            Id = userId,
-            FirstName = message.From.FirstName,
-            LastName = message.From.LastName,
-            Username = message.From.Username,
-            Role = userId == _config.OwnerId ? UserRole.Admin : UserRole.Regular,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        await _userRepository.AddAsync(user);
+        var from = message.From!;
+        await _mediator.Send(new GetOrCreateUserCommand(
+            from.Id, from.FirstName, from.LastName, from.Username,
+            from.Id == _config.OwnerId));
     }
 }

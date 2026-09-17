@@ -1,8 +1,9 @@
+using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.Core.Interfaces;
+using FanFundingBot.Domain.Enums;
+using FanFundingBot.Domain.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
@@ -11,7 +12,7 @@ namespace FanFundingBot.Bot.Services;
 public class TextInputHandler : ITextInputHandler
 {
     private readonly IUserStateService _stateService;
-    private readonly IAdminService _adminService;
+    private readonly IAuthorizationService _authorization;
     private readonly IQuestionTextHandler _questionHandler;
     private readonly IBroadcastTextHandler _broadcastHandler;
     private readonly IOrderTextHandler _orderHandler;
@@ -20,7 +21,7 @@ public class TextInputHandler : ITextInputHandler
 
     public TextInputHandler(
         IUserStateService stateService,
-        IAdminService adminService,
+        IAuthorizationService authorization,
         IQuestionTextHandler questionHandler,
         IBroadcastTextHandler broadcastHandler,
         IOrderTextHandler orderHandler,
@@ -28,7 +29,7 @@ public class TextInputHandler : ITextInputHandler
         IAdminProjectEditingTextHandler editingHandler)
     {
         _stateService = stateService;
-        _adminService = adminService;
+        _authorization = authorization;
         _questionHandler = questionHandler;
         _broadcastHandler = broadcastHandler;
         _orderHandler = orderHandler;
@@ -156,7 +157,7 @@ public class TextInputHandler : ITextInputHandler
         await botClient.SendMessage(
             message.Chat.Id,
             "Пожалуйста, воспользуйтесь кнопками меню.",
-            replyMarkup: MainMenuKeyboard.Create(await _adminService.IsAdminAsync(userId)),
+            replyMarkup: MainMenuKeyboard.Create(await _authorization.CanCreateProjectAsync(userId)),
             cancellationToken: ct);
     }
 }

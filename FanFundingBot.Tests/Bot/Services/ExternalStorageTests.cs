@@ -1,6 +1,7 @@
-using FanFundingBot.Core.Entities;
-using FanFundingBot.Core.Enums;
-using FanFundingBot.ExternalStorage;
+using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.Enums;
+using FanFundingBot.Infrastructure.ExternalStorage;
+using FanFundingBot.Tests;
 
 namespace FanFundingBot.Tests.Bot.Services;
 
@@ -13,16 +14,7 @@ public class FileOrderStorageTests
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         var storage = new FileOrderStorage(tempDir);
 
-        var order = new Order
-        {
-            Id = Guid.NewGuid(),
-            UserId = 1,
-            ProjectId = Guid.NewGuid(),
-            Phone = "+71234567890",
-            DeliveryMethod = DeliveryMethod.Pickup,
-            Status = OrderStatus.New,
-            CreatedAt = DateTime.UtcNow
-        };
+        var order = DomainTestFactory.NewFormed();
 
         await storage.SaveOrderAsync(order);
 
@@ -42,8 +34,8 @@ public class FileOrderStorageTests
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         var storage = new FileOrderStorage(tempDir);
 
-        var order1 = new Order { Id = Guid.NewGuid(), UserId = 1, ProjectId = Guid.NewGuid(), Phone = "+1", DeliveryMethod = DeliveryMethod.Pickup, Status = OrderStatus.New };
-        var order2 = new Order { Id = Guid.NewGuid(), UserId = 2, ProjectId = Guid.NewGuid(), Phone = "+2", DeliveryMethod = DeliveryMethod.Pickup, Status = OrderStatus.New };
+        var order1 = DomainTestFactory.NewFormed(DomainTestFactory.NewCustomer(1));
+        var order2 = DomainTestFactory.NewFormed(DomainTestFactory.NewCustomer(2));
 
         await storage.SaveOrderAsync(order1);
         await storage.SaveOrderAsync(order2);
@@ -63,7 +55,7 @@ public class FileOrderStorageTests
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         var storage = new FileOrderStorage(tempDir);
 
-        var order = new Order { Id = Guid.NewGuid(), UserId = 1, ProjectId = Guid.NewGuid(), Phone = "+1", DeliveryMethod = DeliveryMethod.Pickup, Status = OrderStatus.New };
+        var order = DomainTestFactory.NewFormed();
 
         await storage.SaveOrderAsync(order);
         await storage.DeleteOrderAsync(order.Id);
@@ -83,6 +75,28 @@ public class FileOrderStorageTests
         var storage = new FileOrderStorage(tempDir);
 
         Assert.DoesNotThrowAsync(async () => await storage.DeleteOrderAsync(Guid.NewGuid()));
+
+        Directory.Delete(tempDir, true);
+    }
+
+    [Test]
+    public async Task SaveOrderAsync_ShouldStoreQuantityAsNumber()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var storage = new FileOrderStorage(tempDir);
+
+        var order = DomainTestFactory.NewFormed(quantity: 2);
+
+        await storage.SaveOrderAsync(order);
+
+        var filePath = Path.Combine(tempDir, "orders.json");
+        var json = await File.ReadAllTextAsync(filePath);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(json, Does.Contain("\"Quantity\": 2"));
+            Assert.That(json, Does.Not.Contain("Quantity { }"));
+        });
 
         Directory.Delete(tempDir, true);
     }

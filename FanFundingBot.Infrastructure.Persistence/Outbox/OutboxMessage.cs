@@ -1,0 +1,60 @@
+using System.Text.Json;
+using FanFundingBot.Domain.DomainEvents;
+
+namespace FanFundingBot.Infrastructure.Persistence.Outbox;
+
+public class OutboxMessage
+{
+    public Guid Id { get; private set; }
+    public DateTime OccurredOn { get; private set; }
+    public string Type { get; private set; } = string.Empty;
+    public string Payload { get; private set; } = string.Empty;
+    public bool Processed { get; private set; }
+    public DateTime? ProcessedOn { get; private set; }
+    public int RetryCount { get; private set; }
+    public DateTime? NextRetryOn { get; private set; }
+    public string? LastError { get; private set; }
+
+    private OutboxMessage()
+    {
+    }
+
+    public static OutboxMessage From(IDomainEvent domainEvent)
+    {
+        var type = domainEvent.GetType();
+        // Стабильное имя без версии/culture/token: переживает бамп версии сборки.
+        // Старые строки с AssemblyQualifiedName остаются читаемыми через Type.GetType fallback.
+        var stableType = $"{type.FullName}, {type.Assembly.GetName().Name}";
+        return new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            OccurredOn = domainEvent.OccurredOn,
+            Type = stableType,
+            Payload = JsonSerializer.Serialize(domainEvent, type)
+        };
+    }
+
+    public void MarkProcessed()
+    {
+        Processed = true;
+        ProcessedOn = DateTime.UtcNow;
+    }
+
+    public void MarkFailed()
+    {
+        MarkFailed(null);
+    }
+
+    public void MarkFailed(Exception? ex)
+    {
+        RetryCount++;
+        // Экспоненциальный backoff: 5s, 10s, 20s ... максимум 10 минут.
+        var delaySeconds = Math.Min(5 * Math.Pow(2, RetryCount - 1), 600);
+        NextRetryOn = DateTime.UtcNow.AddSeconds(delaySeconds);
+        if (ex is not null)
+        {
+            var message = ex.Message ?? ex.GetType().Name;
+            LastError = message.Length > 2000 ? message[..2000] : message;
+        }
+    }
+}

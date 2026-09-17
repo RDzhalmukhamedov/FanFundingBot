@@ -1,7 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Keyboards;
 
+[ExcludeFromCodeCoverage]
 public static class MainMenuKeyboard
 {
     public static ReplyKeyboardMarkup Create(bool isAdmin = false)

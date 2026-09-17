@@ -1,15 +1,17 @@
+using System.Diagnostics.CodeAnalysis;
+using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Bot.Helpers;
-using FanFundingBot.Core.Entities;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace FanFundingBot.Bot.Keyboards;
 
+[ExcludeFromCodeCoverage]
 public static class AddonSelectionKeyboard
 {
-    private const int PageSize = 6;
+    public const int PageSize = 6;
 
     public static (InlineKeyboardMarkup Keyboard, int TotalPages) Create(
-        List<Addon> addons,
+        List<AddonDto> addons,
         HashSet<Guid> selectedIds,
         int page,
         int totalCount)
@@ -21,7 +23,7 @@ public static class AddonSelectionKeyboard
         {
             var isSelected = selectedIds.Contains(addon.Id);
             var checkmark = isSelected ? "✅ " : "";
-            var priceStr = addon.Price.ToString("F2");
+            var priceStr = addon.Price.ToString();
             var buttonText = $"{checkmark}{addon.Name} — {priceStr}₽";
 
             buttons.Add(new List<InlineKeyboardButton>

@@ -1,4 +1,4 @@
-using FanFundingBot.Bot.Abstractions;
+using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Bot.Keyboards;
 using Telegram.Bot;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -7,16 +7,16 @@ namespace FanFundingBot.Bot.Helpers;
 
 public class MainMenuHelper
 {
-    private readonly IAdminService _adminService;
+    private readonly IAuthorizationService _authorization;
 
-    public MainMenuHelper(IAdminService adminService)
+    public MainMenuHelper(IAuthorizationService authorization)
     {
-        _adminService = adminService;
+        _authorization = authorization;
     }
 
     public async Task<ReplyKeyboardMarkup> CreateKeyboardAsync(long userId)
     {
-        var isAdmin = await _adminService.IsAdminAsync(userId);
+        var isAdmin = await _authorization.CanCreateProjectAsync(userId);
         return MainMenuKeyboard.Create(isAdmin);
     }
 

@@ -7,8 +7,13 @@ public class StringExtensionsTests
 {
     [TestCase("+71234567890")]
     [TestCase("81234567890")]
+    [TestCase("79123456789")]
     [TestCase("+79998887766")]
     [TestCase("+71111111111")]
+    [TestCase("+375291234567")]
+    [TestCase("+380671234567")]
+    [TestCase("+12345678")]
+    [TestCase("+123456789012345")]
     public void IsValidPhone_ValidPhones_ShouldReturnTrue(string phone)
     {
         Assert.That(phone.IsValidPhone(), Is.True);
@@ -18,8 +23,8 @@ public class StringExtensionsTests
     [TestCase(null)]
     [TestCase("123")]
     [TestCase("phone")]
-    [TestCase("+7123456789")]
-    [TestCase("+712345678901")]
+    [TestCase("+7123456")]
+    [TestCase("+1234567890123456")]
     [TestCase("abc")]
     public void IsValidPhone_InvalidPhones_ShouldReturnFalse(string? phone)
     {

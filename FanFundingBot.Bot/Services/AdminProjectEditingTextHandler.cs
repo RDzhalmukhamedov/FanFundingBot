@@ -1,8 +1,10 @@
+using FanFundingBot.Application.Projects.Commands;
+using FanFundingBot.Application.Projects.Queries;
 using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Bot.Models;
-using FanFundingBot.Core.Interfaces;
+using MediatR;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -13,34 +15,35 @@ namespace FanFundingBot.Bot.Services;
 public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
 {
     private readonly IUserStateService _stateService;
-    private readonly IAdminService _adminService;
-    private readonly IAddonRepository _addonRepository;
+    private readonly IMediator _mediator;
     private readonly IProjectEditFormBuilder _editFormBuilder;
 
     public AdminProjectEditingTextHandler(
         IUserStateService stateService,
-        IAdminService adminService,
-        IAddonRepository addonRepository,
+        IMediator mediator,
         IProjectEditFormBuilder editFormBuilder)
     {
         _stateService = stateService;
-        _adminService = adminService;
-        _addonRepository = addonRepository;
+        _mediator = mediator;
         _editFormBuilder = editFormBuilder;
     }
 
     public async Task HandleEditProjectNameAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        var projectId = Guid.Parse(session.PendingAction!["edit_project_name:".Length..]);
-        var result = await _adminService.UpdateProjectNameAsync(projectId, message.Text!);
+        if (!Guid.TryParse(session.PendingAction!["edit_project_name:".Length..], out var projectId))
+        {
+            await botClient.SendMessage(message.Chat.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
+        var result = await _mediator.Send(new RenameProjectCommand(userId, projectId, message.Text!), ct);
 
         session.PendingAction = null;
         _stateService.Update(userId, session);
 
         await botClient.SendMessage(
             message.Chat.Id,
-            result,
+            result.IsSuccess ? $"✅ Название проекта изменено на «{message.Text}»." : result.Errors[0].Message,
             replyMarkup: MainMenuKeyboard.Create(true),
             cancellationToken: ct);
     }
@@ -48,15 +51,19 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
     public async Task HandleEditProjectDescAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        var projectId = Guid.Parse(session.PendingAction!["edit_project_desc:".Length..]);
-        var result = await _adminService.UpdateProjectDescriptionAsync(projectId, message.Text!);
+        if (!Guid.TryParse(session.PendingAction!["edit_project_desc:".Length..], out var projectId))
+        {
+            await botClient.SendMessage(message.Chat.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
+        var result = await _mediator.Send(new UpdateProjectDescriptionCommand(userId, projectId, message.Text!), ct);
 
         session.PendingAction = null;
         _stateService.Update(userId, session);
 
         await botClient.SendMessage(
             message.Chat.Id,
-            result,
+            result.IsSuccess ? "✅ Описание проекта обновлено." : result.Errors[0].Message,
             replyMarkup: MainMenuKeyboard.Create(true),
             cancellationToken: ct);
     }
@@ -64,15 +71,19 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
     public async Task HandleEditAddonNameAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        var addonId = Guid.Parse(session.PendingAction!["edit_addon_name:".Length..]);
-        var result = await _adminService.UpdateAddonNameAsync(addonId, message.Text!);
+        if (!Guid.TryParse(session.PendingAction!["edit_addon_name:".Length..], out var addonId))
+        {
+            await botClient.SendMessage(message.Chat.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
+        var result = await _mediator.Send(new UpdateAddonNameCommand(userId, addonId, message.Text!), ct);
 
         session.PendingAction = null;
         _stateService.Update(userId, session);
 
         await botClient.SendMessage(
             message.Chat.Id,
-            result,
+            result.IsSuccess ? $"✅ Название дополнения изменено на «{message.Text}»." : result.Errors[0].Message,
             replyMarkup: MainMenuKeyboard.Create(true),
             cancellationToken: ct);
     }
@@ -80,15 +91,19 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
     public async Task HandleEditAddonDescAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        var addonId = Guid.Parse(session.PendingAction!["edit_addon_desc:".Length..]);
-        var result = await _adminService.UpdateAddonDescriptionAsync(addonId, message.Text!);
+        if (!Guid.TryParse(session.PendingAction!["edit_addon_desc:".Length..], out var addonId))
+        {
+            await botClient.SendMessage(message.Chat.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
+        var result = await _mediator.Send(new UpdateAddonDescriptionCommand(userId, addonId, message.Text!), ct);
 
         session.PendingAction = null;
         _stateService.Update(userId, session);
 
         await botClient.SendMessage(
             message.Chat.Id,
-            result,
+            result.IsSuccess ? "✅ Описание дополнения обновлено." : result.Errors[0].Message,
             replyMarkup: MainMenuKeyboard.Create(true),
             cancellationToken: ct);
     }
@@ -96,25 +111,31 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
     public async Task HandleEditAddonPriceAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        if (!decimal.TryParse(message.Text, out var price) || price < 0)
+        var priceError = InputValidation.ValidatePrice(message.Text, out var price);
+        if (priceError != null)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
-                "Некорректная цена. Введите число (например: 499.99):",
+                priceError,
                 replyMarkup: BackKeyboard.Create(),
                 cancellationToken: ct);
             return;
         }
 
-        var addonId = Guid.Parse(session.PendingAction!["edit_addon_price:".Length..]);
-        var result = await _adminService.UpdateAddonPriceAsync(addonId, price);
+        if (!Guid.TryParse(session.PendingAction!["edit_addon_price:".Length..], out var addonId))
+        {
+            await botClient.SendMessage(message.Chat.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
+
+        var result = await _mediator.Send(new UpdateAddonPriceCommand(userId, addonId, price), ct);
 
         session.PendingAction = null;
         _stateService.Update(userId, session);
 
         await botClient.SendMessage(
             message.Chat.Id,
-            result,
+            result.IsSuccess ? $"✅ Цена дополнения изменена на {price:F2}₽." : result.Errors[0].Message,
             replyMarkup: MainMenuKeyboard.Create(true),
             cancellationToken: ct);
     }
@@ -129,7 +150,7 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
         await botClient.SendMessage(
             message.Chat.Id,
             "Шаг 2 из 3. Введите новое описание дополнения:",
-            replyMarkup: new ReplyKeyboardRemove(),
+            replyMarkup: BackKeyboard.Create(),
             cancellationToken: ct);
     }
 
@@ -143,34 +164,48 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
         await botClient.SendMessage(
             message.Chat.Id,
             "Шаг 3 из 3. Введите новую цену дополнения (например: 499.99):",
-            replyMarkup: new ReplyKeyboardRemove(),
+            replyMarkup: BackKeyboard.Create(),
             cancellationToken: ct);
     }
 
     public async Task HandleWizardAddonPriceAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        if (!decimal.TryParse(message.Text, out var price) || price < 0)
+        var priceError = InputValidation.ValidatePrice(message.Text, out var price);
+        if (priceError != null)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
-                "Некорректная цена. Введите число (например: 499.99):",
-                replyMarkup: new ReplyKeyboardRemove(),
+                priceError,
+                replyMarkup: BackKeyboard.Create(),
                 cancellationToken: ct);
             return;
         }
 
         var addonId = session.TempAddonId!.Value;
-        var projectId = (await _addonRepository.GetByIdAsync(addonId))?.ProjectId;
-        if (projectId == null)
+        var projectResult = await _mediator.Send(new GetProjectIdByAddonQuery(addonId), ct);
+        if (projectResult.IsFailed)
         {
             await botClient.SendMessage(message.Chat.Id, "Дополнение не найдено.", cancellationToken: ct);
             return;
         }
 
-        await _adminService.UpdateAddonNameAsync(addonId, session.TempAddonName!);
-        await _adminService.UpdateAddonDescriptionAsync(addonId, session.TempAddonDescription ?? "");
-        await _adminService.UpdateAddonPriceAsync(addonId, price);
+        var projectId = projectResult.Value;
+        var nameResult = await _mediator.Send(new UpdateAddonNameCommand(userId, addonId, session.TempAddonName!), ct);
+        if (nameResult.IsFailed)
+        {
+            await botClient.SendMessage(message.Chat.Id, nameResult.Errors[0].Message, cancellationToken: ct);
+            return;
+        }
+
+        var descResult = await _mediator.Send(new UpdateAddonDescriptionCommand(userId, addonId, session.TempAddonDescription ?? ""), ct);
+        if (descResult.IsFailed)
+        {
+            await botClient.SendMessage(message.Chat.Id, descResult.Errors[0].Message, cancellationToken: ct);
+            return;
+        }
+
+        var priceResult = await _mediator.Send(new UpdateAddonPriceCommand(userId, addonId, price), ct);
 
         session.TempAddonName = null;
         session.TempAddonDescription = null;
@@ -178,14 +213,18 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
         session.PendingAction = null;
         _stateService.Update(userId, session);
 
-        try
+        var updatedForm = await _editFormBuilder.BuildAsync(projectId, "✅ Дополнение обновлено.");
+        if (updatedForm is null)
         {
-            var form = await _editFormBuilder.BuildAsync(projectId.Value, "✅ Дополнение обновлено.");
-            await botClient.SendMessage(message.Chat.Id, form.Text, parseMode: ParseMode.Html, replyMarkup: form.Keyboard, cancellationToken: ct);
+            await botClient.SendMessage(
+                message.Chat.Id,
+                priceResult.IsSuccess ? "✅ Дополнение обновлено." : priceResult.Errors[0].Message,
+                replyMarkup: MainMenuKeyboard.Create(true),
+                cancellationToken: ct);
         }
-        catch (InvalidOperationException)
+        else
         {
-            await botClient.SendMessage(message.Chat.Id, "✅ Дополнение обновлено.", replyMarkup: MainMenuKeyboard.Create(true), cancellationToken: ct);
+            await botClient.SendMessage(message.Chat.Id, updatedForm.Text, parseMode: ParseMode.Html, replyMarkup: updatedForm.Keyboard, cancellationToken: ct);
         }
     }
 
@@ -199,7 +238,7 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
         await botClient.SendMessage(
             message.Chat.Id,
             "Введите описание дополнения:",
-            replyMarkup: new ReplyKeyboardRemove(),
+            replyMarkup: BackKeyboard.Create(),
             cancellationToken: ct);
     }
 
@@ -213,25 +252,28 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
         await botClient.SendMessage(
             message.Chat.Id,
             "Введите цену дополнения (например: 499.99):",
-            replyMarkup: new ReplyKeyboardRemove(),
+            replyMarkup: BackKeyboard.Create(),
             cancellationToken: ct);
     }
 
     public async Task HandleAddAddonPriceAsync(ITelegramBotClient botClient, Message message, UserSession session, CancellationToken ct)
     {
         var userId = message.From!.Id;
-        if (!decimal.TryParse(message.Text, out var price) || price < 0)
+        var priceError = InputValidation.ValidatePrice(message.Text, out var price);
+        if (priceError != null)
         {
             await botClient.SendMessage(
                 message.Chat.Id,
-                "Некорректная цена. Введите число (например: 499.99):",
-                replyMarkup: new ReplyKeyboardRemove(),
+                priceError,
+                replyMarkup: BackKeyboard.Create(),
                 cancellationToken: ct);
             return;
         }
 
         var projectId = session.TempProjectId!.Value;
-        var result = await _adminService.CreateAddonAsync(projectId, session.TempAddonName!, session.TempAddonDescription ?? "", price);
+        var addonName = session.TempAddonName!;
+        var result = await _mediator.Send(new CreateAddonCommand(
+            userId, projectId, addonName, session.TempAddonDescription ?? "", price), ct);
 
         session.TempAddonName = null;
         session.TempAddonDescription = null;
@@ -239,14 +281,18 @@ public class AdminProjectEditingTextHandler : IAdminProjectEditingTextHandler
         session.PendingAction = null;
         _stateService.Update(userId, session);
 
-        try
+        var resultText = result.IsSuccess
+            ? $"✅ Дополнение «{addonName}» добавлено."
+            : result.Errors[0].Message;
+
+        var addedForm = await _editFormBuilder.BuildAsync(projectId, resultText);
+        if (addedForm is null)
         {
-            var form = await _editFormBuilder.BuildAsync(projectId, result);
-            await botClient.SendMessage(message.Chat.Id, form.Text, parseMode: ParseMode.Html, replyMarkup: form.Keyboard, cancellationToken: ct);
+            await botClient.SendMessage(message.Chat.Id, resultText, replyMarkup: MainMenuKeyboard.Create(true), cancellationToken: ct);
         }
-        catch (InvalidOperationException)
+        else
         {
-            await botClient.SendMessage(message.Chat.Id, result, replyMarkup: MainMenuKeyboard.Create(true), cancellationToken: ct);
+            await botClient.SendMessage(message.Chat.Id, addedForm.Text, parseMode: ParseMode.Html, replyMarkup: addedForm.Keyboard, cancellationToken: ct);
         }
     }
 
