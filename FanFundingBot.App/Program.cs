@@ -128,9 +128,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                             options.ExpiresDays,
                             ctx.HttpContext.Request.IsHttps);
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Продление — best effort, ошибка игнорируется.
+                        // Продление — best effort: ошибка не должна ронять аутентификацию.
+                        ctx.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>()
+                            .LogDebug(ex, "Sliding session refresh failed for {Path}", ctx.HttpContext.Request.Path);
                     }
                 }
             };
@@ -184,7 +186,7 @@ app.MapPost("/api/auth/telegram", async (
     if (!await AntiforgeryHelper.HasValidTokenAsync(http))
         return Results.BadRequest(new[] { "CSRF-токен отсутствует или недействителен." });
 
-        if (string.IsNullOrEmpty(jwtOptions.Value.Secret))
+    if (string.IsNullOrEmpty(jwtOptions.Value.Secret))
         return Results.Problem("JWT не настроен (Jwt:Secret пустой).", statusCode: 500);
 
     if (string.IsNullOrEmpty(botConfig.ClientId))

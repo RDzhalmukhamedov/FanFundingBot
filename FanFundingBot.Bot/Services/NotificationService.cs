@@ -1,3 +1,4 @@
+using System.Net;
 using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Bot.Models;
 using Microsoft.Extensions.Logging;
@@ -23,8 +24,8 @@ public class NotificationService : INotificationPort
     public async Task NotifyProjectStatusChangedAsync(
         IReadOnlyList<long> userIds, string projectName, string newStatus, CancellationToken ct)
     {
-        var message = $"📋 <b>Статус проекта «{projectName}» обновлён</b>\n\n" +
-                      $"Новый статус: <b>{GetStatusEmoji(newStatus)} {newStatus}</b>";
+        var message = $"📋 <b>Статус проекта «{Esc(projectName)}» обновлён</b>\n\n" +
+                      $"Новый статус: <b>{GetStatusEmoji(newStatus)} {Esc(newStatus)}</b>";
 
         await SendWithRateLimitAsync(userIds, message, ParseMode.Html, ct);
     }
@@ -32,7 +33,7 @@ public class NotificationService : INotificationPort
     public async Task BroadcastToProjectAsync(
         IReadOnlyList<long> userIds, string message, CancellationToken ct)
     {
-        await SendWithRateLimitAsync(userIds, message, ParseMode.Html, ct);
+        await SendWithRateLimitAsync(userIds, Esc(message), ParseMode.Html, ct);
     }
 
     public async Task NotifyQuestionAnsweredAsync(long userId, string questionText, string answer, CancellationToken ct)
@@ -40,8 +41,8 @@ public class NotificationService : INotificationPort
         try
         {
             var message = $"✉️ <b>Ответ на ваш вопрос</b>\n\n" +
-                          $"<b>Ваш вопрос:</b> {questionText}\n\n" +
-                          $"<b>Ответ:</b> {answer}";
+                          $"<b>Ваш вопрос:</b> {Esc(questionText)}\n\n" +
+                          $"<b>Ответ:</b> {Esc(answer)}";
 
             await _botClient.SendMessage(
                 chatId: userId,
@@ -62,7 +63,7 @@ public class NotificationService : INotificationPort
         try
         {
             var message = $"📦 <b>Статус вашего заказа обновлён</b>\n\n" +
-                          $"Проект: <b>{projectName}</b>\n" +
+                          $"Проект: <b>{Esc(projectName)}</b>\n" +
                           $"Новый статус: <b>{GetOrderStatusText(newStatus)}</b>";
 
             await _botClient.SendMessage(
@@ -84,7 +85,7 @@ public class NotificationService : INotificationPort
         {
             await _botClient.SendMessage(
                 chatId: userId,
-                text: message,
+                text: Esc(message),
                 parseMode: ParseMode.Html,
                 cancellationToken: ct);
         }
@@ -155,4 +156,9 @@ public class NotificationService : INotificationPort
             _ => "❓"
         };
     }
+
+    // Сообщения уходят с ParseMode.Html: пользовательский/менеджерский ввод экранируем,
+    // иначе случайный '<' ломает разметку — Telegram вернёт 400, а catch выше запишет
+    // это как «пользователь заблокировал бота» и сообщение молча потеряется.
+    private static string Esc(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 }
