@@ -104,14 +104,14 @@ public class QuestionCommandTests
     public async Task GetUnanswered_ShouldMapDtos()
     {
         var question = new Question(DomainTestFactory.NewCustomer(2, "asker"), "Q?");
-        _questions.GetUnansweredAsync().Returns(new List<Question> { question });
+        _questions.GetUnansweredPagedAsync(1, 20).Returns((new List<Question> { question }, 1));
 
         var handler = new GetUnansweredQuestionsQueryHandler(_questions);
         var result = await handler.Handle(
             new GetUnansweredQuestionsQuery(1), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        var dto = result.Value.Should().ContainSingle().Subject;
+        var dto = result.Value.Items.Should().ContainSingle().Subject;
         dto.Username.Should().Be("asker");
         dto.Text.Should().Be("Q?");
     }

@@ -78,7 +78,7 @@ public class AdminCommandHandler : IAdminCommandHandler
         var userId = message.From!.Id;
         var questionsResult = await _mediator.Send(new GetUnansweredQuestionsQuery(userId), ct);
         var questions = questionsResult.IsSuccess
-            ? questionsResult.Value
+            ? questionsResult.Value.Items
             : new List<Application.Questions.DTOs.QuestionDto>();
 
         if (questions.Count == 0)

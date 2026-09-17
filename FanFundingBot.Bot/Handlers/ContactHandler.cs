@@ -18,10 +18,7 @@ public class ContactHandler : IContactHandler
         var contact = message.Contact!;
         var phone = contact.PhoneNumber ?? string.Empty;
 
-        if (!phone.StartsWith("+"))
-        {
-            phone = "+" + phone;
-        }
+        phone = FanFundingBot.Domain.Extensions.StringExtensions.NormalizePhone(phone) ?? phone.Trim();
 
         await _commandHandler.HandlePhoneContactAsync(botClient, message, phone, ct);
     }

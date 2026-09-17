@@ -1,4 +1,5 @@
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Application.Projects.Queries;
@@ -27,6 +28,7 @@ public class CreateProjectCommandTests
 
         _statuses.GetByIdAsync(Arg.Any<int>())
             .Returns(new ProjectStatus("Planned", 1, true));
+        _projects.GetAllAsync().Returns(new List<Project>());
     }
 
     [Test]
@@ -50,6 +52,20 @@ public class CreateProjectCommandTests
     public async Task NoPlannedStatus_ShouldFail()
     {
         _statuses.GetByIdAsync(Arg.Any<int>()).Returns((ProjectStatus?)null);
+
+        var result = await _handler.Handle(
+            new CreateProjectCommand(5, "P", "D", null), CancellationToken.None);
+
+        result.IsFailed.Should().BeTrue();
+        await _projects.DidNotReceive().AddAsync(Arg.Any<Project>());
+    }
+
+    [Test]
+    public async Task AlreadyHasProject_ShouldFailWithLimit()
+    {
+        var existing = DomainTestFactory.NewProject();
+        existing.AddMember(5, ProjectRole.ProjectAdmin);
+        _projects.GetAllAsync().Returns(new List<Project> { existing });
 
         var result = await _handler.Handle(
             new CreateProjectCommand(5, "P", "D", null), CancellationToken.None);
@@ -82,7 +98,7 @@ public class UpdateProjectCommandTests
 
         result.IsSuccess.Should().BeTrue();
         project.Name.Should().Be("New");
-        await _projects.Received(1).UpdateAsync(project);
+        await _projects.Received(1).UpdateDetailsAsync(project);
     }
 
     [Test]
@@ -314,35 +330,30 @@ public class StatusAndMemberCommandTests
     public async Task CreateProjectStatus_Happy_ShouldAdd()
     {
         var statuses = Substitute.For<IProjectStatusRepository>();
-        statuses.GetMaxOrderAsync().Returns(2);
-        ProjectStatus? saved = null;
-        await statuses.AddAsync(Arg.Do<ProjectStatus>(s => saved = s));
+        statuses.AddWithNextOrderAsync("Draft", true, Arg.Any<CancellationToken>())
+            .Returns(new ProjectStatus("Draft", 3, true));
 
         var handler = new CreateProjectStatusCommandHandler(statuses);
         var result = await handler.Handle(
             new CreateProjectStatusCommand(1, "Draft", true), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        saved.Should().NotBeNull();
-        saved!.DisplayName.Should().Be("Draft");
-        saved!.Order.Should().Be(3);
+        await statuses.Received(1).AddWithNextOrderAsync("Draft", true, Arg.Any<CancellationToken>());
     }
 
     [Test]
-    public async Task CreateProjectStatus_NoStatuses_ShouldStartFromOne()
+    public async Task CreateProjectStatus_OrderConflict_ShouldFailWithConflict()
     {
         var statuses = Substitute.For<IProjectStatusRepository>();
-        statuses.GetMaxOrderAsync().Returns(0);
-        ProjectStatus? saved = null;
-        await statuses.AddAsync(Arg.Do<ProjectStatus>(s => saved = s));
+        statuses.When(x => x.AddWithNextOrderAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()))
+            .Do(_ => throw new ProjectStatusOrderConflictException());
 
         var handler = new CreateProjectStatusCommandHandler(statuses);
         var result = await handler.Handle(
             new CreateProjectStatusCommand(1, "Draft", true), CancellationToken.None);
 
-        result.IsSuccess.Should().BeTrue();
-        saved.Should().NotBeNull();
-        saved!.Order.Should().Be(1);
+        result.IsFailed.Should().BeTrue();
+        result.HasError<ConflictError>().Should().BeTrue();
     }
 
     [Test]
@@ -363,7 +374,7 @@ public class StatusAndMemberCommandTests
 
         result.IsSuccess.Should().BeTrue();
         project.GetMemberRole(9).Should().Be(ProjectRole.Manager);
-        await projects.Received(1).UpdateAsync(project);
+        await projects.Received(1).UpdateMembersAsync(project);
     }
 
     [Test]
@@ -379,7 +390,7 @@ public class StatusAndMemberCommandTests
             new AssignManagerCommand(2, Guid.NewGuid(), 9, ProjectRole.Manager), CancellationToken.None);
 
         result.IsFailed.Should().BeTrue();
-        await projects.DidNotReceive().UpdateAsync(Arg.Any<Project>());
+        await projects.DidNotReceive().UpdateMembersAsync(Arg.Any<Project>());
     }
 
     [Test]
@@ -440,5 +451,86 @@ public class ProjectQueryTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().ContainSingle().Which.DisplayName.Should().Be("Planned");
+    }
+}
+
+[TestFixture]
+public class DeleteProjectCommandTests
+{
+    private IProjectRepository _projects;
+    private IOrderRepository _orders;
+    private DeleteProjectCommandHandler _handler;
+
+    [SetUp]
+    public void Setup()
+    {
+        _projects = Substitute.For<IProjectRepository>();
+        _orders = Substitute.For<IOrderRepository>();
+        _handler = new DeleteProjectCommandHandler(_projects, _orders);
+
+        _orders.GetByProjectAsync(Arg.Any<Guid>()).Returns(new List<Order>());
+    }
+
+    [Test]
+    public async Task Happy_ShouldDelete()
+    {
+        var project = DomainTestFactory.NewProject();
+        _projects.GetByIdAsync(project.Id).Returns(project);
+
+        var result = await _handler.Handle(
+            new DeleteProjectCommand(1, project.Id), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        await _projects.Received(1).DeleteAsync(project.Id);
+    }
+
+    [Test]
+    public async Task NotFound_ShouldFail()
+    {
+        _projects.GetByIdAsync(Arg.Any<Guid>()).Returns((Project?)null);
+
+        var result = await _handler.Handle(
+            new DeleteProjectCommand(1, Guid.NewGuid()), CancellationToken.None);
+
+        result.IsFailed.Should().BeTrue();
+        await _projects.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+    }
+
+    [Test]
+    public async Task HasOrders_ShouldFailWithConflict()
+    {
+        var project = DomainTestFactory.NewProject();
+        _projects.GetByIdAsync(project.Id).Returns(project);
+        _orders.GetByProjectAsync(project.Id)
+            .Returns(new List<Order> { DomainTestFactory.NewFormed() });
+
+        var result = await _handler.Handle(
+            new DeleteProjectCommand(1, project.Id), CancellationToken.None);
+
+        result.IsFailed.Should().BeTrue();
+        await _projects.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+    }
+}
+
+[TestFixture]
+public class GetManageableProjectsQueryTests
+{
+    [Test]
+    public async Task ShouldReturnOnlyManageable()
+    {
+        var projects = Substitute.For<IProjectRepository>();
+        var auth = Substitute.For<IAuthorizationService>();
+
+        var mine = DomainTestFactory.NewProject("Mine");
+        var alien = DomainTestFactory.NewProject("Alien");
+        projects.GetAllWithAddonsAsync().Returns(new List<Project> { mine, alien });
+        auth.CanManageProjectAsync(1, mine.Id).Returns(true);
+        auth.CanManageProjectAsync(1, alien.Id).Returns(false);
+
+        var handler = new GetManageableProjectsQueryHandler(projects, auth);
+        var result = await handler.Handle(new GetManageableProjectsQuery(1), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().ContainSingle().Which.Name.Should().Be("Mine");
     }
 }

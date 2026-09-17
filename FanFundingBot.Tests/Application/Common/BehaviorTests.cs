@@ -1,5 +1,6 @@
 using FanFundingBot.Application.Abstractions;
 using FanFundingBot.Application.Common.Behaviors;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Application.Orders.Commands;
 using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Services;
@@ -118,6 +119,60 @@ public class TransactionBehaviorTests
 
         result.IsFailed.Should().BeTrue();
         result.Errors.Should().ContainSingle().Which.Message.Should().Be("invariant violated");
+    }
+
+    [TestCase("order.not_found")]
+    [TestCase("addon.not_found")]
+    public async Task DomainException_WithNotFoundCode_ShouldBecomeNotFoundError(string code)
+    {
+        var behavior = new TransactionBehavior<PingCommand, Result<string>>(new PassThroughUnitOfWork());
+
+        Task<Result<string>> Next() => throw new DomainException("missing", code);
+
+        var result = await behavior.Handle(new PingCommand(), Next, CancellationToken.None);
+
+        result.IsFailed.Should().BeTrue();
+        result.HasError<NotFoundError>().Should().BeTrue();
+    }
+
+    [Test]
+    public async Task DomainException_WithForbiddenCode_ShouldBecomeForbiddenError()
+    {
+        var behavior = new TransactionBehavior<PingCommand, Result<string>>(new PassThroughUnitOfWork());
+
+        Task<Result<string>> Next() => throw new DomainException("denied", "auth.forbidden");
+
+        var result = await behavior.Handle(new PingCommand(), Next, CancellationToken.None);
+
+        result.IsFailed.Should().BeTrue();
+        result.HasError<ForbiddenError>().Should().BeTrue();
+    }
+
+    [TestCase("order.duplicate")]
+    [TestCase("project.has_orders")]
+    public async Task DomainException_WithConflictCode_ShouldBecomeConflictError(string code)
+    {
+        var behavior = new TransactionBehavior<PingCommand, Result<string>>(new PassThroughUnitOfWork());
+
+        Task<Result<string>> Next() => throw new DomainException("conflict", code);
+
+        var result = await behavior.Handle(new PingCommand(), Next, CancellationToken.None);
+
+        result.IsFailed.Should().BeTrue();
+        result.HasError<ConflictError>().Should().BeTrue();
+    }
+
+    [Test]
+    public async Task NotEditModeException_WithoutCode_ShouldBecomeConflictError()
+    {
+        var behavior = new TransactionBehavior<PingCommand, Result<string>>(new PassThroughUnitOfWork());
+
+        Task<Result<string>> Next() => throw new OrderNotEditModeException("locked");
+
+        var result = await behavior.Handle(new PingCommand(), Next, CancellationToken.None);
+
+        result.IsFailed.Should().BeTrue();
+        result.HasError<ConflictError>().Should().BeTrue();
     }
 
     [Test]

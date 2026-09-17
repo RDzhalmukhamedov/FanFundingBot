@@ -20,7 +20,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
                 p => p.ToString(),
                 v => string.IsNullOrEmpty(v) ? PhoneNumber.Empty : PhoneNumber.Create(v))
             .IsRequired()
-            .HasMaxLength(32);
+            .HasMaxLength(16);
 
         builder.Property(o => o.DeliveryMethod)
             .HasConversion<string>()
@@ -30,7 +30,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasConversion(
                 a => a.HasValue ? a.Value.ToString() : null,
                 v => string.IsNullOrEmpty(v) ? (Address?)null : Address.Create(v))
-            .HasMaxLength(512);
+            .HasMaxLength(256);
 
         builder.Property(o => o.Status)
             .HasConversion<string>()

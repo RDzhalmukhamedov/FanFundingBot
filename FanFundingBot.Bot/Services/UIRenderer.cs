@@ -7,6 +7,7 @@ using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Domain.Enums;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -19,24 +20,36 @@ public class UIRenderer : IUIRenderer
 
     private readonly IUserStateService _stateService;
     private readonly IMediator _mediator;
+    private readonly ILogger<UIRenderer> _logger;
 
     public UIRenderer(
         IUserStateService stateService,
-        IMediator mediator)
+        IMediator mediator,
+        ILogger<UIRenderer> logger)
     {
         _stateService = stateService;
         _mediator = mediator;
+        _logger = logger;
     }
 
     public async Task ShowConfirmationAsync(ITelegramBotClient botClient, long chatId, long userId, CancellationToken ct)
     {
         var session = _stateService.Get(userId);
         if (session == null) return;
+        if (session.SelectedProjectId is null)
+        {
+            _logger.LogDebug("ShowConfirmation: missing SelectedProjectId for user {UserId}", userId);
+            return;
+        }
 
         var projectResult = await _mediator.Send(
-            new GetProjectByIdQuery(session.SelectedProjectId!.Value), ct);
+            new GetProjectByIdQuery(session.SelectedProjectId.Value), ct);
         if (projectResult.IsFailed)
+        {
+            _logger.LogDebug("ShowConfirmation: project {ProjectId} load failed for user {UserId}: {Errors}",
+                session.SelectedProjectId, userId, string.Join("; ", projectResult.Errors.Select(e => e.Message)));
             return;
+        }
 
         var project = projectResult.Value;
         var (previewLines, totalPrice) = OrderPreview.Build(
@@ -64,14 +77,21 @@ public class UIRenderer : IUIRenderer
 
         if (session.EditMessageId.HasValue)
         {
-            await botClient.EditMessageText(
-                chatId, session.EditMessageId.Value, text,
-                parseMode: ParseMode.Html,
-                replyMarkup: keyboard,
-                cancellationToken: ct);
-            _stateService.Update(userId, session);
+            try
+            {
+                await botClient.EditMessageText(
+                    chatId, session.EditMessageId.Value, text,
+                    parseMode: ParseMode.Html,
+                    replyMarkup: keyboard,
+                    cancellationToken: ct);
+                _stateService.Update(userId, session);
 
-            return;
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "EditMessageText failed, falling back to SendMessage for chat {ChatId}", chatId);
+            }
         }
 
         var sent = await botClient.SendMessage(
@@ -119,8 +139,9 @@ public class UIRenderer : IUIRenderer
                     cancellationToken: ct);
                 return;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogDebug(ex, "EditMessageText failed, falling back to SendMessage for chat {ChatId}", chatId);
             }
         }
 

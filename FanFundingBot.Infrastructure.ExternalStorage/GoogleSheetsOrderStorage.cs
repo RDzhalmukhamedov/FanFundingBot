@@ -13,8 +13,8 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
     private readonly ILogger<GoogleSheetsOrderStorage> _logger;
     private readonly GoogleSheetsOptions _options;
     private SheetsService? _sheetsService;
-    private bool _initialized;
-    private readonly object _initLock = new();
+    private volatile bool _initialized;
+    private readonly SemaphoreSlim _initGate = new(1, 1);
 
     private const string OrdersSheet = "Orders";
     private const string OrdersHistorySheet = "OrdersHistory";
@@ -54,14 +54,14 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
     {
         try
         {
-            await InitializeSheetsAsync();
+            await InitializeSheetsAsync(cancellationToken);
 
             var service = GetSheetsService();
             var rowData = OrderToRow(order);
             var action = "Created";
 
             var orderIdStr = order.Id.ToString();
-            var (existingRows, existingRowIndex) = await FindOrderRowAsync(service, OrdersSheet, orderIdStr);
+            var (existingRows, existingRowIndex) = await FindOrderRowAsync(service, OrdersSheet, orderIdStr, cancellationToken);
 
             if (existingRowIndex.HasValue)
             {
@@ -70,19 +70,19 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
                 var updateValue = new ValueRange { Values = new List<IList<object>> { rowData } };
                 var updateRequest = service.Spreadsheets.Values.Update(updateValue, _options.SpreadsheetId, updateRange);
                 updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
-                await updateRequest.ExecuteAsync();
+                await updateRequest.ExecuteAsync(cancellationToken);
             }
             else
             {
                 var appendValue = new ValueRange { Values = new List<IList<object>> { rowData } };
                 var appendRequest = service.Spreadsheets.Values.Append(appendValue, _options.SpreadsheetId, $"{OrdersSheet}!A:{ColToLetter(ColAddonIds)}");
                 appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
-                await appendRequest.ExecuteAsync();
+                await appendRequest.ExecuteAsync(cancellationToken);
             }
 
-            await AppendHistoryAsync(service, rowData, action);
+            await AppendHistoryAsync(service, rowData, action, cancellationToken);
 
-            await UpdateAddonsSheetAsync(service);
+            await UpdateAddonsSheetAsync(service, cancellationToken);
 
             _logger.LogInformation("Order {OrderId} {Action} in Google Sheets", order.Id, action);
         }
@@ -97,11 +97,11 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
     {
         try
         {
-            await InitializeSheetsAsync();
+            await InitializeSheetsAsync(cancellationToken);
 
             var service = GetSheetsService();
             var orderIdStr = orderId.ToString();
-            var (existingRows, existingRowIndex) = await FindOrderRowAsync(service, OrdersSheet, orderIdStr);
+            var (existingRows, existingRowIndex) = await FindOrderRowAsync(service, OrdersSheet, orderIdStr, cancellationToken);
 
             if (!existingRowIndex.HasValue)
             {
@@ -110,7 +110,7 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
             }
 
             var deletedRow = existingRows[existingRowIndex.Value - 1];
-            var sheetId = await GetSheetIdAsync(service, OrdersSheet);
+            var sheetId = await GetSheetIdAsync(service, OrdersSheet, cancellationToken);
 
             var deleteRequest = new Request
             {
@@ -128,16 +128,16 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
 
             await service.Spreadsheets.BatchUpdate(
                 new BatchUpdateSpreadsheetRequest { Requests = new List<Request> { deleteRequest } },
-                _options.SpreadsheetId).ExecuteAsync();
+                _options.SpreadsheetId).ExecuteAsync(cancellationToken);
 
             var historyRow = new List<object>();
             for (int i = 0; i <= ColAddonIds; i++)
             {
                 historyRow.Add(i < deletedRow.Count ? (deletedRow[i]?.ToString() ?? "") : "");
             }
-            await AppendHistoryAsync(service, historyRow, "Deleted");
+            await AppendHistoryAsync(service, historyRow, "Deleted", cancellationToken);
 
-            await UpdateAddonsSheetAsync(service);
+            await UpdateAddonsSheetAsync(service, cancellationToken);
 
             _logger.LogInformation("Order {OrderId} deleted from Google Sheets", orderId);
         }
@@ -167,20 +167,20 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
         return _sheetsService;
     }
 
-    private async Task InitializeSheetsAsync()
+    private async Task InitializeSheetsAsync(CancellationToken cancellationToken = default)
     {
         if (_initialized)
             return;
 
-        lock (_initLock)
+        await _initGate.WaitAsync(cancellationToken);
+        try
         {
             if (_initialized)
                 return;
-        }
 
-        var service = GetSheetsService();
+            var service = GetSheetsService();
 
-        var spreadsheet = await service.Spreadsheets.Get(_options.SpreadsheetId).ExecuteAsync();
+        var spreadsheet = await service.Spreadsheets.Get(_options.SpreadsheetId).ExecuteAsync(cancellationToken);
         var existingSheets = spreadsheet.Sheets?.Select(s => s.Properties?.Title).ToHashSet() ?? [];
 
         var requests = new List<Request>();
@@ -198,20 +198,25 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
         {
             await service.Spreadsheets.BatchUpdate(
                 new BatchUpdateSpreadsheetRequest { Requests = requests },
-                _options.SpreadsheetId).ExecuteAsync();
+                _options.SpreadsheetId).ExecuteAsync(cancellationToken);
         }
 
-        await EnsureHeadersAsync(service, OrdersSheet, OrdersHeaders);
-        await EnsureHeadersAsync(service, OrdersHistorySheet, HistoryHeaders);
-        await EnsureHeadersAsync(service, AddonsSheet, AddonsHeaders);
+        await EnsureHeadersAsync(service, OrdersSheet, OrdersHeaders, cancellationToken);
+        await EnsureHeadersAsync(service, OrdersHistorySheet, HistoryHeaders, cancellationToken);
+        await EnsureHeadersAsync(service, AddonsSheet, AddonsHeaders, cancellationToken);
 
-        _initialized = true;
+            _initialized = true;
+        }
+        finally
+        {
+            _initGate.Release();
+        }
     }
 
-    private async Task EnsureHeadersAsync(SheetsService service, string sheetName, string[] headers)
+    private async Task EnsureHeadersAsync(SheetsService service, string sheetName, string[] headers, CancellationToken cancellationToken)
     {
         var range = $"{sheetName}!A1:{ColToLetter(headers.Length - 1)}1";
-        var response = await service.Spreadsheets.Values.Get(_options.SpreadsheetId, range).ExecuteAsync();
+        var response = await service.Spreadsheets.Values.Get(_options.SpreadsheetId, range).ExecuteAsync(cancellationToken);
 
         if (response.Values == null || response.Values.Count == 0 || response.Values[0].Count == 0 ||
             response.Values[0][0]?.ToString() != headers[0])
@@ -219,14 +224,14 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
             var valueRange = new ValueRange { Values = new List<IList<object>> { headers.Cast<object>().ToList() } };
             var updateRequest = service.Spreadsheets.Values.Update(valueRange, _options.SpreadsheetId, range);
             updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
-            await updateRequest.ExecuteAsync();
+            await updateRequest.ExecuteAsync(cancellationToken);
         }
     }
 
-    private async Task<(IList<IList<object>> Rows, int? RowIndex)> FindOrderRowAsync(SheetsService service, string sheetName, string orderId)
+    private async Task<(IList<IList<object>> Rows, int? RowIndex)> FindOrderRowAsync(SheetsService service, string sheetName, string orderId, CancellationToken cancellationToken = default)
     {
         var range = $"{sheetName}!A:{ColToLetter(ColAddonIds)}";
-        var response = await service.Spreadsheets.Values.Get(_options.SpreadsheetId, range).ExecuteAsync();
+        var response = await service.Spreadsheets.Values.Get(_options.SpreadsheetId, range).ExecuteAsync(cancellationToken);
 
         var rows = response.Values ?? new List<IList<object>>();
 
@@ -239,7 +244,7 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
         return (rows, null);
     }
 
-    private async Task AppendHistoryAsync(SheetsService service, IList<object> rowData, string action)
+    private async Task AppendHistoryAsync(SheetsService service, IList<object> rowData, string action, CancellationToken cancellationToken = default)
     {
         var historyRow = new List<object>(rowData);
         while (historyRow.Count <= ColAddonIds)
@@ -251,13 +256,13 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
         var valueRange = new ValueRange { Values = new List<IList<object>> { historyRow } };
         var appendRequest = service.Spreadsheets.Values.Append(valueRange, _options.SpreadsheetId, $"{OrdersHistorySheet}!A:{ColToLetter(ColChangedAt)}");
         appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
-        await appendRequest.ExecuteAsync();
+        await appendRequest.ExecuteAsync(cancellationToken);
     }
 
-    private async Task UpdateAddonsSheetAsync(SheetsService service)
+    private async Task UpdateAddonsSheetAsync(SheetsService service, CancellationToken cancellationToken = default)
     {
         var range = $"{OrdersSheet}!A:{ColToLetter(ColAddonIds)}";
-        var response = await service.Spreadsheets.Values.Get(_options.SpreadsheetId, range).ExecuteAsync();
+        var response = await service.Spreadsheets.Values.Get(_options.SpreadsheetId, range).ExecuteAsync(cancellationToken);
         var rows = response.Values ?? new List<IList<object>>();
 
         var addonTotals = new Dictionary<(string Name, string AddonId, string Price), int>();
@@ -304,7 +309,7 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
             .Select(x => (IList<object>)new List<object> { x.Key.Name, x.Key.AddonId, $"{x.Key.Price} ₽", x.Value })
             .ToList();
 
-        var addonSheetId = await GetSheetIdAsync(service, AddonsSheet);
+        var addonSheetId = await GetSheetIdAsync(service, AddonsSheet, cancellationToken);
 
         var clearRequest = new Request
         {
@@ -322,7 +327,7 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
 
         await service.Spreadsheets.BatchUpdate(
             new BatchUpdateSpreadsheetRequest { Requests = new List<Request> { clearRequest } },
-            _options.SpreadsheetId).ExecuteAsync();
+            _options.SpreadsheetId).ExecuteAsync(cancellationToken);
 
         if (addonRows.Count > 0)
         {
@@ -330,13 +335,13 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
             var writeValue = new ValueRange { Values = addonRows };
             var writeRequest = service.Spreadsheets.Values.Update(writeValue, _options.SpreadsheetId, writeRange);
             writeRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
-            await writeRequest.ExecuteAsync();
+            await writeRequest.ExecuteAsync(cancellationToken);
         }
     }
 
-    private async Task<int> GetSheetIdAsync(SheetsService service, string sheetName)
+    private async Task<int> GetSheetIdAsync(SheetsService service, string sheetName, CancellationToken cancellationToken = default)
     {
-        var spreadsheet = await service.Spreadsheets.Get(_options.SpreadsheetId).ExecuteAsync();
+        var spreadsheet = await service.Spreadsheets.Get(_options.SpreadsheetId).ExecuteAsync(cancellationToken);
         return spreadsheet.Sheets?.FirstOrDefault(s => s.Properties?.Title == sheetName)?.Properties?.SheetId ?? -1;
     }
 
@@ -351,15 +356,14 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
 
         var addonsParts = new List<string>();
         var addonIdsParts = new List<string>();
-        decimal totalCost = 0;
+        var totalCost = (decimal)order.Total;
 
         foreach (var oa in order.OrderAddons)
         {
             var addonName = oa.Addon?.Name ?? oa.AddonId.ToString();
             var addonId = oa.Addon?.Id ?? oa.AddonId;
             var price = oa.Addon?.Price ?? 0m;
-            totalCost += price * oa.Quantity;
-            addonsParts.Add($"{addonName} × {oa.Quantity}");
+            addonsParts.Add($"{addonName} × {(int)oa.Quantity}");
             addonIdsParts.Add($"{addonId}|{price:F2}");
         }
 
@@ -368,7 +372,7 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
             order.Id.ToString(),
             telegramNick,
             userName,
-            order.Phone,
+            order.Phone.ToString(),
             projectName,
             order.DeliveryMethod.ToString(),
             order.Address ?? "",

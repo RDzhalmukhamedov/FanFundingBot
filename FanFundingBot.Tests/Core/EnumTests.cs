@@ -1,3 +1,4 @@
+using FanFundingBot.Bot.Models;
 using FanFundingBot.Domain.Enums;
 
 namespace FanFundingBot.Tests.Core;

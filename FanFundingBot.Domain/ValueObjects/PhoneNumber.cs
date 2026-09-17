@@ -18,10 +18,11 @@ public readonly record struct PhoneNumber
         if (string.IsNullOrWhiteSpace(value))
             throw new DomainException("Номер телефона не может быть пустым.");
 
-        if (!value.IsValidPhone())
+        var normalized = StringExtensions.NormalizePhone(value);
+        if (normalized is null || !normalized.IsValidPhone())
             throw new DomainException($"Некорректный номер телефона: {value}.");
 
-        return new PhoneNumber(value);
+        return new PhoneNumber(normalized);
     }
 
     public override string ToString() => _value ?? string.Empty;

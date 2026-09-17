@@ -78,4 +78,26 @@ public class FileOrderStorageTests
 
         Directory.Delete(tempDir, true);
     }
+
+    [Test]
+    public async Task SaveOrderAsync_ShouldStoreQuantityAsNumber()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        var storage = new FileOrderStorage(tempDir);
+
+        var order = DomainTestFactory.NewFormed(quantity: 2);
+
+        await storage.SaveOrderAsync(order);
+
+        var filePath = Path.Combine(tempDir, "orders.json");
+        var json = await File.ReadAllTextAsync(filePath);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(json, Does.Contain("\"Quantity\": 2"));
+            Assert.That(json, Does.Not.Contain("Quantity { }"));
+        });
+
+        Directory.Delete(tempDir, true);
+    }
 }

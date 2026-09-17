@@ -1,0 +1,76 @@
+@page "/projects"
+@attribute [Authorize]
+@inherits AuthComponentBase
+@rendermode InteractiveServer
+
+<PageTitle>Проекты</PageTitle>
+
+<FluentDialogProvider />
+<FluentToastProvider />
+<FluentTooltipProvider />
+
+<h1>Проекты</h1>
+
+@if (!Loaded)
+{
+    <FluentProgressRing aria-label="Загрузка" />
+}
+else if (!string.IsNullOrEmpty(Error))
+{
+    <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>
+}
+else if (IsAdmin)
+{
+    <div>
+        @if (CanCreate)
+        {
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" OnClick="Create">Создать проект</FluentButton>
+        }
+        else
+        {
+            <span>
+                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" Disabled="true" Id="create-project-btn">Создать проект</FluentButton>
+            </span>
+            <FluentTooltip Anchor="create-project-btn">Нельзя иметь больше одного проекта</FluentTooltip>
+        }
+    </div>
+
+    @if (Manageable.Count == 0)
+    {
+        <p class="muted">У вас пока нет проектов. Создайте первый.</p>
+    }
+    else
+    {
+        @foreach (var project in Manageable)
+        {
+            <div class="card">
+                <h3><a href="/projects/@project.Id">@project.Name</a></h3>
+                <p>@project.Description</p>
+                <p class="muted">Статус: @project.StatusName · Дополнений: @project.Addons.Count</p>
+                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => Open(project.Id)">Открыть</FluentButton>
+                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => Edit(project.Id)">Редактировать</FluentButton>
+                <FluentButton Type="ButtonType.Button" Appearance="Appearance.Accent" BackgroundColor="#dc2626" Color="white" OnClick="() => AskDeleteAsync(project.Id)">Удалить</FluentButton>
+            </div>
+        }
+    }
+}
+else
+{
+    <p><a href="/my-orders">Мои заказы</a></p>
+    @if (Catalog.Count == 0)
+    {
+        <p class="muted">Пока нет доступных проектов.</p>
+    }
+    else
+    {
+        @foreach (var project in Catalog)
+        {
+            <div class="card">
+                <h3>@project.Name</h3>
+                <p>@project.Description</p>
+                <p class="muted">Статус: @project.StatusName</p>
+            </div>
+        }
+    }
+}
+

@@ -1,0 +1,21 @@
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    <LayoutView Layout="@typeof(MainLayout)">
+                        <LoginRequired />
+                    </LayoutView>
+                </NotAuthorized>
+                <Authorizing><p class="muted">Проверка доступа...</p></Authorizing>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Не найдено</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p>Страница не найдена. <a href="/">На главную</a></p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

@@ -61,7 +61,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Res
         if (duplicates.Any(o => o.Status != OrderStatus.Cancelled))
             return Result.Fail<Guid>(ResultErrors.DuplicateOrder());
 
-        if (user.Phone != request.Phone)
+        if (StringExtensions.NormalizePhone(request.Phone) != user.Phone?.ToString())
         {
             user.SetPhone(request.Phone);
             await _users.UpdateAsync(user);

@@ -1,0 +1,38 @@
+@if (ItemsProvider is not null)
+{
+    <div class="table-wrap">
+    <FluentDataGrid @ref="_grid" ItemsProvider="@ItemsProvider" Pagination="@Pagination" TGridItem="OrderDto" Style="width: 100%;" RowSize="DataGridRowSize.Large" MultiLine="true">
+        <ChildContent>
+        <TemplateColumn Title="Пользователь">
+            @(context.Username is not null ? "@" + context.Username : context.FirstName is not null ? context.FirstName : context.UserId.ToString())
+        </TemplateColumn>
+        <PropertyColumn Property="@(o => o.Phone)" Title="Телефон" />
+        <TemplateColumn Title="Доставка">
+            @context.DeliveryMethod@(context.Address is not null ? $" ({context.Address})" : "")
+        </TemplateColumn>
+        <TemplateColumn Title="Позиции">
+            @foreach (var p in context.Positions)
+            {
+                <div>@p.AddonName × @p.Quantity</div>
+            }
+        </TemplateColumn>
+        <TemplateColumn Title="Сумма">
+            @context.Total.ToString("F2")
+        </TemplateColumn>
+        <TemplateColumn Title="Статус">
+            <StatusBadge Status="context.Status" />
+        </TemplateColumn>
+        <TemplateColumn Title="Действия" Width="220px">
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => ChangeStatus(context)">Статус</FluentButton>
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => WriteMessage(context)">Написать</FluentButton>
+        </TemplateColumn>
+        </ChildContent>
+        <EmptyContent>
+            <p class="muted">Заказов пока нет.</p>
+        </EmptyContent>
+    </FluentDataGrid>
+    </div>
+    <div class="paginator-row">
+    <FluentPaginator State="@Pagination" />
+    </div>
+}

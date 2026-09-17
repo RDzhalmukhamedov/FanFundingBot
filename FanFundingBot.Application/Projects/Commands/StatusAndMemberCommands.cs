@@ -32,11 +32,19 @@ public class CreateProjectStatusCommandHandler : IRequestHandler<CreateProjectSt
 
     public async Task<Result<int>> Handle(CreateProjectStatusCommand request, CancellationToken cancellationToken)
     {
-        var order = await _statuses.GetMaxOrderAsync() + 1;
-        var entry = new ProjectStatus(request.DisplayName, order, request.CanEditOrders);
-        await _statuses.AddAsync(entry);
+        // Retry гонки Max+1 — внутри репозитория (CA-чисто: PG-детект в Infrastructure).
+        // Исчерпание — ожидаемый исход, не throw: ConflictError.
+        try
+        {
+            var entry = await _statuses.AddWithNextOrderAsync(
+                request.DisplayName, request.CanEditOrders, cancellationToken);
 
-        return Result.Ok(entry.Id);
+            return Result.Ok(entry.Id);
+        }
+        catch (ProjectStatusOrderConflictException)
+        {
+            return Result.Fail<int>(ResultErrors.StatusOrderConflict());
+        }
     }
 }
 
@@ -84,7 +92,7 @@ public class AssignManagerCommandHandler : IRequestHandler<AssignManagerCommand,
             return Result.Fail(ResultErrors.UserNotFound());
 
         project.AddMember(request.TargetUserId, request.Role);
-        await _projects.UpdateAsync(project);
+        await _projects.UpdateMembersAsync(project);
 
         return Result.Ok();
     }

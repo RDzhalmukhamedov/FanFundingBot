@@ -1,10 +1,8 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using FanFundingBot.Domain.DomainEvents;
 
 namespace FanFundingBot.Infrastructure.Persistence.Outbox;
 
-[ExcludeFromCodeCoverage]
 public class OutboxMessage
 {
     public Guid Id { get; private set; }
@@ -23,12 +21,16 @@ public class OutboxMessage
 
     public static OutboxMessage From(IDomainEvent domainEvent)
     {
+        var type = domainEvent.GetType();
+        // Стабильное имя без версии/culture/token: переживает бамп версии сборки.
+        // Старые строки с AssemblyQualifiedName остаются читаемыми через Type.GetType fallback.
+        var stableType = $"{type.FullName}, {type.Assembly.GetName().Name}";
         return new OutboxMessage
         {
             Id = Guid.NewGuid(),
             OccurredOn = domainEvent.OccurredOn,
-            Type = domainEvent.GetType().AssemblyQualifiedName!,
-            Payload = JsonSerializer.Serialize(domainEvent, domainEvent.GetType())
+            Type = stableType,
+            Payload = JsonSerializer.Serialize(domainEvent, type)
         };
     }
 

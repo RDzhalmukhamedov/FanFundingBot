@@ -1,0 +1,30 @@
+@using FanFundingBot.Application.Questions.DTOs
+
+@if (ItemsProvider is not null)
+{
+    <div class="table-wrap">
+    <FluentDataGrid @ref="_grid" ItemsProvider="@ItemsProvider" Pagination="@Pagination" TGridItem="QuestionDto" Style="width: 100%;" RowSize="DataGridRowSize.Large" MultiLine="true">
+        <ChildContent>
+        <PropertyColumn Property="@(q => q.Text)" Title="Вопрос" />
+        <TemplateColumn Title="Пользователь">
+            @(context.Username is not null ? "@" + context.Username : context.FirstName is not null ? context.FirstName : context.UserId.ToString())
+        </TemplateColumn>
+        <TemplateColumn Title="Дата">
+            @context.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+        </TemplateColumn>
+        <TemplateColumn Title="Ответ">
+            @(context.Answer ?? string.Empty)
+        </TemplateColumn>
+        <TemplateColumn Title="Действия" Width="140px">
+            <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="() => Answer(context)">Ответить</FluentButton>
+        </TemplateColumn>
+        </ChildContent>
+        <EmptyContent>
+            <p class="muted">Вопросов пока нет.</p>
+        </EmptyContent>
+    </FluentDataGrid>
+    </div>
+    <div class="paginator-row">
+    <FluentPaginator State="@Pagination" />
+    </div>
+}

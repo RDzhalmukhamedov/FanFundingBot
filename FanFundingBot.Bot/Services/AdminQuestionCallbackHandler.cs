@@ -5,6 +5,7 @@ using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -16,20 +17,28 @@ public class AdminQuestionCallbackHandler : IAdminQuestionCallbackHandler
     private readonly IUserStateService _stateService;
     private readonly IMediator _mediator;
     private readonly MainMenuHelper _menuHelper;
+    private readonly ILogger<AdminQuestionCallbackHandler> _logger;
 
     public AdminQuestionCallbackHandler(
         IUserStateService stateService,
         IMediator mediator,
-        MainMenuHelper menuHelper)
+        MainMenuHelper menuHelper,
+        ILogger<AdminQuestionCallbackHandler>? logger = null)
     {
         _stateService = stateService;
         _mediator = mediator;
         _menuHelper = menuHelper;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AdminQuestionCallbackHandler>.Instance;
     }
 
     public async Task HandleAdminSelectQuestionAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
-        var questionId = CallbackData.GuidArg(data);
+        if (!Guid.TryParse(CallbackData.FirstArg(data), out var questionId))
+        {
+            _logger.LogWarning("Invalid questionId callback {Data}", data);
+            await botClient.AnswerCallbackQuery(query.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
         var session = _stateService.GetOrCreate(userId);
         session.PendingAction = "answer_question";
         session.PendingQuestionId = questionId;
@@ -37,7 +46,7 @@ public class AdminQuestionCallbackHandler : IAdminQuestionCallbackHandler
 
         var questionsResult = await _mediator.Send(new GetUnansweredQuestionsQuery(userId), ct);
         var questions = questionsResult.IsSuccess
-            ? questionsResult.Value
+            ? questionsResult.Value.Items
             : new List<Application.Questions.DTOs.QuestionDto>();
         var selected = questions.FirstOrDefault(q => q.Id == questionId);
 
@@ -108,6 +117,20 @@ public class AdminQuestionCallbackHandler : IAdminQuestionCallbackHandler
 
     public async Task HandleAdminCancelAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, CancellationToken ct)
     {
+        var session = _stateService.Get(userId);
+        if (session != null)
+        {
+            session.PendingAction = null;
+            session.PendingQuestionId = null;
+            session.TempBroadcastText = null;
+            session.TempProjectId = null;
+            session.TempAddonId = null;
+            session.TempAddonName = null;
+            session.TempAddonDescription = null;
+            session.TempStatusName = null;
+            _stateService.Update(userId, session);
+        }
+
         await botClient.EditMessageText(
             query.Message!.Chat.Id,
             query.Message!.MessageId,

@@ -38,7 +38,7 @@ public class RenameProjectCommandHandler : IRequestHandler<RenameProjectCommand,
         project.SetName(request.Name);
         project.FinishEdit();
 
-        await _projects.UpdateAsync(project);
+        await _projects.UpdateDetailsAsync(project);
 
         return Result.Ok();
     }
@@ -75,7 +75,7 @@ public class UpdateProjectDescriptionCommandHandler : IRequestHandler<UpdateProj
         project.SetDescription(request.Description);
         project.FinishEdit();
 
-        await _projects.UpdateAsync(project);
+        await _projects.UpdateDetailsAsync(project);
 
         return Result.Ok();
     }

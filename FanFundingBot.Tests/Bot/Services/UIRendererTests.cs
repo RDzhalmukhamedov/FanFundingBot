@@ -6,6 +6,7 @@ using FanFundingBot.Bot.Services;
 using FanFundingBot.Domain.Enums;
 using FluentResults;
 using MediatR;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Telegram.Bot;
 using Telegram.Bot.Requests;
@@ -32,7 +33,7 @@ public class UIRendererTests
                 ProjectId, "P", null, 1, "S", true, null,
                 new List<AddonDto>(),
                 new List<ProjectMemberDto>())));
-        _renderer = new UIRenderer(Substitute.For<IUserStateService>(), _mediator);
+        _renderer = new UIRenderer(Substitute.For<IUserStateService>(), _mediator, NullLogger<UIRenderer>.Instance);
     }
 
     private static OrderDto TestOrder(DeliveryMethod method, string? address, DateTime createdAt)

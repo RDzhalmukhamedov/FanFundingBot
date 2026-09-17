@@ -1,4 +1,5 @@
 using FanFundingBot.Domain.Entities;
+using FanFundingBot.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -25,7 +26,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(32);
 
         builder.Property(u => u.Phone)
-            .HasMaxLength(32);
+            .HasConversion(
+                v => v.HasValue ? v.Value.ToString() : null,
+                v => string.IsNullOrEmpty(v) ? (PhoneNumber?)null : PhoneNumber.Create(v))
+            .HasMaxLength(16);
 
         builder.Property(u => u.Role)
             .HasConversion<string>()

@@ -186,7 +186,16 @@ public class EntityTests
         var user = new User(1, "John", "Doe", "johndoe");
         user.SetPhone("+71234567890");
 
-        Assert.That(user.Phone, Is.EqualTo("+71234567890"));
+        Assert.That(user.Phone?.ToString(), Is.EqualTo("+71234567890"));
+    }
+
+    [Test]
+    public void User_SetPhone_Invalid_ShouldThrow()
+    {
+        var user = new User(1, "John", "Doe", "johndoe");
+
+        Assert.Throws<DomainException>(() => user.SetPhone("bad"));
+        Assert.Throws<DomainException>(() => user.SetPhone("  "));
     }
 
     [Test]
@@ -244,6 +253,39 @@ public class EntityTests
         draft.SetPhoneNumber("+71234567890");
 
         Assert.Throws<DomainException>(() => draft.Form());
+    }
+
+    [Test]
+    public void Order_SetStatus_ShouldChangeStatusAndRaiseEvent()
+    {
+        var order = DomainTestFactory.NewFormed();
+        order.ClearDomainEvents();
+
+        order.SetStatus(OrderStatus.Confirmed);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(order.Status, Is.EqualTo(OrderStatus.Confirmed));
+            var ev = order.DomainEvents.OfType<OrderStatusChangedEvent>().Single();
+            Assert.That(ev.OrderId, Is.EqualTo(order.Id));
+            Assert.That(ev.OldStatus, Is.EqualTo(OrderStatus.New));
+            Assert.That(ev.NewStatus, Is.EqualTo(OrderStatus.Confirmed));
+        });
+    }
+
+    [Test]
+    public void Order_SetStatus_SameStatus_ShouldBeNoOp()
+    {
+        var order = DomainTestFactory.NewFormed();
+        order.ClearDomainEvents();
+
+        order.SetStatus(OrderStatus.New);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(order.Status, Is.EqualTo(OrderStatus.New));
+            Assert.That(order.DomainEvents.OfType<OrderStatusChangedEvent>(), Is.Empty);
+        });
     }
 
     [Test]
@@ -355,6 +397,15 @@ public class EntityTests
             Assert.That(phone.IsEmpty, Is.False);
             Assert.That(PhoneNumber.Empty.IsEmpty, Is.True);
         });
+    }
+
+    [TestCase("81234567890", "+71234567890")]
+    [TestCase("+375291234567", "+375291234567")]
+    [TestCase("+380671234567", "+380671234567")]
+    [TestCase("+7 (123) 456-78-90", "+71234567890")]
+    public void PhoneNumber_Normalize_ShouldStoreE164(string input, string expected)
+    {
+        Assert.That(PhoneNumber.Create(input).ToString(), Is.EqualTo(expected));
     }
 
     [Test]

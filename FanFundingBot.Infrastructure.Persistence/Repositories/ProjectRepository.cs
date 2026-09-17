@@ -89,12 +89,74 @@ public class ProjectRepository : IProjectRepository
             _context.Set<ProjectMember>().RemoveRange(membersToRemove);
         }
 
-        _context.Projects.Update(project);
+        // Attach + точечные скаляры: Update() всего графа метил бы Modified
+        // связанный Status и существующие Addon/Member-строки.
+        _context.Projects.Attach(project);
+        _context.Entry(project).Property(p => p.Name).IsModified = true;
+        _context.Entry(project).Property(p => p.Description).IsModified = true;
+        _context.Entry(project).Property(p => p.Mode).IsModified = true;
+        _context.Entry(project).Property("StatusId").IsModified = true;
         foreach (var addon in project.Addons)
         {
             if (!existingAddonIds.Contains(addon.Id))
                 _context.Entry(addon).State = EntityState.Added;
         }
+        foreach (var member in project.Members)
+        {
+            if (!existingMemberIds.Contains(member.UserId))
+                _context.Entry(member).State = EntityState.Added;
+        }
+    }
+
+    public Task UpdateStatusAsync(Project project)
+    {
+        var tracked = _context.ChangeTracker.Entries<Project>()
+            .FirstOrDefault(e => e.Entity.Id == project.Id);
+        if (tracked is not null)
+            tracked.State = EntityState.Detached;
+
+        _context.Attach(project);
+        _context.Entry(project).Property("StatusId").IsModified = true;
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateDetailsAsync(Project project)
+    {
+        var tracked = _context.ChangeTracker.Entries<Project>()
+            .FirstOrDefault(e => e.Entity.Id == project.Id);
+        if (tracked is not null)
+            tracked.State = EntityState.Detached;
+
+        _context.Attach(project);
+        _context.Entry(project).Property(p => p.Name).IsModified = true;
+        _context.Entry(project).Property(p => p.Description).IsModified = true;
+        _context.Entry(project).Property(p => p.Mode).IsModified = true;
+        return Task.CompletedTask;
+    }
+
+    public async Task UpdateMembersAsync(Project project)
+    {
+        var tracked = _context.ChangeTracker.Entries<Project>()
+            .FirstOrDefault(e => e.Entity.Id == project.Id);
+        if (tracked is not null)
+            tracked.State = EntityState.Detached;
+
+        var existingMemberIds = await _context.Set<ProjectMember>()
+            .Where(m => m.ProjectId == project.Id)
+            .Select(m => m.UserId)
+            .ToListAsync();
+
+        var currentMemberIds = project.Members.Select(m => m.UserId).ToHashSet();
+        var removedMemberIds = existingMemberIds.Where(id => !currentMemberIds.Contains(id)).ToList();
+        if (removedMemberIds.Count > 0)
+        {
+            var membersToRemove = await _context.Set<ProjectMember>()
+                .Where(m => m.ProjectId == project.Id && removedMemberIds.Contains(m.UserId))
+                .ToListAsync();
+            _context.Set<ProjectMember>().RemoveRange(membersToRemove);
+        }
+
+        _context.Attach(project);
         foreach (var member in project.Members)
         {
             if (!existingMemberIds.Contains(member.UserId))

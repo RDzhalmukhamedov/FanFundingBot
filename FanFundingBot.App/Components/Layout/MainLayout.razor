@@ -1,0 +1,41 @@
+@inherits LayoutComponentBase
+
+@* Провайдеры Fluent — только на интерактивных страницах (см. ProjectDetails/Projects/ProjectEdit):
+   статически отрендеренный провайдер DialogService/ToastService не видит (Parameter 'OnShowAsync'). *@
+
+<FluentLayout>
+    <FluentHeader>
+        <span class="brand">FanFundingBot</span>
+        <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalGap="12" Wrap="true">
+            <FluentAnchor Href="/" Appearance="@(IsActive("/") ? Appearance.Accent : Appearance.Stealth)">Главная</FluentAnchor>
+            <AuthorizeView>
+                <Authorized>
+                    <FluentAnchor Href="/projects" Appearance="@(IsActive("/projects") ? Appearance.Accent : Appearance.Stealth)">Проекты</FluentAnchor>
+                    <FluentAnchor Href="/my-orders" Appearance="@(IsActive("/my-orders") ? Appearance.Accent : Appearance.Stealth)">Мои заказы</FluentAnchor>
+                </Authorized>
+            </AuthorizeView>
+        </FluentStack>
+        <FluentSpacer />
+        <AuthorizeView>
+            <Authorized>
+                <form method="post" action="/api/auth/logout">
+                    <AntiforgeryToken />
+                    <FluentButton Type="ButtonType.Submit" Appearance="Appearance.Stealth">Выйти</FluentButton>
+                </form>
+            </Authorized>
+        </AuthorizeView>
+    </FluentHeader>
+
+    <FluentBodyContent>
+        <div class="page">
+            <ErrorBoundary>
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent>
+                    <p class="error">Что-то пошло не так. <a href="/">На главную</a></p>
+                </ErrorContent>
+            </ErrorBoundary>
+        </div>
+    </FluentBodyContent>
+</FluentLayout>

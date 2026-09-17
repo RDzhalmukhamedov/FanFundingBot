@@ -197,10 +197,11 @@ public class AdminAnswerCancelTests
         var authorization = Substitute.For<ApplicationAbstractions.IAuthorizationService>();
         var handler = new AdminQuestionCallbackHandler(_stateService, _mediator, new MainMenuHelper(authorization));
         _mediator.Send(Arg.Any<GetUnansweredQuestionsQuery>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Ok(new List<QuestionDto>
-            {
-                new(qId, "Q?", 5, "testuser", "User1", DateTime.UtcNow, null)
-            }));
+            .Returns(Result.Ok(new FanFundingBot.Application.Common.Models.PagedResult<QuestionDto>(
+                new List<QuestionDto>
+                {
+                    new(qId, "Q?", 5, "testuser", "User1", DateTime.UtcNow, null)
+                }, 1, 1, 20)));
         _stateService.GetOrCreate(1).Returns(_session);
 
         await handler.HandleAdminSelectQuestionAsync(_botClient, MakeCq("admin_answer:" + qId), 1,

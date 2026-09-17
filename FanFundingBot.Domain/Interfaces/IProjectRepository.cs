@@ -10,6 +10,9 @@ public interface IProjectRepository
     Task<List<Project>> GetAllWithAddonsAsync();
     Task AddAsync(Project project);
     Task UpdateAsync(Project project);
+    Task UpdateStatusAsync(Project project);
+    Task UpdateDetailsAsync(Project project);
+    Task UpdateMembersAsync(Project project);
     Task DeleteAsync(Guid id);
     Task<Guid?> GetProjectIdByAddonAsync(Guid addonId);
 }

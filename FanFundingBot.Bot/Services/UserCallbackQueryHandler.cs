@@ -8,6 +8,7 @@ using FanFundingBot.Bot.Keyboards;
 using FanFundingBot.Bot.Models;
 using FanFundingBot.Domain.Enums;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -21,24 +22,37 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
     private readonly IMediator _mediator;
     private readonly IUIRenderer _uiRenderer;
     private readonly MainMenuHelper _menuHelper;
+    private readonly ILogger<UserCallbackQueryHandler> _logger;
 
     public UserCallbackQueryHandler(
         IUserStateService stateService,
         IMediator mediator,
         IUIRenderer uiRenderer,
-        MainMenuHelper menuHelper)
+        MainMenuHelper menuHelper,
+        ILogger<UserCallbackQueryHandler>? logger = null)
     {
         _stateService = stateService;
         _mediator = mediator;
         _uiRenderer = uiRenderer;
         _menuHelper = menuHelper;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<UserCallbackQueryHandler>.Instance;
     }
 
     public async Task HandleAddonToggleAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
-        var addonId = CallbackData.GuidArg(data);
+        if (!Guid.TryParse(CallbackData.FirstArg(data), out var addonId))
+        {
+            _logger.LogWarning("Invalid callback data for addon toggle: {Data}", data);
+            await botClient.AnswerCallbackQuery(query.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
+
         var session = _stateService.Get(userId);
-        if (session == null || session.SelectedProjectId == null) return;
+        if (session == null || session.SelectedProjectId == null)
+        {
+            _logger.LogDebug("HandleAddonToggle: no session/project for user {UserId}", userId);
+            return;
+        }
 
         if (!session.SelectedAddonIds.Remove(addonId))
         {
@@ -63,10 +77,21 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
         var pageStr = CallbackData.FirstArg(data);
         if (pageStr == "nop") return;
 
-        var session = _stateService.Get(userId);
-        if (session == null || session.SelectedProjectId == null) return;
+        if (!int.TryParse(pageStr, out var page))
+        {
+            _logger.LogWarning("Invalid page callback data: {Data}", data);
+            await botClient.AnswerCallbackQuery(query.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
 
-        session.AddonPage = int.Parse(pageStr);
+        var session = _stateService.Get(userId);
+        if (session == null || session.SelectedProjectId == null)
+        {
+            _logger.LogDebug("HandleAddonPage: no session/project for user {UserId}", userId);
+            return;
+        }
+
+        session.AddonPage = page;
         _stateService.Update(userId, session);
 
         var project = await GetProjectAsync(session.SelectedProjectId.Value, ct);
@@ -79,7 +104,11 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
     public async Task HandleAddonConfirmAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, CancellationToken ct)
     {
         var session = _stateService.Get(userId);
-        if (session == null) return;
+        if (session == null)
+        {
+            _logger.LogDebug("HandleAddonConfirm: no session for user {UserId}", userId);
+            return;
+        }
 
         if (session.SelectedAddonIds.Count == 0)
         {
@@ -97,7 +126,7 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
         await botClient.EditMessageText(
             query.Message!.Chat.Id,
             query.Message.MessageId,
-            "📞 Введите ваш номер телефона в формате +7XXXXXXXXXX или 8XXXXXXXXXX\n\n" +
+            "📞 Введите ваш номер телефона в формате +XXXXXXXXXXX (8–15 цифр)\n\n" +
             "Или отправьте контакт, используя кнопку 📎 -> Контакт.",
             replyMarkup: null,
             cancellationToken: ct);
@@ -107,7 +136,11 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
     {
         var method = CallbackData.FirstArg(data);
         var session = _stateService.Get(userId);
-        if (session == null) return;
+        if (session == null)
+        {
+            _logger.LogDebug("HandleDelivery: no session for user {UserId}", userId);
+            return;
+        }
 
         session.DeliveryMethod = method == "pickup" ? DeliveryMethod.Pickup : DeliveryMethod.Delivery;
 
@@ -137,7 +170,12 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
     {
         var session = _stateService.Get(userId);
         if (session == null || session.SelectedProjectId == null ||
-            session.Phone == null || session.DeliveryMethod == null) return;
+            session.Phone == null || session.DeliveryMethod == null)
+        {
+            _logger.LogWarning("HandleOrderConfirm: incomplete session for user {UserId}", userId);
+            await botClient.AnswerCallbackQuery(query.Id, "Данные заказа неполны. Начните заново.", showAlert: true, cancellationToken: ct);
+            return;
+        }
 
         var chatId = query.Message!.Chat.Id;
         var isEditing = session.EditingOrderId.HasValue;
@@ -151,6 +189,8 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
 
             if (updateResult.IsFailed)
             {
+                _logger.LogWarning("UpdateOrder failed for user {UserId} order {OrderId}: {Errors}",
+                    userId, session.EditingOrderId, string.Join("; ", updateResult.Errors.Select(e => e.Message)));
                 await botClient.SendMessage(
                     chatId,
                     $"❌ Не удалось обновить заказ: {updateResult.Errors[0].Message}\n\nПопробуйте позже.",
@@ -177,6 +217,8 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
 
         if (createResult.IsFailed)
         {
+            _logger.LogWarning("CreateOrder failed for user {UserId} project {ProjectId}: {Errors}",
+                userId, session.SelectedProjectId, string.Join("; ", createResult.Errors.Select(e => e.Message)));
             await botClient.SendMessage(
                 chatId,
                 $"❌ Не удалось оформить заказ: {createResult.Errors[0].Message}\n\nПопробуйте позже.",
@@ -198,13 +240,22 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
     public async Task HandleOrderEditAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, CancellationToken ct)
     {
         var session = _stateService.Get(userId);
-        if (session == null || session.SelectedProjectId == null) return;
+        if (session == null || session.SelectedProjectId == null)
+        {
+            _logger.LogDebug("HandleOrderEdit: no session/project for user {UserId}", userId);
+            return;
+        }
 
         session.State = OrderFlowState.SelectingAddons;
         _stateService.Update(userId, session);
 
         var project = await GetProjectAsync(session.SelectedProjectId.Value, ct);
-        if (project == null) return;
+        if (project == null)
+        {
+            _logger.LogDebug("HandleOrderEdit: project not found for user {UserId}", userId);
+            await botClient.AnswerCallbackQuery(query.Id, "Проект не найден.", showAlert: true, cancellationToken: ct);
+            return;
+        }
 
         await _uiRenderer.SendAddonSelectionAsync(
             botClient, query.Message!.Chat.Id, userId, project, ct);
@@ -212,6 +263,7 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
 
     public async Task HandleOrderCancelAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, CancellationToken ct)
     {
+        _logger.LogDebug("Order cancel for user {UserId}", userId);
         _stateService.Remove(userId);
 
         await botClient.EditMessageText(
@@ -228,7 +280,11 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
     {
         var step = CallbackData.FirstArg(data);
         var session = _stateService.Get(userId);
-        if (session == null) return;
+        if (session == null)
+        {
+            _logger.LogDebug("HandleBack: no session for user {UserId}", userId);
+            return;
+        }
 
         switch (step)
         {
@@ -266,15 +322,28 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
 
     public async Task HandleAddonQtyIncAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
-        var addonId = CallbackData.GuidArg(data);
-        var session = _stateService.Get(userId);
-        if (session == null) return;
-
-        if (session.AddonQuantities.ContainsKey(addonId))
+        if (!Guid.TryParse(CallbackData.FirstArg(data), out var addonId))
         {
-            session.AddonQuantities[addonId]++;
-            _stateService.Update(userId, session);
+            _logger.LogWarning("Invalid qty inc data: {Data}", data);
+            await botClient.AnswerCallbackQuery(query.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
         }
+
+        var session = _stateService.Get(userId);
+        if (session == null)
+        {
+            _logger.LogDebug("HandleQtyInc: no session for user {UserId}", userId);
+            return;
+        }
+
+        if (!session.AddonQuantities.ContainsKey(addonId))
+        {
+            await botClient.AnswerCallbackQuery(query.Id, "Дополнение не выбрано.", showAlert: true, cancellationToken: ct);
+            return;
+        }
+
+        session.AddonQuantities[addonId]++;
+        _stateService.Update(userId, session);
 
         await _uiRenderer.ShowConfirmationAsync(
             botClient, query.Message!.Chat.Id, userId, ct);
@@ -282,9 +351,19 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
 
     public async Task HandleAddonQtyDecAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
-        var addonId = CallbackData.GuidArg(data);
+        if (!Guid.TryParse(CallbackData.FirstArg(data), out var addonId))
+        {
+            _logger.LogWarning("Invalid qty dec data: {Data}", data);
+            await botClient.AnswerCallbackQuery(query.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
+
         var session = _stateService.Get(userId);
-        if (session == null) return;
+        if (session == null)
+        {
+            _logger.LogDebug("HandleQtyDec: no session for user {UserId}", userId);
+            return;
+        }
 
         if (!session.AddonQuantities.TryGetValue(addonId, out var qty) || qty <= 1)
         {
@@ -305,7 +384,12 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
 
     public async Task HandleOrderEditMyAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
-        var orderId = CallbackData.GuidArg(data);
+        if (!Guid.TryParse(CallbackData.FirstArg(data), out var orderId))
+        {
+            _logger.LogWarning("Invalid orderId in HandleOrderEditMy: {Data}", data);
+            await botClient.AnswerCallbackQuery(query.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
         var orderResult = await _mediator.Send(new GetOrderByIdQuery(orderId, userId), ct);
         if (orderResult.IsFailed)
         {
@@ -356,7 +440,12 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
 
     public async Task HandleOrderDeleteMyAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
-        var orderId = CallbackData.GuidArg(data);
+        if (!Guid.TryParse(CallbackData.FirstArg(data), out var orderId))
+        {
+            _logger.LogWarning("Invalid orderId in HandleOrderDeleteMy: {Data}", data);
+            await botClient.AnswerCallbackQuery(query.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
 
         var orderResult = await _mediator.Send(new GetOrderByIdQuery(orderId, userId), ct);
         if (orderResult.IsFailed)
@@ -381,7 +470,12 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
 
     public async Task HandleOrderDeleteMyConfirmAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
-        var orderId = CallbackData.GuidArg(data);
+        if (!Guid.TryParse(CallbackData.FirstArg(data), out var orderId))
+        {
+            _logger.LogWarning("Invalid orderId in HandleOrderDeleteMyConfirm: {Data}", data);
+            await botClient.AnswerCallbackQuery(query.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
 
         var orderResult = await _mediator.Send(new GetOrderByIdQuery(orderId, userId), ct);
         if (orderResult.IsFailed)
@@ -412,7 +506,12 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
 
     public async Task HandleOrderDeleteMyCancelAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
-        var orderId = CallbackData.GuidArg(data);
+        if (!Guid.TryParse(CallbackData.FirstArg(data), out var orderId))
+        {
+            _logger.LogWarning("Invalid orderId in HandleOrderDeleteMyCancel: {Data}", data);
+            await botClient.AnswerCallbackQuery(query.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
 
         await botClient.EditMessageText(
             query.Message!.Chat.Id,

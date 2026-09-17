@@ -11,9 +11,8 @@ public static class InputValidation
         if (string.IsNullOrWhiteSpace(phone))
             return "Пожалуйста, введите номер телефона.";
 
-        var cleaned = phone.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "");
-        if (!cleaned.IsValidPhone())
-            return "Пожалуйста, введите корректный номер телефона в формате +7XXXXXXXXXX или 8XXXXXXXXXX.";
+        if (!phone.IsValidPhone())
+            return "Пожалуйста, введите корректный номер телефона в формате +XXXXXXXXXXX (8–15 цифр).";
 
         return null;
     }

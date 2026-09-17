@@ -1,13 +1,25 @@
 using FanFundingBot.Application;
-using FanFundingBot.Application.Projects.Queries;
+using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Users.Commands;
+using FanFundingBot.App.Auth;
+using FanFundingBot.App.Components;
 using FanFundingBot.App.Services;
 using FanFundingBot.Bot;
 using FanFundingBot.Bot.Handlers;
 using FanFundingBot.Bot.Models;
+using FanFundingBot.Domain.Interfaces;
 using FanFundingBot.Infrastructure.Persistence;
 using FanFundingBot.Infrastructure.ExternalStorage;
 using MediatR;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.FluentUI.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using Telegram.Bot;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,7 +28,7 @@ builder.Services.AddControllers();
 
 builder.Services.AddApplication();
 builder.Services.AddDataLayer(builder.Configuration);
-builder.Services.AddBotLayer(builder.Configuration);
+builder.Services.AddBotLayer();
 builder.Services.AddExternalStorage(builder.Configuration);
 
 var botConfig = new BotConfiguration();
@@ -29,7 +41,103 @@ builder.Services.AddHttpClient("telegram_bot")
 
 builder.Services.AddScoped<UpdateHandler>();
 
+builder.Services.AddScoped<ProjectSheetLinkService>();
+
 builder.Services.AddHostedService<OutboxProcessor>();
+
+// Web-аутентификация (Telegram Login Widget -> JWT в HttpOnly-cookie).
+// HybridCurrentUserProvider — после AddBotLayer, чтобы перекрыть TelegramCurrentUserProvider.
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+builder.Services.AddSingleton<JwtTokenService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<BlazorCircuitUserContext>();
+builder.Services.AddScoped<ICurrentUserProvider, HybridCurrentUserProvider>();
+
+// Blazor Server: состояние аутентификации из JWT-cookie (claims-сессия, без сырого JWT).
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+builder.Services.AddFluentUIComponents();
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthenticationStateProvider, CookieAuthenticationStateProvider>();
+
+// JWKS Telegram для проверки OIDC id_token (новая Login library).
+builder.Services.AddSingleton<TelegramJwksCache>();
+
+var jwtSecret = builder.Configuration["Jwt:Secret"];
+if (string.IsNullOrWhiteSpace(jwtSecret))
+    throw new InvalidOperationException("Jwt:Secret не настроен — задайте через UserSecrets/env (Jwt:Secret).");
+if (jwtSecret.Length < 32)
+    throw new InvalidOperationException("Jwt:Secret слишком короткий — минимум 32 символа.");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(o =>
+    {
+        o.MapInboundClaims = false;
+        o.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+        };
+            o.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = ctx =>
+                {
+                    if (string.IsNullOrEmpty(ctx.Token)
+                        && ctx.Request.Cookies.TryGetValue(JwtTokenService.CookieName, out var cookie)
+                        && !string.IsNullOrEmpty(cookie))
+                    {
+                        ctx.Token = cookie;
+                    }
+
+                    return Task.CompletedTask;
+                },
+                // Stateless sliding refresh без refresh-таблицы: если до истечения
+                // осталось меньше половины срока — перевыпустить cookie со свежей ролью.
+                // Граница: продление никогда не должно ронять аутентификацию.
+                OnTokenValidated = async ctx =>
+                {
+                    try
+                    {
+                        var options = ctx.HttpContext.RequestServices
+                            .GetRequiredService<IOptions<JwtOptions>>().Value;
+                        var validTo = ctx.SecurityToken?.ValidTo;
+                        if (validTo is null
+                            || !SlidingRefreshPolicy.ShouldReissue(
+                                new DateTimeOffset(validTo.Value, TimeSpan.Zero),
+                                DateTimeOffset.UtcNow,
+                                options.ExpiresDays))
+                        {
+                            return;
+                        }
+
+                        var sub = ctx.Principal?.FindFirst(JwtTokenService.SubjectClaim)?.Value;
+                        if (!long.TryParse(sub, out var id) || id <= 0)
+                            return;
+
+                        var users = ctx.HttpContext.RequestServices.GetRequiredService<IUserRepository>();
+                        var tokens = ctx.HttpContext.RequestServices.GetRequiredService<JwtTokenService>();
+                        var user = await users.GetByIdAsync(id);
+                        if (user is null)
+                            return;
+
+                        AuthCookieWriter.Append(
+                            ctx.HttpContext.Response,
+                            tokens.CreateToken(user.Id, user.Role.ToString()),
+                            options.ExpiresDays,
+                            ctx.HttpContext.Request.IsHttps);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Продление — best effort: ошибка не должна ронять аутентификацию.
+                        ctx.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>()
+                            .LogDebug(ex, "Sliding session refresh failed for {Path}", ctx.HttpContext.Request.Path);
+                    }
+                }
+            };
+        });
+builder.Services.AddAuthorization();
 
 if (botConfig.UsePolling)
     builder.Services.AddHostedService<PollingService>();
@@ -38,22 +146,135 @@ else
 
 var app = builder.Build();
 
-app.MapControllers();
-app.MapControllerRoute(name: "default", pattern: "{controller=App}/{action=Index}/{id?}");
+var forwardedOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+forwardedOptions.KnownNetworks.Clear();
+forwardedOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedOptions);
 
-// Публичная витрина (экс-FanFundingBot.Web, поглощен: отдельный хост ради двух ручек не окупал дубль DI).
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
+
+app.UseStaticFiles();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+
+// Health (anonymous)
 app.MapGet("/health", () => Results.Ok("ok"));
 
-app.MapGet("/projects", async (IMediator mediator, CancellationToken ct) =>
+// Вход через новую Telegram Login library (telegram-login.js):
+// проверка OIDC id_token по JWKS -> GetOrCreateUser -> JWT в HttpOnly-cookie.
+app.MapPost("/api/auth/telegram", async (
+    TelegramOidcAuthRequest request,
+    IMediator mediator,
+    JwtTokenService tokens,
+    IOptions<JwtOptions> jwtOptions,
+    BotConfiguration botConfig,
+    TelegramJwksCache jwks,
+    IUserRepository users,
+    HttpContext http,
+    CancellationToken ct) =>
 {
-    var result = await mediator.Send(new GetProjectsQuery(), ct);
-    if (result.IsFailed)
-        return Results.BadRequest(result.Errors.Select(e => e.Message));
+    if (!await AntiforgeryHelper.HasValidTokenAsync(http))
+        return Results.BadRequest(new[] { "CSRF-токен отсутствует или недействителен." });
 
-    return Results.Ok(result.Value);
+    if (string.IsNullOrEmpty(jwtOptions.Value.Secret))
+        return Results.Problem("JWT не настроен (Jwt:Secret пустой).", statusCode: 500);
+
+    if (string.IsNullOrEmpty(botConfig.ClientId))
+        return Results.Problem("Telegram Login не настроен (BotConfiguration:ClientId пустой).", statusCode: 500);
+
+    var keys = await jwks.GetKeysAsync(ct);
+    var tgUser = keys is null
+        ? null
+        : TelegramIdTokenValidator.Validate(request.IdToken, botConfig.ClientId, keys);
+    if (tgUser is null)
+        return Results.Unauthorized();
+
+    var login = await mediator.Send(new GetOrCreateUserCommand(
+        tgUser.Id, tgUser.FirstName, tgUser.LastName, tgUser.Username,
+        tgUser.Id == botConfig.OwnerId), ct);
+    if (login.IsFailed)
+        return Results.BadRequest(login.Errors.Select(e => e.Message));
+
+    var user = await users.GetByIdAsync(tgUser.Id);
+    if (user is null)
+        return Results.BadRequest(new[] { "Пользователь не найден." });
+
+    var token = tokens.CreateToken(user.Id, user.Role.ToString());
+    AuthCookieWriter.Append(http.Response, token, jwtOptions.Value.ExpiresDays, http.Request.IsHttps);
+
+    return Results.Ok(new { userId = user.Id, role = user.Role.ToString() });
 })
-.WithName("GetProjects")
-.WithSummary("Публичная витрина проектов");
+.WithName("TelegramLogin")
+.WithSummary("Вход через Telegram Login (OIDC id_token)");
+
+// CSRF-токен для fetch-вызовов (auth.js): cookie ставится автоматически,
+// значение передаётся заголовком RequestVerificationToken.
+app.MapGet("/api/auth/csrf-token", (IAntiforgery antiforgery, HttpContext http) =>
+{
+    var tokens = antiforgery.GetAndStoreTokens(http);
+    return Results.Ok(new { token = tokens.RequestToken });
+})
+.WithName("CsrfToken")
+.WithSummary("CSRF-токен для fetch-вызовов");
+
+// Выход: удаление HttpOnly-cookie (идемпотентный, анонимный — чистит и битую cookie).
+// Вызывается обычной form-POST из MainLayout, поэтому возвращаем Redirect на главную.
+// Circuit дополнительно сбрасывается полной перезагрузкой страницы.
+app.MapPost("/api/auth/logout", async (HttpContext http) =>
+{
+    if (!await AntiforgeryHelper.HasValidTokenAsync(http))
+        return Results.BadRequest("CSRF-токен отсутствует или недействителен.");
+
+    AuthCookieWriter.Clear(http.Response, http.Request.IsHttps);
+    return Results.Redirect("/");
+})
+.WithName("Logout")
+.WithSummary("Выход (удаление auth-cookie)");
+
+// Явное продление сессии: перевыпуск JWT со свежей ролью из БД.
+app.MapPost("/api/auth/refresh", async (
+    ICurrentUserProvider me,
+    IUserRepository users,
+    JwtTokenService tokens,
+    IOptions<JwtOptions> jwtOptions,
+    HttpContext http) =>
+{
+    if (!await AntiforgeryHelper.HasValidTokenAsync(http))
+        return Results.BadRequest(new[] { "CSRF-токен отсутствует или недействителен." });
+
+    var id = me.GetCurrentUserId();
+    if (id <= 0)
+        return Results.Unauthorized();
+
+    var user = await users.GetByIdAsync(id);
+    if (user is null)
+        return Results.Unauthorized();
+
+    AuthCookieWriter.Append(
+        http.Response,
+        tokens.CreateToken(user.Id, user.Role.ToString()),
+        jwtOptions.Value.ExpiresDays,
+        http.Request.IsHttps);
+
+    return Results.Ok(new { userId = user.Id, role = user.Role.ToString() });
+})
+.RequireAuthorization()
+.WithName("RefreshSession")
+.WithSummary("Продление сессии (перевыпуск JWT-cookie)");
+
+app.UseAntiforgery();
+app.MapStaticAssets();
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 using (var scope = app.Services.CreateScope())
 {

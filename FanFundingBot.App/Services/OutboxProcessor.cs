@@ -54,6 +54,24 @@ public class OutboxProcessor : BackgroundService
         _logger.LogInformation("OutboxProcessor stopped");
     }
 
+    private static readonly Dictionary<string, Type> EventTypeMap = new()
+    {
+        [typeof(OrderFormedEvent).FullName!] = typeof(OrderFormedEvent),
+        [$"{typeof(OrderFormedEvent).FullName}, {typeof(OrderFormedEvent).Assembly.GetName().Name}"] = typeof(OrderFormedEvent),
+        [typeof(OrderDeletedEvent).FullName!] = typeof(OrderDeletedEvent),
+        [$"{typeof(OrderDeletedEvent).FullName}, {typeof(OrderDeletedEvent).Assembly.GetName().Name}"] = typeof(OrderDeletedEvent),
+        [typeof(OrderStatusChangedEvent).FullName!] = typeof(OrderStatusChangedEvent),
+        [$"{typeof(OrderStatusChangedEvent).FullName}, {typeof(OrderStatusChangedEvent).Assembly.GetName().Name}"] = typeof(OrderStatusChangedEvent),
+    };
+
+    private static Type? ResolveEventType(string typeName)
+    {
+        if (EventTypeMap.TryGetValue(typeName, out var mapped))
+            return mapped;
+        // Совместимость: старые строки с AssemblyQualifiedName (включая версию).
+        return Type.GetType(typeName);
+    }
+
     public async Task<int> ProcessBatchAsync(CancellationToken cancellationToken)
     {
         using var scope = _scopes.CreateScope();
@@ -66,17 +84,80 @@ public class OutboxProcessor : BackgroundService
         List<OutboxMessage> messages;
         if (dbContext.Database.IsNpgsql())
         {
-            // Атомарный захват пачки между репликами: пропуск заблокированных строк.
+            // Per-message tx: захват пачки короткой транзакцией, затем обработка каждого
+            // сообщения в своей транзакции, чтобы не держать FOR UPDATE на время сети к Sheets.
+            var strategy = dbContext.Database.CreateExecutionStrategy();
+
+            // Захват пачки: короткая транзакция. Транзакция должна выполняться внутри
+            // execution strategy, т.к. NpgsqlRetryingExecutionStrategy не поддерживает
+            // user-initiated transactions вне её.
+            var ids = await strategy.ExecuteAsync(async () =>
+            {
+                await using var tx = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+                var captured = await dbContext.OutboxMessages
+                    .FromSqlRaw(
+                        """
+                        SELECT * FROM "OutboxMessages"
+                        WHERE "Processed" = false AND ("NextRetryOn" IS NULL OR "NextRetryOn" <= {0})
+                        ORDER BY "OccurredOn" LIMIT {1}
+                        FOR UPDATE SKIP LOCKED
+                        """,
+                        now, BatchSize)
+                    .Select(m => m.Id)
+                    .ToListAsync(cancellationToken);
+                await tx.CommitAsync(cancellationToken);
+                return captured;
+            });
+
+            if (ids.Count == 0)
+                return 0;
+
+            // Загружаем сообщения вне долгой блокировки; per-message tx ниже перезагрузит с FOR UPDATE.
             messages = await dbContext.OutboxMessages
-                .FromSqlRaw(
-                    """
-                    SELECT * FROM "OutboxMessages"
-                    WHERE "Processed" = false AND ("NextRetryOn" IS NULL OR "NextRetryOn" <= {0})
-                    ORDER BY "OccurredOn" LIMIT {1}
-                    FOR UPDATE SKIP LOCKED
-                    """,
-                    now, BatchSize)
+                .Where(m => ids.Contains(m.Id))
+                .OrderBy(m => m.OccurredOn)
                 .ToListAsync(cancellationToken);
+
+            foreach (var message in messages)
+            {
+                // Обработка одного сообщения — ретраибельная единица целиком
+                // (lock -> dispatch -> save -> commit).
+                await strategy.ExecuteAsync(async () =>
+                {
+                    await using var tx = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+                    // Перезагружаем с блокировкой на время обработки одного сообщения.
+                    var locked = await dbContext.OutboxMessages
+                        .FromSqlRaw(
+                            """
+                            SELECT * FROM "OutboxMessages" WHERE "Id" = {0} FOR UPDATE
+                            """,
+                            message.Id)
+                        .SingleOrDefaultAsync(cancellationToken);
+
+                    if (locked is null || locked.Processed)
+                    {
+                        await tx.CommitAsync(cancellationToken);
+                        return;
+                    }
+
+                    try
+                    {
+                        await DispatchAsync(locked, orders, storage, cancellationToken);
+                        locked.MarkProcessed();
+                    }
+                    catch (Exception ex)
+                    {
+                        locked.MarkFailed(ex);
+                        _logger.LogError(ex, "Outbox dispatch failed for {MessageId} ({MessageType})",
+                            locked.Id, locked.Type);
+                    }
+
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    await tx.CommitAsync(cancellationToken);
+                });
+            }
+
+            return messages.Count;
         }
         else
         {
@@ -108,25 +189,49 @@ public class OutboxProcessor : BackgroundService
         return messages.Count;
     }
 
-    private static async Task DispatchAsync(
+    private async Task DispatchAsync(
         OutboxMessage message,
         IOrderRepository orders,
         IOrderExternalStorage storage,
         CancellationToken cancellationToken)
     {
-        var eventType = Type.GetType(message.Type);
+        var eventType = ResolveEventType(message.Type);
         if (eventType is null)
+        {
+            _logger.LogWarning("Outbox unknown event type {MessageType} for {MessageId}, skipping",
+                message.Type, message.Id);
             return;
+        }
 
-        if (JsonSerializer.Deserialize(message.Payload, eventType) is not IDomainEvent domainEvent)
+        IDomainEvent? domainEvent;
+        try
+        {
+            domainEvent = JsonSerializer.Deserialize(message.Payload, eventType) as IDomainEvent;
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or ArgumentException)
+        {
+            _logger.LogWarning(ex, "Outbox undecodable payload for {MessageId} ({MessageType}), skipping",
+                message.Id, message.Type);
             return;
+        }
+
+        if (domainEvent is null)
+        {
+            _logger.LogWarning("Outbox undecodable payload for {MessageId} ({MessageType}), skipping",
+                message.Id, message.Type);
+            return;
+        }
 
         switch (domainEvent)
         {
             case OrderFormedEvent formed:
                 var order = await orders.GetByIdWithAddonsAsync(formed.OrderId);
                 if (order is null)
+                {
+                    _logger.LogInformation("Outbox order {OrderId} not found for {MessageId}, skipping",
+                        formed.OrderId, message.Id);
                     return;
+                }
                 await storage.SaveOrderAsync(order, cancellationToken);
                 break;
 
@@ -134,7 +239,20 @@ public class OutboxProcessor : BackgroundService
                 await storage.DeleteOrderAsync(deleted.OrderId, cancellationToken);
                 break;
 
+            case OrderStatusChangedEvent statusChanged:
+                var updated = await orders.GetByIdWithAddonsAsync(statusChanged.OrderId);
+                if (updated is null)
+                {
+                    _logger.LogInformation("Outbox order {OrderId} not found for {MessageId}, skipping",
+                        statusChanged.OrderId, message.Id);
+                    return;
+                }
+                await storage.SaveOrderAsync(updated, cancellationToken);
+                break;
+
             default:
+                _logger.LogWarning("Outbox unhandled event {EventType} for {MessageId}, skipping",
+                    domainEvent.GetType().Name, message.Id);
                 break;
         }
     }

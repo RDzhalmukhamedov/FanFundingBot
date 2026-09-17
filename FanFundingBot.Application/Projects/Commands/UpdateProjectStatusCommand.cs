@@ -51,7 +51,7 @@ public class UpdateProjectStatusCommandHandler : IRequestHandler<UpdateProjectSt
             return Result.Fail<ProjectStatusUpdateResult>(ResultErrors.StatusNotFound());
 
         project.SetStatus(status);
-        await _projects.UpdateAsync(project);
+        await _projects.UpdateStatusAsync(project);
 
         var subscribers = await _users.GetSubscribedToProjectAsync(request.ProjectId);
         await _notifications.NotifyProjectStatusChangedAsync(

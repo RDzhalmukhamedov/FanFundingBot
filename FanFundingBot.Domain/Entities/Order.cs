@@ -1,3 +1,5 @@
+using FanFundingBot.Domain.Common;
+using FanFundingBot.Domain.DomainEvents;
 using FanFundingBot.Domain.Enums;
 using FanFundingBot.Domain.ValueObjects;
 
@@ -20,6 +22,11 @@ public abstract class Order : AggregateRoot
     public OrderStatus Status { get; protected set; }
 
     public IReadOnlyList<OrderPosition> OrderAddons => _orderPositions.AsReadOnly();
+
+    public Money Total => CalculateTotal(_orderPositions.Select(p => ((decimal)p.Addon.Price, (int)p.Quantity)));
+
+    public static Money CalculateTotal(IEnumerable<(decimal Price, int Quantity)> lines)
+        => Money.Create(lines.Sum(l => l.Price * l.Quantity));
 
     protected Order()
     {
@@ -64,4 +71,17 @@ public abstract class Order : AggregateRoot
     public abstract void SetPhoneNumber(string phoneNumber);
     public abstract void SetDeliveryMethod(DeliveryMethod deliveryMethod);
     public abstract void SetShippingAddress(string? shippingAddress);
+
+    public void SetStatus(OrderStatus newStatus)
+    {
+        if (Status == newStatus)
+            return;
+
+        var oldStatus = Status;
+        Status = newStatus;
+
+        AddDomainEvent(new OrderStatusChangedEvent(Id, oldStatus, newStatus));
+    }
+
+    public void MarkDeleted() => AddDomainEvent(new OrderDeletedEvent(Id));
 }

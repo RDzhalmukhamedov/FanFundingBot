@@ -1,6 +1,6 @@
 using FanFundingBot.Domain.DomainEvents;
 
-namespace FanFundingBot.Domain.Entities;
+namespace FanFundingBot.Domain.Common;
 
 public abstract class AggregateRoot
 {

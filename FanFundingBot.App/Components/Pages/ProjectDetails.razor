@@ -1,0 +1,114 @@
+@page "/projects/{id:guid}"
+@attribute [Authorize]
+@inherits AuthComponentBase
+@rendermode InteractiveServer
+
+<PageTitle>Проект</PageTitle>
+
+<FluentDialogProvider />
+<FluentToastProvider />
+
+@if (!Loaded)
+{
+    <FluentProgressRing aria-label="Загрузка" />
+}
+else if (Project is null)
+{
+    <FluentMessageBar Intent="MessageIntent.Error">@(Error ?? "Не удалось загрузить проект.")</FluentMessageBar>
+}
+else
+{
+    <h1>@Project.Name</h1>
+
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <FluentMessageBar Intent="MessageIntent.Error">@Error</FluentMessageBar>
+    }
+
+    <div class="card">
+        <p>@Project.Description</p>
+        <p class="muted">
+            Статус: @Project.StatusName
+            <FluentBadge Appearance="@(Project.CanEditOrders ? Appearance.Accent : Appearance.Neutral)">
+                @(Project.CanEditOrders ? "можно ред. заказы" : "нельзя ред. заказы")
+            </FluentBadge>
+        </p>
+        <FluentSelect TOption="ProjectStatusDto"
+                      Items="Statuses"
+                      OptionText="@(s => s.DisplayName + (s.CanEditOrders ? " (можно ред. заказы)" : " (нельзя ред. заказы)"))"
+                      aria-label="Статус проекта"
+                      @bind-SelectedOption="SelectedProjectStatus" />
+        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" Disabled="@(Statuses.Count == 0 || Project.StatusId == NewStatusId)" OnClick="AskProjectStatusAsync">Сменить статус</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="EditProject">Редактировать</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance="Appearance.Neutral" OnClick="AskBroadcastAsync">Сделать рассылку</FluentButton>
+    </div>
+
+    <div class="tabs" role="tablist">
+        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "overview" ? Appearance.Accent : Appearance.Neutral)' role="tab" aria-selected='@(ActiveTab == "overview")' OnClick='() => ActiveTab = "overview"'>Обзор</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "orders" ? Appearance.Accent : Appearance.Neutral)' role="tab" aria-selected='@(ActiveTab == "orders")' OnClick='() => ActiveTab = "orders"'>Заказы (@OrdersTotalCount)</FluentButton>
+        <FluentButton Type="ButtonType.Button" Appearance='@(ActiveTab == "questions" ? Appearance.Accent : Appearance.Neutral)' role="tab" aria-selected='@(ActiveTab == "questions")' OnClick='() => ActiveTab = "questions"'>Вопросы (@QuestionsTotalCount)</FluentButton>
+    </div>
+
+    @if (ActiveTab == "overview")
+    {
+        <div class="card">
+            <h3>Дополнения</h3>
+            @if (Project.Addons.Count == 0)
+            {
+                <p class="muted">Дополнений пока нет.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                <FluentDataGrid Items="@(Project.Addons.AsQueryable())" TGridItem="AddonDto" Style="width: 100%;" RowSize="DataGridRowSize.Large" MultiLine="true">
+                    <ChildContent>
+                    <TemplateColumn Title="Название">
+                        @context.Name
+                        @if (context.HasOrders)
+                        {
+                            <span role="img" aria-label="Есть заказы" title="Это дополнение есть в одном или нескольких заказах.">🔒</span>
+                        }
+                    </TemplateColumn>
+                    <PropertyColumn Property="@(a => a.Description)" Title="Описание" />
+                    <TemplateColumn Title="Цена">
+                        @context.Price.ToString("F2")
+                    </TemplateColumn>
+                    </ChildContent>
+                </FluentDataGrid>
+                </div>
+            }
+        </div>
+
+        <div class="card">
+            <h3>Таблица заказов</h3>
+            @if (SheetUrl is null)
+            {
+                <p class="muted">Загрузка ссылки...</p>
+            }
+            else if (SheetUrl.Length == 0)
+            {
+                <FluentMessageBar Intent="MessageIntent.Error">Не удалось получить ссылку на таблицу.</FluentMessageBar>
+            }
+            else
+            {
+                <a href="@SheetUrl" target="_blank" rel="noopener">Открыть Google-таблицу</a>
+            }
+        </div>
+    }
+    else if (ActiveTab == "orders")
+    {
+        <div class="card">
+            <h3>Заказы</h3>
+                <OrdersTable @ref="_ordersTable" ItemsProvider="OrdersProvider" Pagination="_ordersPagination" OnStatusChange="AskOrderStatusAsync" OnMessage="AskMessageAsync" />
+        </div>
+    }
+    else if (ActiveTab == "questions")
+    {
+        <div class="card">
+            <h3>Вопросы пользователей</h3>
+            <QuestionsTable @ref="_questionsTable" ItemsProvider="QuestionsProvider" Pagination="_questionsPagination" OnAnswer="AskAnswerAsync" />
+        </div>
+    }
+}
+
+
