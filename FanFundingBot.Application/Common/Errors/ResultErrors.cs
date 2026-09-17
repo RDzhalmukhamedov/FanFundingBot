@@ -49,4 +49,7 @@ public static class ResultErrors
 
     public static Error ProjectLimitReached() =>
         new ConflictError("project.limit", "Нельзя иметь больше одного проекта.");
+
+    public static Error StatusOrderConflict() =>
+        new ConflictError("status.order.conflict", "Не удалось создать статус: порядок занят. Попробуйте ещё раз.");
 }

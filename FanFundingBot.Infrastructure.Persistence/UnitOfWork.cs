@@ -19,6 +19,11 @@ public class UnitOfWork : IUnitOfWork
 
         return await strategy.ExecuteAsync(async () =>
         {
+            // Retry execution strategy перевыполняет лямбду целиком: без очистки
+            // повторный action() мутировал бы уже затреканный (откаченный) контекст
+            // (дубли Add/Outbox). Чистим в начале каждой попытки — action() внутри
+            // заново грузит агрегаты из БД через тот же контекст.
+            _context.ChangeTracker.Clear();
             await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
             try
             {

@@ -6,13 +6,24 @@ public static partial class StringExtensions
 {
     private static readonly Regex PhoneRegex = PhoneRegexGenerated();
 
-    public static bool IsValidPhone(this string? phone)
+    public static string? NormalizePhone(string? phone)
     {
         if (string.IsNullOrWhiteSpace(phone))
-            return false;
+            return null;
 
-        var cleaned = phone.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "");
-        return PhoneRegex.IsMatch(cleaned);
+        var cleaned = phone.Replace(" ", "").Replace("\t", "")
+            .Replace("-", "").Replace("(", "").Replace(")", "").Replace(".", "");
+
+        if (cleaned.Length == 11 && cleaned[0] == '8' && cleaned.All(char.IsDigit))
+            cleaned = "+7" + cleaned[1..];
+
+        return cleaned;
+    }
+
+    public static bool IsValidPhone(this string? phone)
+    {
+        var cleaned = NormalizePhone(phone);
+        return cleaned is not null && PhoneRegex.IsMatch(cleaned);
     }
 
     public static bool IsValidAddress(this string? address)
@@ -23,6 +34,6 @@ public static partial class StringExtensions
         return address.Any(char.IsLetter) && address.Any(char.IsDigit);
     }
 
-    [GeneratedRegex(@"^(\+7|8)\d{10}$")]
+    [GeneratedRegex(@"^\+\d{8,15}$")]
     private static partial Regex PhoneRegexGenerated();
 }

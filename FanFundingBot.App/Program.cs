@@ -14,6 +14,7 @@ using MediatR;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.FluentUI.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -62,20 +63,23 @@ builder.Services.AddScoped<AuthenticationStateProvider, CookieAuthenticationStat
 builder.Services.AddSingleton<TelegramJwksCache>();
 
 var jwtSecret = builder.Configuration["Jwt:Secret"];
-if (!string.IsNullOrEmpty(jwtSecret))
-{
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer(o =>
+if (string.IsNullOrWhiteSpace(jwtSecret))
+    throw new InvalidOperationException("Jwt:Secret не настроен — задайте через UserSecrets/env (Jwt:Secret).");
+if (jwtSecret.Length < 32)
+    throw new InvalidOperationException("Jwt:Secret слишком короткий — минимум 32 символа.");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(o =>
+    {
+        o.MapInboundClaims = false;
+        o.TokenValidationParameters = new TokenValidationParameters
         {
-            o.MapInboundClaims = false;
-            o.TokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
-            };
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+        };
             o.Events = new JwtBearerEvents
             {
                 OnMessageReceived = ctx =>
@@ -131,8 +135,7 @@ if (!string.IsNullOrEmpty(jwtSecret))
                 }
             };
         });
-    builder.Services.AddAuthorization();
-}
+builder.Services.AddAuthorization();
 
 if (botConfig.UsePolling)
     builder.Services.AddHostedService<PollingService>();
@@ -141,13 +144,21 @@ else
 
 var app = builder.Build();
 
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
+
 app.UseStaticFiles();
 
-if (!string.IsNullOrEmpty(jwtSecret))
-{
-    app.UseAuthentication();
-    app.UseAuthorization();
-}
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 

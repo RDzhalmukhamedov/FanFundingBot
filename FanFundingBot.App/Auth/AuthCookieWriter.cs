@@ -20,12 +20,17 @@ public static class AuthCookieWriter
 
     public static void Clear(HttpResponse response, bool isHttps)
     {
-        response.Cookies.Delete(JwtTokenService.CookieName, new CookieOptions
+        // Delete должен совпасть по Secure-флагу с Append: иначе Secure-cookie не сотрётся
+        // при downgrade http→https / прокси без ForwardedHeaders. Удаляем оба варианта.
+        foreach (var secure in new[] { isHttps, true, false })
         {
-            Path = "/",
-            HttpOnly = true,
-            SameSite = SameSiteMode.Lax,
-            Secure = isHttps
-        });
+            response.Cookies.Delete(JwtTokenService.CookieName, new CookieOptions
+            {
+                Path = "/",
+                HttpOnly = true,
+                SameSite = SameSiteMode.Lax,
+                Secure = secure
+            });
+        }
     }
 }

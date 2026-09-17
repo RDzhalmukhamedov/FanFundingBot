@@ -44,8 +44,9 @@ public static class TelegramIdTokenValidator
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKeys = jwks.Keys,
                 // Детерминированное время для тестов; в проде равно UtcNow.
-                LifetimeValidator = (_, expires, _, _) =>
-                    expires is not null && expires.Value.Add(ClockSkew) >= nowUtc,
+                LifetimeValidator = (notBefore, expires, _, _) =>
+                    expires is not null && expires.Value.Add(ClockSkew) >= nowUtc
+                    && (notBefore is null || notBefore.Value.Subtract(ClockSkew) <= nowUtc),
                 RequireExpirationTime = true,
             }, out var validatedToken);
 

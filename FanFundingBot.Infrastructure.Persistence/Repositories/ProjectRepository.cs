@@ -89,7 +89,13 @@ public class ProjectRepository : IProjectRepository
             _context.Set<ProjectMember>().RemoveRange(membersToRemove);
         }
 
-        _context.Projects.Update(project);
+        // Attach + точечные скаляры: Update() всего графа метил бы Modified
+        // связанный Status и существующие Addon/Member-строки.
+        _context.Projects.Attach(project);
+        _context.Entry(project).Property(p => p.Name).IsModified = true;
+        _context.Entry(project).Property(p => p.Description).IsModified = true;
+        _context.Entry(project).Property(p => p.Mode).IsModified = true;
+        _context.Entry(project).Property("StatusId").IsModified = true;
         foreach (var addon in project.Addons)
         {
             if (!existingAddonIds.Contains(addon.Id))
@@ -125,7 +131,6 @@ public class ProjectRepository : IProjectRepository
         _context.Entry(project).Property(p => p.Name).IsModified = true;
         _context.Entry(project).Property(p => p.Description).IsModified = true;
         _context.Entry(project).Property(p => p.Mode).IsModified = true;
-        _context.Entry(project).Property(p => p.CreatedAt).IsModified = true;
         return Task.CompletedTask;
     }
 

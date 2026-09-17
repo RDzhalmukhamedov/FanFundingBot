@@ -7,6 +7,7 @@ namespace FanFundingBot.Infrastructure.ExternalStorage;
 public class FileOrderStorage : IOrderExternalStorage
 {
     private readonly string _filePath;
+    private readonly SemaphoreSlim _gate = new(1, 1);
 
     private sealed record StoredPosition(Guid AddonId, string AddonName, decimal Price, int Quantity);
     private sealed record StoredOrder(
@@ -29,17 +30,33 @@ public class FileOrderStorage : IOrderExternalStorage
 
     public async Task SaveOrderAsync(Order order, CancellationToken cancellationToken = default)
     {
-        var orders = await LoadOrdersAsync();
-        orders.RemoveAll(o => o.Id == order.Id);
-        orders.Add(ToStored(order));
-        await SaveOrdersAsync(orders);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var orders = await LoadOrdersAsync(cancellationToken);
+            orders.RemoveAll(o => o.Id == order.Id);
+            orders.Add(ToStored(order));
+            await SaveOrdersAsync(orders, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async Task DeleteOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
-        var orders = await LoadOrdersAsync();
-        orders.RemoveAll(o => o.Id == orderId);
-        await SaveOrdersAsync(orders);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var orders = await LoadOrdersAsync(cancellationToken);
+            orders.RemoveAll(o => o.Id == orderId);
+            await SaveOrdersAsync(orders, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private static StoredOrder ToStored(Order order)
@@ -58,18 +75,27 @@ public class FileOrderStorage : IOrderExternalStorage
                 .ToList());
     }
 
-    private async Task<List<StoredOrder>> LoadOrdersAsync()
+    private async Task<List<StoredOrder>> LoadOrdersAsync(CancellationToken ct = default)
     {
         if (!File.Exists(_filePath))
             return [];
 
-        var json = await File.ReadAllTextAsync(_filePath);
-        return JsonSerializer.Deserialize<List<StoredOrder>>(json) ?? [];
+        try
+        {
+            var json = await File.ReadAllTextAsync(_filePath, ct);
+            return JsonSerializer.Deserialize<List<StoredOrder>>(json) ?? [];
+        }
+        catch (JsonException)
+        {
+            // Битый/legacy-шейп (master сериализовал List<Order>) — не роняем Outbox,
+            // начинаем с пустого файла (потеря legacy-данных допустима для fallback).
+            return [];
+        }
     }
 
-    private async Task SaveOrdersAsync(List<StoredOrder> orders)
+    private async Task SaveOrdersAsync(List<StoredOrder> orders, CancellationToken ct = default)
     {
         var options = new JsonSerializerOptions { WriteIndented = true };
-        await File.WriteAllTextAsync(_filePath, JsonSerializer.Serialize(orders, options));
+        await File.WriteAllTextAsync(_filePath, JsonSerializer.Serialize(orders, options), ct);
     }
 }

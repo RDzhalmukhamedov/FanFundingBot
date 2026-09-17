@@ -36,11 +36,20 @@ public class UIRenderer : IUIRenderer
     {
         var session = _stateService.Get(userId);
         if (session == null) return;
+        if (session.SelectedProjectId is null)
+        {
+            _logger.LogDebug("ShowConfirmation: missing SelectedProjectId for user {UserId}", userId);
+            return;
+        }
 
         var projectResult = await _mediator.Send(
-            new GetProjectByIdQuery(session.SelectedProjectId!.Value), ct);
+            new GetProjectByIdQuery(session.SelectedProjectId.Value), ct);
         if (projectResult.IsFailed)
+        {
+            _logger.LogDebug("ShowConfirmation: project {ProjectId} load failed for user {UserId}: {Errors}",
+                session.SelectedProjectId, userId, string.Join("; ", projectResult.Errors.Select(e => e.Message)));
             return;
+        }
 
         var project = projectResult.Value;
         var (previewLines, totalPrice) = OrderPreview.Build(
@@ -68,14 +77,21 @@ public class UIRenderer : IUIRenderer
 
         if (session.EditMessageId.HasValue)
         {
-            await botClient.EditMessageText(
-                chatId, session.EditMessageId.Value, text,
-                parseMode: ParseMode.Html,
-                replyMarkup: keyboard,
-                cancellationToken: ct);
-            _stateService.Update(userId, session);
+            try
+            {
+                await botClient.EditMessageText(
+                    chatId, session.EditMessageId.Value, text,
+                    parseMode: ParseMode.Html,
+                    replyMarkup: keyboard,
+                    cancellationToken: ct);
+                _stateService.Update(userId, session);
 
-            return;
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "EditMessageText failed, falling back to SendMessage for chat {ChatId}", chatId);
+            }
         }
 
         var sent = await botClient.SendMessage(

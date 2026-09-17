@@ -196,6 +196,9 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Order")
+                        .IsUnique();
+
                     b.ToTable("ProjectStatusEntries");
                 });
 

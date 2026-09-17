@@ -1,3 +1,4 @@
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Application.Orders.Commands;
 using FanFundingBot.Application.Orders.Queries;
 using FanFundingBot.Domain.DomainEvents;
@@ -266,13 +267,14 @@ public class DeleteOrderCommandTests
     }
 
     [Test]
-    public async Task NotFound_ShouldSucceed()
+    public async Task NotFound_ShouldFail()
     {
         _orders.GetByIdWithAddonsAsync(Arg.Any<Guid>()).Returns((Order?)null);
 
         var result = await _handler.Handle(new DeleteOrderCommand(Guid.NewGuid(), 1), CancellationToken.None);
 
-        result.IsSuccess.Should().BeTrue();
+        result.IsFailed.Should().BeTrue();
+        result.HasError<NotFoundError>().Should().BeTrue();
         await _orders.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
     }
 

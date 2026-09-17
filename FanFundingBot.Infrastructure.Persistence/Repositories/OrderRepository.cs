@@ -98,7 +98,8 @@ public class OrderRepository : IOrderRepository
     public async Task UpdateAsync(Order order)
     {
         // Позиции всегда перезаписываются целиком: удаляем строки и вставляем заново.
-        // (В Фазе 2 будет UnitOfWork с корректным трекингом агрегата.)
+        // Сам заказ — Attach + точечные скаляры: Update() всего графа метил бы Modified
+        // связанные User/Project/Addon и перезаписал бы справочники полями из навигаций.
         var tracked = _context.ChangeTracker.Entries<Order>()
             .FirstOrDefault(e => e.Entity.Id == order.Id);
         if (tracked is not null)
@@ -109,7 +110,11 @@ public class OrderRepository : IOrderRepository
             .ToListAsync();
         _context.OrderPositions.RemoveRange(existing);
 
-        _context.Orders.Update(order);
+        _context.Orders.Attach(order);
+        _context.Entry(order).Property(o => o.Phone).IsModified = true;
+        _context.Entry(order).Property(o => o.DeliveryMethod).IsModified = true;
+        _context.Entry(order).Property(o => o.Address).IsModified = true;
+        _context.Entry(order).Property(o => o.Status).IsModified = true;
         foreach (var position in order.OrderAddons)
             _context.Entry(position).State = EntityState.Added;
     }

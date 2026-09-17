@@ -9,9 +9,11 @@ public class InputValidationTests
 {
     [TestCase("+71234567890", null)]
     [TestCase("81234567890", null)]
+    [TestCase("+375291234567", null)]
+    [TestCase("+380671234567", null)]
     [TestCase("", "Пожалуйста, введите номер телефона.")]
     [TestCase(null, "Пожалуйста, введите номер телефона.")]
-    [TestCase("123", "Пожалуйста, введите корректный номер телефона в формате +7XXXXXXXXXX или 8XXXXXXXXXX.")]
+    [TestCase("123", "Пожалуйста, введите корректный номер телефона в формате +XXXXXXXXXXX (8–15 цифр).")]
     public void ValidatePhone_ShouldMatchExpected(string? input, string? expected)
     {
         InputValidation.ValidatePhone(input).Should().Be(expected);

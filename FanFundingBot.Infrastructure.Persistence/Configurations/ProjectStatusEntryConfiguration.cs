@@ -17,6 +17,9 @@ public class ProjectStatusEntryConfiguration : IEntityTypeConfiguration<ProjectS
         builder.Property(e => e.Order)
             .IsRequired();
 
+        builder.HasIndex(e => e.Order)
+            .IsUnique();
+
         builder.Property(e => e.CanEditOrders)
             .IsRequired();
 

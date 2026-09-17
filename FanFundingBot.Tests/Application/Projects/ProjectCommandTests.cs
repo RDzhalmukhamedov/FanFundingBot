@@ -1,4 +1,5 @@
 using FanFundingBot.Application.Abstractions;
+using FanFundingBot.Application.Common.Errors;
 using FanFundingBot.Application.Projects.Commands;
 using FanFundingBot.Application.Projects.DTOs;
 using FanFundingBot.Application.Projects.Queries;
@@ -329,35 +330,30 @@ public class StatusAndMemberCommandTests
     public async Task CreateProjectStatus_Happy_ShouldAdd()
     {
         var statuses = Substitute.For<IProjectStatusRepository>();
-        statuses.GetMaxOrderAsync().Returns(2);
-        ProjectStatus? saved = null;
-        await statuses.AddAsync(Arg.Do<ProjectStatus>(s => saved = s));
+        statuses.AddWithNextOrderAsync("Draft", true, Arg.Any<CancellationToken>())
+            .Returns(new ProjectStatus("Draft", 3, true));
 
         var handler = new CreateProjectStatusCommandHandler(statuses);
         var result = await handler.Handle(
             new CreateProjectStatusCommand(1, "Draft", true), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        saved.Should().NotBeNull();
-        saved!.DisplayName.Should().Be("Draft");
-        saved!.Order.Should().Be(3);
+        await statuses.Received(1).AddWithNextOrderAsync("Draft", true, Arg.Any<CancellationToken>());
     }
 
     [Test]
-    public async Task CreateProjectStatus_NoStatuses_ShouldStartFromOne()
+    public async Task CreateProjectStatus_OrderConflict_ShouldFailWithConflict()
     {
         var statuses = Substitute.For<IProjectStatusRepository>();
-        statuses.GetMaxOrderAsync().Returns(0);
-        ProjectStatus? saved = null;
-        await statuses.AddAsync(Arg.Do<ProjectStatus>(s => saved = s));
+        statuses.When(x => x.AddWithNextOrderAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()))
+            .Do(_ => throw new ProjectStatusOrderConflictException());
 
         var handler = new CreateProjectStatusCommandHandler(statuses);
         var result = await handler.Handle(
             new CreateProjectStatusCommand(1, "Draft", true), CancellationToken.None);
 
-        result.IsSuccess.Should().BeTrue();
-        saved.Should().NotBeNull();
-        saved!.Order.Should().Be(1);
+        result.IsFailed.Should().BeTrue();
+        result.HasError<ConflictError>().Should().BeTrue();
     }
 
     [Test]

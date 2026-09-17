@@ -399,6 +399,15 @@ public class EntityTests
         });
     }
 
+    [TestCase("81234567890", "+71234567890")]
+    [TestCase("+375291234567", "+375291234567")]
+    [TestCase("+380671234567", "+380671234567")]
+    [TestCase("+7 (123) 456-78-90", "+71234567890")]
+    public void PhoneNumber_Normalize_ShouldStoreE164(string input, string expected)
+    {
+        Assert.That(PhoneNumber.Create(input).ToString(), Is.EqualTo(expected));
+    }
+
     [Test]
     public void Address_Create_Empty_ShouldThrow()
     {

@@ -31,6 +31,9 @@ public sealed class ProjectSheetLinkService
         if (!await _authorization.CanManageProjectAsync(_me.GetCurrentUserId(), projectId))
             return Result.Fail<string>(ResultErrors.Forbidden());
 
+        if (string.IsNullOrWhiteSpace(_sheets.SpreadsheetId))
+            return Result.Fail<string>(new NotFoundError("sheet.not_found", "Ссылка на таблицу не настроена."));
+
         return Result.Ok($"https://docs.google.com/spreadsheets/d/{_sheets.SpreadsheetId}");
     }
 }
