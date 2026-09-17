@@ -86,10 +86,15 @@ public class OutboxProcessor : BackgroundService
         {
             // Per-message tx: захват пачки короткой транзакцией, затем обработка каждого
             // сообщения в своей транзакции, чтобы не держать FOR UPDATE на время сети к Sheets.
-            List<Guid> ids;
-            await using (var tx = await dbContext.Database.BeginTransactionAsync(cancellationToken))
+            var strategy = dbContext.Database.CreateExecutionStrategy();
+
+            // Захват пачки: короткая транзакция. Транзакция должна выполняться внутри
+            // execution strategy, т.к. NpgsqlRetryingExecutionStrategy не поддерживает
+            // user-initiated transactions вне её.
+            var ids = await strategy.ExecuteAsync(async () =>
             {
-                ids = await dbContext.OutboxMessages
+                await using var tx = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+                var captured = await dbContext.OutboxMessages
                     .FromSqlRaw(
                         """
                         SELECT * FROM "OutboxMessages"
@@ -101,7 +106,8 @@ public class OutboxProcessor : BackgroundService
                     .Select(m => m.Id)
                     .ToListAsync(cancellationToken);
                 await tx.CommitAsync(cancellationToken);
-            }
+                return captured;
+            });
 
             if (ids.Count == 0)
                 return 0;
@@ -114,36 +120,41 @@ public class OutboxProcessor : BackgroundService
 
             foreach (var message in messages)
             {
-                await using var tx = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-                // Перезагружаем с блокировкой на время обработки одного сообщения.
-                var locked = await dbContext.OutboxMessages
-                    .FromSqlRaw(
-                        """
-                        SELECT * FROM "OutboxMessages" WHERE "Id" = {0} FOR UPDATE
-                        """,
-                        message.Id)
-                    .SingleOrDefaultAsync(cancellationToken);
-
-                if (locked is null || locked.Processed)
+                // Обработка одного сообщения — ретраибельная единица целиком
+                // (lock -> dispatch -> save -> commit).
+                await strategy.ExecuteAsync(async () =>
                 {
+                    await using var tx = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+                    // Перезагружаем с блокировкой на время обработки одного сообщения.
+                    var locked = await dbContext.OutboxMessages
+                        .FromSqlRaw(
+                            """
+                            SELECT * FROM "OutboxMessages" WHERE "Id" = {0} FOR UPDATE
+                            """,
+                            message.Id)
+                        .SingleOrDefaultAsync(cancellationToken);
+
+                    if (locked is null || locked.Processed)
+                    {
+                        await tx.CommitAsync(cancellationToken);
+                        return;
+                    }
+
+                    try
+                    {
+                        await DispatchAsync(locked, orders, storage, cancellationToken);
+                        locked.MarkProcessed();
+                    }
+                    catch (Exception ex)
+                    {
+                        locked.MarkFailed(ex);
+                        _logger.LogError(ex, "Outbox dispatch failed for {MessageId} ({MessageType})",
+                            locked.Id, locked.Type);
+                    }
+
+                    await dbContext.SaveChangesAsync(cancellationToken);
                     await tx.CommitAsync(cancellationToken);
-                    continue;
-                }
-
-                try
-                {
-                    await DispatchAsync(locked, orders, storage, cancellationToken);
-                    locked.MarkProcessed();
-                }
-                catch (Exception ex)
-                {
-                    locked.MarkFailed(ex);
-                    _logger.LogError(ex, "Outbox dispatch failed for {MessageId} ({MessageType})",
-                        locked.Id, locked.Type);
-                }
-
-                await dbContext.SaveChangesAsync(cancellationToken);
-                await tx.CommitAsync(cancellationToken);
+                });
             }
 
             return messages.Count;

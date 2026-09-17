@@ -10,7 +10,7 @@
 <EditForm Model="Form" OnValidSubmit="SaveAsync">
     <DataAnnotationsValidator />
 
-    <div class="form card">
+    <div class="form card form-centered">
         <label class="project-field-label">Название</label>
         <FluentTextField @bind-Value="Form.Name" Maxlength="256" aria-label="Название" />
         <FluentValidationMessage For="@(() => Form.Name)" />
@@ -18,7 +18,9 @@
         <label class="project-field-label">Описание</label>
         <FluentTextArea @bind-Value="Form.Description" Rows="4" Maxlength="2048" aria-label="Описание" />
         <FluentValidationMessage For="@(() => Form.Description)" />
+    </div>
 
+    <div class="card">
         <h3>Дополнения</h3>
         @for (var i = 0; i < Addons.Count; i++)
         {

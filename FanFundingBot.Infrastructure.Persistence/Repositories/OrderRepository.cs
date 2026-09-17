@@ -103,7 +103,16 @@ public class OrderRepository : IOrderRepository
         var tracked = _context.ChangeTracker.Entries<Order>()
             .FirstOrDefault(e => e.Entity.Id == order.Id);
         if (tracked is not null)
+        {
+            // [same-instance update]: aggregate already tracked and mutated in place
+            // (e.g. status change). Positions here ARE the DB rows: detach +
+            // Deleted->Added would cancel the delete and re-insert the same PKs
+            // (23505 PK_OrderPositions). Leave the graph as is; SaveChanges
+            // will persist the mutated scalars.
+            if (ReferenceEquals(tracked.Entity, order))
+                return;
             tracked.State = EntityState.Detached;
+        }
 
         var existing = await _context.OrderPositions
             .Where(p => p.OrderId == order.Id)

@@ -20,7 +20,7 @@ public abstract class RepositoryTestBase
         return context;
     }
 
-    private static void SeedStatuses(AppDbContext context)
+    protected static void SeedStatuses(AppDbContext context)
     {
         context.ProjectStatusEntries.AddRange(
             new ProjectStatus("Запланирован", 1, true),
@@ -378,6 +378,130 @@ public class OrderRepositoryTests : RepositoryTestBase
             Assert.That(loaded.OrderAddons[0].Addon.Name, Is.EqualTo("A1"));
             Assert.That(loaded.User.Id, Is.EqualTo(1));
         });
+    }
+
+    [Test]
+    public async Task UpdateAsync_WhenSameTrackedInstance_ShouldNotDuplicatePositions()
+    {
+        // [regression] 23505 PK_OrderPositions: same tracked aggregate instance
+        // must not go through the delete+re-insert positions dance.
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        Guid orderId;
+        using (var context = new AppDbContext(options))
+        {
+            SeedStatuses(context);
+            IUserRepository userRepo = new UserRepository(context);
+            IProjectRepository projectRepo = new ProjectRepository(context);
+            IOrderRepository repo = new OrderRepository(context);
+
+            var user = DomainTestFactory.NewCustomer(1);
+            await userRepo.AddAsync(user);
+            var project = NewProject(context);
+            var addon = DomainTestFactory.NewAddon(name: "A1", price: 50);
+            project.AddAddon(addon);
+            await projectRepo.AddAsync(project);
+
+            var draft = new DraftOrder(user, project);
+            draft.AddAddon(addon, 2);
+            draft.SetPhoneNumber("+71234567890");
+            draft.SetDeliveryMethod(DeliveryMethod.Pickup);
+            var formed = draft.Form();
+            orderId = formed.Id;
+            await repo.AddAsync(formed);
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new AppDbContext(options))
+        {
+            IOrderRepository repo = new OrderRepository(context);
+
+            var loaded = await repo.GetByIdWithAddonsAsync(orderId);
+            Assert.That(loaded, Is.Not.Null);
+
+            loaded!.SetStatus(OrderStatus.Confirmed);
+            await repo.UpdateAsync(loaded);
+            await context.SaveChangesAsync();
+        }
+
+        using (var verify = new AppDbContext(options))
+        {
+            var order = await verify.Orders
+                .Include(o => o.OrderAddons)
+                .SingleAsync(o => o.Id == orderId);
+            Assert.Multiple(() =>
+            {
+                Assert.That(order.Status, Is.EqualTo(OrderStatus.Confirmed));
+                Assert.That(order.OrderAddons, Has.Count.EqualTo(1));
+                Assert.That(order.OrderAddons[0].Quantity, Is.EqualTo(Quantity.Create(2)));
+            });
+        }
+    }
+
+    [Test]
+    public async Task UpdateAsync_WhenRebuiltInstance_ShouldMarkReplacedPositionsInTracker()
+    {
+        // Rebuilt aggregate (Edit/Form path): old rows Deleted, new rows Added.
+        // Store round-trip is not asserted: the InMemory provider cannot apply a
+        // delete+insert batch like this in one save (relational providers can).
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        Guid orderId;
+        using (var context = new AppDbContext(options))
+        {
+            SeedStatuses(context);
+            IUserRepository userRepo = new UserRepository(context);
+            IProjectRepository projectRepo = new ProjectRepository(context);
+            IOrderRepository repo = new OrderRepository(context);
+
+            var user = DomainTestFactory.NewCustomer(1);
+            await userRepo.AddAsync(user);
+            var project = NewProject(context);
+            var addon = DomainTestFactory.NewAddon(name: "A1", price: 50);
+            project.AddAddon(addon);
+            project.AddAddon(DomainTestFactory.NewAddon(name: "A2", price: 70));
+            await projectRepo.AddAsync(project);
+
+            var draft = new DraftOrder(user, project);
+            draft.AddAddon(addon, 2);
+            draft.SetPhoneNumber("+71234567890");
+            draft.SetDeliveryMethod(DeliveryMethod.Pickup);
+            var formed = draft.Form();
+            orderId = formed.Id;
+            await repo.AddAsync(formed);
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new AppDbContext(options))
+        {
+            IOrderRepository repo = new OrderRepository(context);
+
+            var loaded = await repo.GetByIdWithAddonsAsync(orderId);
+            var oldAddonId = loaded!.OrderAddons[0].AddonId;
+            var rebuilt = loaded.Edit();
+            var addon2 = await context.Addons.SingleAsync(a => a.Name == "A2");
+            foreach (var position in rebuilt.OrderAddons.ToList())
+                rebuilt.DeleteAddon(position.Addon);
+            rebuilt.AddAddon(addon2, 3);
+
+            await repo.UpdateAsync(rebuilt);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(context.Entry(rebuilt).State, Is.EqualTo(EntityState.Modified));
+                var added = context.ChangeTracker.Entries<OrderPosition>()
+                    .Where(e => e.State == EntityState.Added).ToList();
+                var deleted = context.ChangeTracker.Entries<OrderPosition>()
+                    .Where(e => e.State == EntityState.Deleted).ToList();
+                Assert.That(added, Has.Count.EqualTo(1));
+                Assert.That(added[0].Entity.AddonId, Is.EqualTo(addon2.Id));
+                Assert.That(added[0].Entity.OrderId, Is.EqualTo(orderId));
+                Assert.That(deleted, Has.Count.EqualTo(1));
+                Assert.That(deleted[0].Entity.AddonId, Is.EqualTo(oldAddonId));
+            });
+        }
     }
 }
 

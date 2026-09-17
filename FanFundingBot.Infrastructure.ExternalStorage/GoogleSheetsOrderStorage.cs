@@ -363,7 +363,7 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
             var addonName = oa.Addon?.Name ?? oa.AddonId.ToString();
             var addonId = oa.Addon?.Id ?? oa.AddonId;
             var price = oa.Addon?.Price ?? 0m;
-            addonsParts.Add($"{addonName} × {oa.Quantity}");
+            addonsParts.Add($"{addonName} × {(int)oa.Quantity}");
             addonIdsParts.Add($"{addonId}|{price:F2}");
         }
 
@@ -372,7 +372,7 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
             order.Id.ToString(),
             telegramNick,
             userName,
-            order.Phone,
+            order.Phone.ToString(),
             projectName,
             order.DeliveryMethod.ToString(),
             order.Address ?? "",
