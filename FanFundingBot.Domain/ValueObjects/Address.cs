@@ -14,10 +14,15 @@ public readonly record struct Address
         if (string.IsNullOrWhiteSpace(value))
             throw new DomainException("Адрес не может быть пустым.");
 
-        if (!value.IsValidAddress())
+        var trimmed = value.Trim();
+
+        if (trimmed.Length > 256)
+            throw new DomainException("Адрес слишком длинный (макс. 256).", "address.too_long");
+
+        if (!trimmed.IsValidAddress())
             throw new DomainException("Некорректный адрес доставки.");
 
-        return new Address(value.Trim());
+        return new Address(trimmed);
     }
 
     public override string ToString() => _value ?? string.Empty;

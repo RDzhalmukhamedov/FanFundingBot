@@ -5,6 +5,7 @@ using FanFundingBot.Bot.Abstractions;
 using FanFundingBot.Bot.Helpers;
 using FanFundingBot.Bot.Keyboards;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -16,20 +17,28 @@ public class AdminQuestionCallbackHandler : IAdminQuestionCallbackHandler
     private readonly IUserStateService _stateService;
     private readonly IMediator _mediator;
     private readonly MainMenuHelper _menuHelper;
+    private readonly ILogger<AdminQuestionCallbackHandler> _logger;
 
     public AdminQuestionCallbackHandler(
         IUserStateService stateService,
         IMediator mediator,
-        MainMenuHelper menuHelper)
+        MainMenuHelper menuHelper,
+        ILogger<AdminQuestionCallbackHandler>? logger = null)
     {
         _stateService = stateService;
         _mediator = mediator;
         _menuHelper = menuHelper;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AdminQuestionCallbackHandler>.Instance;
     }
 
     public async Task HandleAdminSelectQuestionAsync(ITelegramBotClient botClient, CallbackQuery query, long userId, string data, CancellationToken ct)
     {
-        var questionId = CallbackData.GuidArg(data);
+        if (!Guid.TryParse(CallbackData.FirstArg(data), out var questionId))
+        {
+            _logger.LogWarning("Invalid questionId callback {Data}", data);
+            await botClient.AnswerCallbackQuery(query.Id, "Некорректные данные.", cancellationToken: ct);
+            return;
+        }
         var session = _stateService.GetOrCreate(userId);
         session.PendingAction = "answer_question";
         session.PendingQuestionId = questionId;

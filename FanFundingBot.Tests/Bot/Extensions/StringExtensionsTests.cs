@@ -7,6 +7,7 @@ public class StringExtensionsTests
 {
     [TestCase("+71234567890")]
     [TestCase("81234567890")]
+    [TestCase("79123456789")]
     [TestCase("+79998887766")]
     [TestCase("+71111111111")]
     [TestCase("+375291234567")]
@@ -24,7 +25,6 @@ public class StringExtensionsTests
     [TestCase("phone")]
     [TestCase("+7123456")]
     [TestCase("+1234567890123456")]
-    [TestCase("79123456789")]
     [TestCase("abc")]
     public void IsValidPhone_InvalidPhones_ShouldReturnFalse(string? phone)
     {

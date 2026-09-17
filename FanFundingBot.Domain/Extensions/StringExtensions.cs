@@ -13,8 +13,13 @@ public static partial class StringExtensions
 
         var cleaned = System.Text.RegularExpressions.Regex.Replace(phone, @"[\s\-\(\)\.]", "");
 
-        if (cleaned.Length == 11 && cleaned[0] == '8' && cleaned.All(char.IsDigit))
-            cleaned = "+7" + cleaned[1..];
+        if (cleaned.Length == 11 && cleaned.All(char.IsDigit))
+        {
+            if (cleaned[0] == '8')
+                cleaned = "+7" + cleaned[1..];
+            else if (cleaned[0] == '7')
+                cleaned = "+" + cleaned;
+        }
 
         return cleaned;
     }

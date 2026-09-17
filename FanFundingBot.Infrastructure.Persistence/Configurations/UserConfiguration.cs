@@ -29,7 +29,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasConversion(
                 v => v.HasValue ? v.Value.ToString() : null,
                 v => string.IsNullOrEmpty(v) ? (PhoneNumber?)null : PhoneNumber.Create(v))
-            .HasMaxLength(32);
+            .HasMaxLength(16);
 
         builder.Property(u => u.Role)
             .HasConversion<string>()
