@@ -7,7 +7,7 @@ namespace FanFundingBot.Infrastructure.ExternalStorage;
 public class FileOrderStorage : IOrderExternalStorage
 {
     private readonly string _filePath;
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    private static readonly SemaphoreSlim _gate = new(1, 1);
 
     private sealed record StoredPosition(Guid AddonId, string AddonName, decimal Price, int Quantity);
     private sealed record StoredOrder(

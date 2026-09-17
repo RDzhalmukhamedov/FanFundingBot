@@ -13,8 +13,8 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
     private readonly ILogger<GoogleSheetsOrderStorage> _logger;
     private readonly GoogleSheetsOptions _options;
     private SheetsService? _sheetsService;
-    private bool _initialized;
-    private readonly object _initLock = new();
+    private volatile bool _initialized;
+    private readonly SemaphoreSlim _initGate = new(1, 1);
 
     private const string OrdersSheet = "Orders";
     private const string OrdersHistorySheet = "OrdersHistory";
@@ -172,13 +172,13 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
         if (_initialized)
             return;
 
-        lock (_initLock)
+        await _initGate.WaitAsync(cancellationToken);
+        try
         {
             if (_initialized)
                 return;
-        }
 
-        var service = GetSheetsService();
+            var service = GetSheetsService();
 
         var spreadsheet = await service.Spreadsheets.Get(_options.SpreadsheetId).ExecuteAsync(cancellationToken);
         var existingSheets = spreadsheet.Sheets?.Select(s => s.Properties?.Title).ToHashSet() ?? [];
@@ -205,7 +205,12 @@ public class GoogleSheetsOrderStorage : IOrderExternalStorage
         await EnsureHeadersAsync(service, OrdersHistorySheet, HistoryHeaders, cancellationToken);
         await EnsureHeadersAsync(service, AddonsSheet, AddonsHeaders, cancellationToken);
 
-        _initialized = true;
+            _initialized = true;
+        }
+        finally
+        {
+            _initGate.Release();
+        }
     }
 
     private async Task EnsureHeadersAsync(SheetsService service, string sheetName, string[] headers, CancellationToken cancellationToken)

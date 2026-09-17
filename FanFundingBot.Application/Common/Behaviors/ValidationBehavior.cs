@@ -1,3 +1,4 @@
+using FanFundingBot.Application.Common.Errors;
 using FluentResults;
 using FluentValidation;
 
@@ -31,7 +32,7 @@ public class ValidationBehavior<TRequest, TResponse> : MediatR.IPipelineBehavior
 
         var response = new TResponse();
         foreach (var failure in failures)
-            response.Reasons.Add(new Error(failure.ErrorMessage));
+            response.Reasons.Add(new ValidationError("validation.failed", failure.ErrorMessage));
 
         return response;
     }

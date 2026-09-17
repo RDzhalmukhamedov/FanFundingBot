@@ -11,8 +11,7 @@ public static partial class StringExtensions
         if (string.IsNullOrWhiteSpace(phone))
             return null;
 
-        var cleaned = phone.Replace(" ", "").Replace("\t", "")
-            .Replace("-", "").Replace("(", "").Replace(")", "").Replace(".", "");
+        var cleaned = System.Text.RegularExpressions.Regex.Replace(phone, @"[\s\-\(\)\.]", "");
 
         if (cleaned.Length == 11 && cleaned[0] == '8' && cleaned.All(char.IsDigit))
             cleaned = "+7" + cleaned[1..];

@@ -126,7 +126,7 @@ public class UserCallbackQueryHandler : IUserCallbackQueryHandler
         await botClient.EditMessageText(
             query.Message!.Chat.Id,
             query.Message.MessageId,
-            "📞 Введите ваш номер телефона в формате +7XXXXXXXXXX или 8XXXXXXXXXX\n\n" +
+            "📞 Введите ваш номер телефона в формате +XXXXXXXXXXX (8–15 цифр)\n\n" +
             "Или отправьте контакт, используя кнопку 📎 -> Контакт.",
             replyMarkup: null,
             cancellationToken: ct);

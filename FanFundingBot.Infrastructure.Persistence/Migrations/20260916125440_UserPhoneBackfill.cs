@@ -18,9 +18,13 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
             migrationBuilder.Sql(
                 """
                 UPDATE "Users" SET "Phone" =
-                  CASE WHEN regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') ~ '^8[0-9]{10}$'
-                    THEN '+7' || substring(regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') from 2)
-                    ELSE regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') END
+                  CASE
+                    WHEN regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') ~ '^8[0-9]{10}$'
+                      THEN '+7' || substring(regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') from 2)
+                    WHEN regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') ~ '^7[0-9]{10}$'
+                      THEN '+' || regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g')
+                    ELSE regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g')
+                  END
                 WHERE "Phone" IS NOT NULL;
                 """);
             migrationBuilder.Sql(
@@ -37,9 +41,13 @@ namespace FanFundingBot.Infrastructure.Persistence.Migrations
             migrationBuilder.Sql(
                 """
                 UPDATE "Orders" SET "Phone" =
-                  CASE WHEN regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') ~ '^8[0-9]{10}$'
-                    THEN '+7' || substring(regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') from 2)
-                    ELSE regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') END
+                  CASE
+                    WHEN regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') ~ '^8[0-9]{10}$'
+                      THEN '+7' || substring(regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') from 2)
+                    WHEN regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g') ~ '^7[0-9]{10}$'
+                      THEN '+' || regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g')
+                    ELSE regexp_replace("Phone", '[\s\-\(\)\.]', '', 'g')
+                  END
                 WHERE "Phone" IS NOT NULL
                   AND "Phone" <> '';
                 """);

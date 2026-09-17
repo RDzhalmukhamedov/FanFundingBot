@@ -30,27 +30,34 @@ public class AuthorizationBehavior<TRequest, TResponse> : MediatR.IPipelineBehav
     {
         var userId = _currentUser.GetCurrentUserId();
 
-        bool allowed = request switch
+        if (request is IRequireAddonAccess aa)
+        {
+            var projectId = await _projects.GetProjectIdByAddonAsync(aa.AddonId);
+            if (projectId is null)
+            {
+                var notFound = new TResponse();
+                notFound.Reasons.Add(ResultErrors.AddonNotFound());
+                return notFound;
+            }
+
+            var allowed = await _authorization.CanManageProjectAsync(userId, projectId.Value);
+            if (!allowed)
+                return Denied();
+
+            return await next();
+        }
+
+        bool allowedGeneral = request switch
         {
             IRequireGlobalAdmin => await _authorization.CanCreateProjectAsync(userId),
             IRequireProjectAccess pa => await _authorization.CanManageProjectAsync(userId, pa.ProjectId),
-            IRequireAddonAccess aa => await CheckAddonAsync(userId, aa.AddonId),
             _ => true
         };
 
-        if (!allowed)
+        if (!allowedGeneral)
             return Denied();
 
         return await next();
-    }
-
-    private async Task<bool> CheckAddonAsync(long userId, Guid addonId)
-    {
-        var projectId = await _projects.GetProjectIdByAddonAsync(addonId);
-        if (projectId is null)
-            return false;
-
-        return await _authorization.CanManageProjectAsync(userId, projectId.Value);
     }
 
     private static TResponse Denied()

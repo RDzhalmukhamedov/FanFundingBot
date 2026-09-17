@@ -18,10 +18,13 @@ public class ContactHandler : IContactHandler
         var contact = message.Contact!;
         var phone = contact.PhoneNumber ?? string.Empty;
 
-        if (!phone.StartsWith("+"))
-        {
-            phone = "+" + phone;
-        }
+        var cleaned = System.Text.RegularExpressions.Regex.Replace(phone, @"[\s\-\(\)\.]", "");
+        if (cleaned.Length == 11 && cleaned[0] == '8' && cleaned.All(char.IsDigit))
+            phone = "+7" + cleaned[1..];
+        else if (cleaned.Length == 11 && cleaned[0] == '7' && cleaned.All(char.IsDigit))
+            phone = "+" + cleaned;
+        else
+            phone = FanFundingBot.Domain.Extensions.StringExtensions.NormalizePhone(phone) ?? phone.Trim();
 
         await _commandHandler.HandlePhoneContactAsync(botClient, message, phone, ct);
     }
